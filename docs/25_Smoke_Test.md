@@ -1,0 +1,416 @@
+# 25_Smoke_Test.md
+## Smoke Test：本番想定の最小テスト手順
+
+---
+
+## 0. 前提
+
+- Supabase の migration がすべて適用済み
+- Next.js dev サーバーが `http://localhost:3000` で起動済み
+- nodes テーブルに 1 件以上の Node が存在する
+- 以下の `{NODE_ID}` を既存 Node の ID に置き換えて実行する
+- Node の現在 status を確認してから各テストを実行する
+
+```bash
+# 現在の status を確認
+curl -s http://localhost:3000/api/dashboard | jq '.trays | to_entries[] | .value[] | select(.id=="{NODE_ID}") | {id, status}'
+```
+
+---
+
+## 1. 正常系：human_ui の confirmation 発行 → Apply → consumed
+
+### 1.1 confirmation を発行
+
+```bash
+CONF=$(curl -s -X POST http://localhost:3000/api/confirmations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "node_id": "{NODE_ID}",
+    "ui_action": "smoke_test",
+    "proposed_change": {"type":"status_change","from":"{CURRENT_STATUS}","to":"{TARGET_STATUS}"}
+  }')
+echo "$CONF" | jq .
+CONF_ID=$(echo "$CONF" | jq -r '.confirmation.confirmation_id')
+echo "confirmation_id: $CONF_ID"
+```
+
+期待：`"ok": true`、`confirmation_id` が UUID。
+
+### 1.2 Apply を実行
+
+```bash
+curl -s -X POST http://localhost:3000/api/nodes/{NODE_ID}/estimate-status \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"intent\": \"smoke test\",
+    \"confirm_status\": \"{TARGET_STATUS}\",
+    \"reason\": \"smoke test apply\",
+    \"source\": \"human_ui\",
+    \"confirmation\": {\"confirmation_id\": \"$CONF_ID\"}
+  }" | jq .
+```
+
+期待：`"ok": true, "applied": true, "source": "human_ui"`。
+
+### 1.3 SQL で確認
+
+```sql
+-- confirmation_events が consumed=true になっている
+SELECT confirmation_id, consumed, consumed_at
+FROM confirmation_events WHERE confirmation_id = '{CONF_ID}';
+
+-- node_status_history に confirmation_id が記録されている
+SELECT node_id, from_status, to_status, source, confirmation_id, consumed
+FROM node_status_history WHERE confirmation_id = '{CONF_ID}';
+```
+
+---
+
+## 2. 403：source=batch の Apply 拒否
+
+```bash
+curl -s -w "\nHTTP: %{http_code}\n" \
+  -X POST http://localhost:3000/api/nodes/{NODE_ID}/estimate-status \
+  -H "Content-Type: application/json" \
+  -d '{"intent":"test","confirm_status":"COOLING","reason":"test","source":"batch"}'
+```
+
+期待：**HTTP 403**  
+```json
+{"ok":false,"error":"Apply from source \"batch\" is forbidden (18_Skill_Governance §3.3)"}
+```
+
+---
+
+## 3. 403：ai_agent の confirmation なし
+
+```bash
+curl -s -w "\nHTTP: %{http_code}\n" \
+  -X POST http://localhost:3000/api/nodes/{NODE_ID}/estimate-status \
+  -H "Content-Type: application/json" \
+  -d '{"intent":"test","confirm_status":"READY","reason":"test","source":"ai_agent"}'
+```
+
+期待：**HTTP 403**  
+```json
+{"ok":false,"error":"source=\"ai_agent\" requires confirmation_id ..."}
+```
+
+---
+
+## 4. 403：期限切れ confirmation
+
+### 4.1 期限切れ confirmation を手動作成
+
+```sql
+INSERT INTO confirmation_events (
+  confirmation_id, node_id, confirmed_by, confirmed_at,
+  ui_action, proposed_change, consumed, expires_at
+) VALUES (
+  '00000000-0000-0000-0000-expired00001',
+  '{NODE_ID}', 'human', '2025-01-01T00:00:00Z',
+  'test_expired',
+  '{"type":"status_change","from":"{CURRENT_STATUS}","to":"{TARGET_STATUS}"}',
+  false,
+  '2025-01-02T00:00:00Z'
+);
+```
+
+### 4.2 Apply を試行
+
+```bash
+curl -s -w "\nHTTP: %{http_code}\n" \
+  -X POST http://localhost:3000/api/nodes/{NODE_ID}/estimate-status \
+  -H "Content-Type: application/json" \
+  -d '{
+    "intent":"test","confirm_status":"{TARGET_STATUS}","reason":"test",
+    "source":"human_ui",
+    "confirmation":{"confirmation_id":"00000000-0000-0000-0000-expired00001"}
+  }'
+```
+
+期待：**HTTP 403**  
+```json
+{"ok":false,"error":"confirmation 00000000-0000-0000-0000-expired00001 has expired ..."}
+```
+
+---
+
+## 5. 409：consumed 済み confirmation の再利用
+
+テスト 1 で使用した `CONF_ID`（consumed=true）を再利用する。
+
+```bash
+curl -s -w "\nHTTP: %{http_code}\n" \
+  -X POST http://localhost:3000/api/nodes/{NODE_ID}/estimate-status \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"intent\": \"reuse test\",
+    \"confirm_status\": \"{TARGET_STATUS}\",
+    \"reason\": \"test\",
+    \"source\": \"human_ui\",
+    \"confirmation\": {\"confirmation_id\": \"$CONF_ID\"}
+  }"
+```
+
+期待：**HTTP 409**  
+```json
+{"ok":false,"error":"confirmation {CONF_ID} is already consumed ..."}
+```
+
+---
+
+## 6. 422：不正遷移 → confirmation は consumed されない
+
+### 6.1 不正遷移用の confirmation を発行
+
+```bash
+# READY → DONE は遷移不可（IN_PROGRESS を経由する必要がある）
+CONF2=$(curl -s -X POST http://localhost:3000/api/confirmations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "node_id": "{NODE_ID}",
+    "ui_action": "smoke_test_422",
+    "proposed_change": {"type":"status_change","from":"READY","to":"DONE"}
+  }')
+CONF2_ID=$(echo "$CONF2" | jq -r '.confirmation.confirmation_id')
+```
+
+注意：Node が `READY` 状態であることを確認してから実行。
+
+### 6.2 Apply を試行
+
+```bash
+curl -s -w "\nHTTP: %{http_code}\n" \
+  -X POST http://localhost:3000/api/nodes/{NODE_ID}/estimate-status \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"intent\": \"422 test\",
+    \"confirm_status\": \"DONE\",
+    \"reason\": \"test\",
+    \"source\": \"human_ui\",
+    \"confirmation\": {\"confirmation_id\": \"$CONF2_ID\"}
+  }"
+```
+
+期待：**HTTP 422**  
+```json
+{"ok":false,"error":"transition from READY to DONE is not allowed","valid_transitions":[...]}
+```
+
+### 6.3 SQL で consumed されていないことを確認
+
+```sql
+SELECT confirmation_id, consumed FROM confirmation_events
+WHERE confirmation_id = '{CONF2_ID}';
+-- → consumed=false（422 で拒否されたため消費されていない）
+```
+
+---
+
+## 7. 400：proposed_change 不一致
+
+```bash
+CONF3=$(curl -s -X POST http://localhost:3000/api/confirmations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "node_id": "{NODE_ID}",
+    "ui_action": "smoke_test_mismatch",
+    "proposed_change": {"type":"status_change","from":"{CURRENT_STATUS}","to":"CLARIFYING"}
+  }')
+CONF3_ID=$(echo "$CONF3" | jq -r '.confirmation.confirmation_id')
+
+# confirm_status を READY にする（confirmation は CLARIFYING を承認している）
+curl -s -w "\nHTTP: %{http_code}\n" \
+  -X POST http://localhost:3000/api/nodes/{NODE_ID}/estimate-status \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"intent\": \"mismatch test\",
+    \"confirm_status\": \"READY\",
+    \"reason\": \"test\",
+    \"source\": \"human_ui\",
+    \"confirmation\": {\"confirmation_id\": \"$CONF3_ID\"}
+  }"
+```
+
+期待：**HTTP 400**  
+```json
+{"ok":false,"error":"confirmation proposed_change.to (\"CLARIFYING\") does not match confirm_status (\"READY\")"}
+```
+
+---
+
+## 8. 掃除関数の動作確認
+
+```sql
+-- 手動実行（削除件数が返る）
+SELECT cleanup_expired_confirmations();
+
+-- テスト 4 で作成した期限切れレコードが消えている
+SELECT * FROM confirmation_events
+WHERE confirmation_id = '00000000-0000-0000-0000-expired00001';
+-- → 0 rows
+```
+
+---
+
+## 9. ObserverReport の保存と取得（Phase 3-1 認証あり）
+
+前提: `.env.local` に `OBSERVER_TOKEN` が設定されていること。  
+以下では `$OBSERVER_TOKEN` をその値に置き換えるか、`export OBSERVER_TOKEN=...` で設定してから実行する。
+
+### 9.1 認証なしで 401 になること
+
+```bash
+curl -s -w "\nHTTP: %{http_code}\n" \
+  -X POST http://localhost:3000/api/observer/reports \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payload": {
+      "suggested_next": null,
+      "status_proposals": [],
+      "cooling_alerts": [],
+      "summary": "test"
+    },
+    "generated_by": "smoke_test",
+    "node_count": 0
+  }'
+```
+
+期待：**HTTP 401**  
+```json
+{"ok":false,"error":"unauthorized"}
+```
+
+### 9.2 認証ありで保存成功し、latest で取得できること
+
+```bash
+curl -s -X POST http://localhost:3000/api/observer/reports \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OBSERVER_TOKEN" \
+  -d '{
+    "payload": {
+      "suggested_next": {
+        "node_id": "test-001",
+        "title": "テストノード",
+        "reason": "smoke test",
+        "next_action": "確認する"
+      },
+      "status_proposals": [],
+      "cooling_alerts": [],
+      "summary": "smoke test レポート"
+    },
+    "generated_by": "smoke_test",
+    "node_count": 1
+  }' | jq .
+```
+
+期待：`"ok": true, "report_id": "UUID", "created_at": "..."`
+
+SQL で確認（source / received_at も保存されていること）：
+
+```sql
+SELECT report_id, generated_by, node_count, source, received_at, payload->'summary' as summary
+FROM observer_reports ORDER BY created_at DESC LIMIT 1;
+```
+
+### 9.3 最新の ObserverReport を取得する
+
+```bash
+curl -s http://localhost:3000/api/observer/reports/latest | jq .
+```
+
+期待：`"ok": true, "report": { "report_id": "...", "payload": { ... }, ... }`
+
+レポートがない場合：
+
+```bash
+# observer_reports を空にしてからテスト
+# DELETE FROM observer_reports; (SQL)
+curl -s http://localhost:3000/api/observer/reports/latest | jq .
+```
+
+期待：`"ok": true, "report": null, "message": "No observer reports yet"`
+
+---
+
+## 10. GitHub Actions 手動実行 → healthcheck まで通る（Phase 3-2 / 3-2.1）
+
+前提: リポジトリに `.github/workflows/observer_cron.yml` が push 済み。  
+GitHub Secrets に **NEXT_BASE_URL**（Vercel の URL）と **OBSERVER_TOKEN** を設定済み（docs/27_Observer_Operations.md 参照）。
+
+### 10.1 手動実行
+
+1. GitHub リポジトリ → **Actions** → **Observer Cron**
+2. **Run workflow** をクリックし、ブランチを選んで実行
+3. ワークフローが緑で完了するまで待つ
+
+### 10.2 期待結果（本番スモーク）
+
+- **Run Observer and save report** ステップで次が順に成功すること：
+  1. `python agent/observer/main.py --save` が POST /api/observer/reports に保存
+  2. 直後に GET /api/observer/reports/latest で **healthcheck**
+  3. 保存した `report_id` と latest の `report_id` が **一致**
+  4. 保存した `payload.summary` と latest の `payload.summary` が **一致**
+- ログに `✓ Saved: report_id=...` のあと `✓ healthcheck passed: report_id and summary match latest` が出力されること
+- いずれかが失敗した場合は exit code 1 でステップが失敗し、Actions が「赤」になる
+
+### 10.3 latest に反映していることの確認（手動）
+
+**API で確認（本番 URL を使う場合）:**
+
+```bash
+curl -s https://<your-vercel-app>.vercel.app/api/observer/reports/latest | jq '.ok, .report.payload.summary'
+```
+
+期待: `true` と、直前に Actions で保存したレポートの `summary` 文字列。
+
+**ダッシュボードで確認:**
+
+1. `https://<your-vercel-app>.vercel.app/dashboard` を開く
+2. ページ下部の「Observer の提案」パネルに、直前に保存したレポートの summary / suggested_next 等が表示されること
+
+失敗する場合は 27_Observer_Operations.md §2（失敗時の確認方法）を参照する。
+
+**本番スモーク（curl で healthcheck 相当を手動確認する場合）:**
+
+```bash
+# 1) 保存（認証付き）
+RESP=$(curl -s -X POST https://<your-vercel-app>.vercel.app/api/observer/reports \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OBSERVER_TOKEN" \
+  -d '{"payload":{"summary":"smoke 3-2.1","suggested_next":null,"status_proposals":[],"cooling_alerts":[]},"generated_by":"smoke_test","node_count":0}')
+echo "$RESP" | jq .
+REPORT_ID=$(echo "$RESP" | jq -r '.report_id')
+
+# 2) latest 取得
+curl -s https://<your-vercel-app>.vercel.app/api/observer/reports/latest | jq .
+
+# 3) report_id 一致確認
+LATEST_ID=$(curl -s https://<your-vercel-app>.vercel.app/api/observer/reports/latest | jq -r '.report.report_id')
+echo "saved report_id: $REPORT_ID"
+echo "latest report_id: $LATEST_ID"
+# 一致していること: [ "$LATEST_ID" = "$REPORT_ID" ] && echo "OK" || echo "MISMATCH"
+```
+
+期待: `saved report_id` と `latest report_id` が一致し、`payload.summary` が `"smoke 3-2.1"` であること。
+
+---
+
+## 11. テスト結果サマリ
+
+| # | テスト | 期待 HTTP | 期待する状態 |
+|---|--------|-----------|------------|
+| 1 | 正常 Apply | 200 | consumed=true, history に記録 |
+| 2 | source=batch | 403 | Apply 拒否 |
+| 3 | ai_agent + confirmation なし | 403 | Apply 拒否 |
+| 4 | 期限切れ confirmation | 403 | Apply 拒否 |
+| 5 | consumed 済み再利用 | 409 | Apply 拒否 |
+| 6 | 不正遷移（422） | 422 | consumed=false（未消費） |
+| 7 | proposed_change 不一致 | 400 | Apply 拒否 |
+| 8 | 掃除関数 | — | 期限切れレコード削除 |
+| 9.1 | ObserverReport 認証なし | 401 | unauthorized |
+| 9.2 | ObserverReport 認証ありで保存 | 200 | observer_reports に INSERT（source/received_at 含む） |
+| 9.3 | ObserverReport 最新取得 | 200 | 最新 1 件を返却 |
+| 10 | Actions 手動実行 → healthcheck まで通る | — | report_id 一致・summary 一致で緑。失敗時は exit 1 で赤 |
