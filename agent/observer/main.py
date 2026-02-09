@@ -48,6 +48,11 @@ if os.getenv("GITHUB_ACTIONS") and ("localhost" in BASE_URL or "127.0.0.1" in BA
 OBSERVER_TOKEN = os.getenv("OBSERVER_TOKEN", "")
 COOLING_THRESHOLD = int(os.getenv("COOLING_THRESHOLD", "40"))
 COOLING_DAYS = int(os.getenv("COOLING_DAYS", "7"))
+# Phase 3-4: suggested_next 候補から除外する status（28_Observer_SuggestedNext_Scoring.md）
+SUGGESTED_NEXT_EXCLUDED_STATUSES = ("DONE", "COOLING", "CANCELLED")
+STALE_DAYS_FOR_SUGGESTED = 7   # この日数以上更新なしで加点
+IN_PROGRESS_STALE_DAYS = 3     # IN_PROGRESS でこの日数以上更新なしで加点
+TEMPERATURE_LOW_THRESHOLD = 40  # この値以下で加点
 
 
 # ─── API クライアント ──────────────────────────────────────
@@ -108,6 +113,64 @@ def days_since_update(node: dict[str, Any]) -> int | None:
         return (datetime.now(timezone.utc) - dt).days
     except (ValueError, TypeError):
         return None
+
+
+# ─── suggested_next スコアリング（Phase 3-4, docs/28）────────────────
+
+def compute_suggested_next_score(node: dict[str, Any]) -> tuple[int, list[dict[str, Any]]]:
+    """
+    候補ノードのスコアと内訳を返す。呼び出し側で除外 status を除いたうえで使う。
+    戻り値: (total_score, breakdown)
+    """
+    score = 0
+    breakdown: list[dict[str, Any]] = []
+    status = node.get("status") or ""
+    temp = node.get("temperature")
+    days = days_since_update(node)
+
+    if temp is not None and temp <= TEMPERATURE_LOW_THRESHOLD:
+        score += 30
+        breakdown.append({"label": "temperature_le_40", "points": 30})
+    if days is not None and days >= STALE_DAYS_FOR_SUGGESTED:
+        score += 25
+        breakdown.append({"label": "updated_7d_ago", "points": 25})
+    if status == "WAITING_EXTERNAL":
+        score += 20
+        breakdown.append({"label": "status_WAITING_EXTERNAL", "points": 20})
+    if status == "CLARIFYING":
+        score += 15
+        breakdown.append({"label": "status_CLARIFYING", "points": 15})
+    if status == "READY":
+        score += 10
+        breakdown.append({"label": "status_READY", "points": 10})
+    if status == "NEEDS_DECISION":
+        score += 12
+        breakdown.append({"label": "status_NEEDS_DECISION", "points": 12})
+    if status == "BLOCKED":
+        score += 8
+        breakdown.append({"label": "status_BLOCKED", "points": 8})
+    if status == "IN_PROGRESS" and days is not None and days >= IN_PROGRESS_STALE_DAYS:
+        score += 15
+        breakdown.append({"label": "in_progress_stale_3d", "points": 15})
+
+    return score, breakdown
+
+
+# status ごとの next_action テンプレ（{title} をノード名で置換）
+NEXT_ACTION_TEMPLATES: dict[str, str] = {
+    "WAITING_EXTERNAL": "「{title}」の外部返答を確認し、必要なら返信や次のアクションを決める",
+    "CLARIFYING": "「{title}」で何をすべきか整理し、next_action を明確にする",
+    "READY": "「{title}」に着手し、最初の一手を進める",
+    "IN_PROGRESS": "「{title}」の context を確認し、次の一手を決める",
+    "NEEDS_DECISION": "「{title}」の判断材料を確認し、決断する",
+    "BLOCKED": "「{title}」の障害内容を確認し、解消策を検討する",
+}
+DEFAULT_NEXT_ACTION_TEMPLATE = "「{title}」の context を確認し、次の一手を決める"
+
+
+def get_next_action_for_status(status: str, title: str) -> str:
+    tpl = NEXT_ACTION_TEMPLATES.get(status) or DEFAULT_NEXT_ACTION_TEMPLATE
+    return tpl.replace("{title}", title)
 
 
 # ─── Observer ロジック ─────────────────────────────────────
@@ -204,46 +267,40 @@ async def observe() -> dict[str, Any]:
                     "message": f"「{title}」は{' / '.join(reason_parts)}。止めてよいですか？",
                 })
 
-        # ── Step 4: suggested_next を構成 ──
-        # 00_Vision §4: 「今なにやる？」に 1 件だけ返す
-        # 優先: IN_PROGRESS > NEEDS_DECISION > READY > その他
-        # 同一 status 内では temperature 降順
+        # ── Step 4: suggested_next を構成（Phase 3-4 スコアリング）──
+        # 28_Observer_SuggestedNext_Scoring.md: 候補除外 → スコア計算 → 最高 1 件
+        # 既存の安全性（Preview のみ・Apply なし）は変更しない。
 
-        priority_order = [
-            "IN_PROGRESS",
-            "NEEDS_DECISION",
-            "READY",
-            "BLOCKED",
-            "WAITING_EXTERNAL",
+        candidates = [
+            n for n in all_nodes
+            if (n.get("status") or "") not in SUGGESTED_NEXT_EXCLUDED_STATUSES
         ]
-
         suggested_next = None
-        for target_status in priority_order:
-            candidates = [
-                n for n in all_nodes if n.get("status") == target_status
-            ]
-            if not candidates:
-                continue
-            # temperature 降順（高い = 最近意識されている）
-            candidates.sort(
-                key=lambda n: n.get("temperature") or 0, reverse=True
-            )
-            best = candidates[0]
+        if candidates:
+            scored: list[tuple[dict[str, Any], int, list[dict[str, Any]]]] = []
+            for node in candidates:
+                s, bd = compute_suggested_next_score(node)
+                scored.append((node, s, bd))
+            # スコア降順、同点なら temperature 降順
+            scored.sort(key=lambda x: (x[1], (x[0].get("temperature") or 0)), reverse=True)
+            best, total_score, breakdown = scored[0]
+            title = get_title(best)
             status = best.get("status", "")
             reason_map = {
-                "IN_PROGRESS": "実施中で最も温度が高いノードです",
+                "IN_PROGRESS": "実施中で最もスコアが高いノードです",
                 "NEEDS_DECISION": "判断待ちのノードがあります",
                 "READY": "着手可能な状態です",
                 "BLOCKED": "障害がありますが、解消すれば進められます",
                 "WAITING_EXTERNAL": "外部からの返答を確認してみてください",
+                "CLARIFYING": "言語化・整理が必要なノードです",
             }
             suggested_next = {
                 "node_id": best["id"],
-                "title": get_title(best),
+                "title": title,
                 "reason": reason_map.get(status, f"{status} のノードです"),
-                "next_action": f"「{get_title(best)}」の context を確認し、次の一手を決める",
+                "next_action": get_next_action_for_status(status, title),
+                "debug": {"score": total_score, "breakdown": breakdown},
             }
-            break
 
         # ── Step 5: summary 構成 ──
         tray_counts = {k: len(v) for k, v in trays.items()}
