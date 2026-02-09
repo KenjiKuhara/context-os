@@ -49,7 +49,13 @@ cp .env.example .env
 # 必要に応じて .env を編集（デフォルトは localhost:3000）
 ```
 
-ベース URL は環境変数 **NEXT_BASE_URL** で統一（Phase 3-2.1 SSOT）。main.py / workflow / docs で同じ名前を使う。
+ベース URL は環境変数 **NEXT_BASE_URL** で統一（Phase 3-2.1 SSOT）。main.py / workflow / docs で同じ名前を使う。  
+（Linux/WSL で `python` が無い場合は `python3` を使う。）
+
+**WSL で Python を実行し、Next.js を Windows で動かしている場合**: WSL の `localhost` は Windows の 3000 番に届かない。次のいずれかで対処する。
+- **A)** Next.js も WSL 内で起動する（`npm run dev` を WSL のターミナルで実行）。そのうえで Observer も WSL で実行する。**両方 WSL なのに ConnectError になる場合は** `localhost` ではなく `127.0.0.1` を試す: `export NEXT_BASE_URL=http://127.0.0.1:3000`（IPv6 の ::1 に解決されてしまう場合の対処）。
+- **B)** Next.js は Windows のままにする場合、WSL から Windows のホストへは別 IP でアクセスする。例: `export NEXT_BASE_URL=http://$(grep nameserver /etc/resolv.conf | awk '{print $2}'):3000`
+- **C) ローカルで --save がどうしても繋がらない場合**: (1) ローカルでは `python main.py` のみ（stdout でレポート確認）、保存は GitHub Actions やデプロイ先で行う。(2) または **両方 Windows** に揃える: PowerShell で `npm run dev`、Windows に Python を入れ、PowerShell で `python main.py --save` と `NEXT_BASE_URL=http://localhost:3000` で実行する。
 
 ---
 

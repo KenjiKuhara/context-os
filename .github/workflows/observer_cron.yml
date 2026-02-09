@@ -32,5 +32,5 @@ jobs:
         env:
           NEXT_BASE_URL: ${{ secrets.NEXT_BASE_URL }}
           OBSERVER_TOKEN: ${{ secrets.OBSERVER_TOKEN }}
-        run: python agent/observer/main.py --save
+        run: python3 agent/observer/main.py --save
         # Secrets はログに出力されない（GitHub がマスクする）。直書き禁止。
