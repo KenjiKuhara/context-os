@@ -169,13 +169,15 @@ export default function DashboardPage() {
   const [showCandidates, setShowCandidates] = useState(false);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
 
-  // Observer report state
+  // Observer report state (Phase 3-0〜3-4)
   // 19_SubAgent_Observer.md §6: 人間 UI との関係
+  // 表示条件: (1) 取得失敗 → observerError を表示 (2) report が null → レポートなし (3) あり → 最新 1 件を表示（created_at で新旧が分かる）
   const [observerReport, setObserverReport] = useState<Record<
     string,
     unknown
   > | null>(null);
   const [observerLoading, setObserverLoading] = useState(false);
+  const [observerError, setObserverError] = useState<string | null>(null);
 
   // ─── Data fetch ─────────────────────────────────────────
 
@@ -193,16 +195,32 @@ export default function DashboardPage() {
 
   const fetchObserverReport = useCallback(async () => {
     setObserverLoading(true);
+    setObserverError(null);
     try {
       const res = await fetch("/api/observer/reports/latest", {
         cache: "no-store",
       });
       const json = await res.json();
-      if (json.ok && json.report) {
-        setObserverReport(json.report);
+      if (!res.ok) {
+        setObserverError(json.error ?? "Observer report not found");
+        setObserverReport(null);
+        return;
       }
+      if (!json.ok) {
+        setObserverError(json.error ?? "Observer report not found");
+        setObserverReport(null);
+        return;
+      }
+      if (json.report == null) {
+        setObserverReport(null);
+        setObserverError((json.message as string) ?? "Observer report not found");
+        return;
+      }
+      setObserverReport(json.report);
+      setObserverError(null);
     } catch {
-      // Observer レポートが取れなくても致命的ではない
+      setObserverError("Observer report not found");
+      setObserverReport(null);
     } finally {
       setObserverLoading(false);
     }
@@ -869,9 +887,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ─── Observer 提案パネル ──────────────────────── */}
-      {/* 19_SubAgent_Observer.md §6: 人間 UI との関係      */}
-      {/* Apply ボタンなし。「読むだけ」の提案表示。        */}
+      {/* ─── Observer 提案パネル（Phase 3-0〜3-4）──────────── */}
+      {/* 表示条件: (1) 取得失敗 → observerError (2) report が null → レポートなし (3) あり → 最新 1 件を表示 */}
+      {/* 必ず表示: created_at（ローカル）, source, rule_version, node_count, 取得失敗時のメッセージ */}
       {!loading && (
         <div
           style={{
@@ -881,42 +899,93 @@ export default function DashboardPage() {
             padding: 16,
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ fontWeight: 800, fontSize: 16 }}>
-              Observer の提案
-            </div>
-            {observerReport && (
-              <div style={{ fontSize: 11, color: "#999" }} suppressHydrationWarning>
-                {(observerReport as Record<string, unknown>).created_at as string}
-              </div>
-            )}
+          <div style={{ fontWeight: 800, fontSize: 16 }}>
+            Observer の提案
           </div>
+
+          {/* メタ情報: created_at（ローカル）, source, node_count, rule_version — report があるとき表示 */}
+          {observerReport && (
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 12,
+                color: "#666",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "12px 16px",
+              }}
+            >
+              <span suppressHydrationWarning>
+                <b>取得日時:</b>{" "}
+                {(() => {
+                  const raw = (observerReport as Record<string, unknown>).created_at as string | undefined;
+                  if (!raw) return "—";
+                  try {
+                    return new Date(raw).toLocaleString();
+                  } catch {
+                    return raw;
+                  }
+                })()}
+              </span>
+              <span>
+                <b>source:</b>{" "}
+                {((observerReport as Record<string, unknown>).source as string) ?? "—"}
+              </span>
+              <span>
+                <b>node_count:</b>{" "}
+                {(observerReport as Record<string, unknown>).node_count ?? "—"}
+              </span>
+              <span>
+                <b>rule_version:</b>{" "}
+                {(() => {
+                  const payload = (observerReport as Record<string, unknown>).payload as Record<string, unknown> | undefined;
+                  const debug = payload?.suggested_next && typeof payload.suggested_next === "object" && (payload.suggested_next as Record<string, unknown>).debug;
+                  const ver = debug && typeof debug === "object" && (debug as Record<string, unknown>).rule_version;
+                  return ver != null ? String(ver) : "—";
+                })()}
+              </span>
+            </div>
+          )}
 
           {observerLoading && (
             <div style={{ marginTop: 8, color: "#666" }}>読み込み中…</div>
           )}
 
-          {!observerLoading && !observerReport && (
-            <div style={{ marginTop: 8, color: "#666" }}>
-              Observer レポートがまだありません。
-              <br />
-              <span style={{ fontSize: 12 }}>
-                python agent/observer/main.py を実行し、結果を POST
-                /api/observer/reports に送信してください。
-              </span>
+          {/* 取得失敗時: 1 行でメッセージを表示 */}
+          {!observerLoading && observerError && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: 10,
+                border: "1px solid #f99",
+                borderRadius: 6,
+                background: "#fff5f5",
+                color: "#900",
+                fontSize: 13,
+              }}
+            >
+              {observerError}
             </div>
           )}
 
+          {/* report が null のとき（API が ok: true, report: null を返した場合） */}
+          {!observerLoading && !observerError && !observerReport && (
+            <div style={{ marginTop: 8, color: "#666" }}>
+              Observer レポートがまだありません。Actions で Observer Cron を実行するか、ローカルで python main.py --save を実行してください。
+            </div>
+          )}
+
+          {/* report あり: payload を表示 */}
           {!observerLoading && observerReport && (() => {
             const payload = (observerReport as Record<string, unknown>)
-              .payload as Record<string, unknown> | null;
-            if (!payload) return null;
+              .payload as Record<string, unknown> | null | undefined;
+            if (!payload) {
+              return (
+                <div style={{ marginTop: 8, color: "#666", fontSize: 13 }}>
+                  レポート内容がありません。
+                </div>
+              );
+            }
 
             const suggestedNext = payload.suggested_next as Record<
               string,
@@ -933,7 +1002,7 @@ export default function DashboardPage() {
             const summary = (payload.summary ?? "") as string;
 
             return (
-              <div style={{ marginTop: 8 }}>
+              <div style={{ marginTop: 12 }}>
                 {/* Summary */}
                 {summary && (
                   <div

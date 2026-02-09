@@ -6,13 +6,39 @@
 ## 0. 前提
 
 - Supabase の migration がすべて適用済み
-- Next.js dev サーバーが `http://localhost:3000` で起動済み
+- Next.js dev サーバーが起動済み（通常は `http://localhost:3000`）
 - nodes テーブルに 1 件以上の Node が存在する
 - 以下の `{NODE_ID}` を既存 Node の ID に置き換えて実行する
 - Node の現在 status を確認してから各テストを実行する
 
+**NEXT_BASE_URL の指定例（3000/3001 で迷わないように）**
+
+Observer や curl のベース URL は環境変数 **NEXT_BASE_URL** で揃える。ポートが 3001 のときは次のようにする。
+
+Bash / WSL / Git Bash の場合:
+
 ```bash
-# 現在の status を確認
+# 通常（Next.js が 3000 で起動している場合）
+export NEXT_BASE_URL=http://localhost:3000
+
+# Next.js が 3001 で起動している場合（例: 3000 が別プロセスで使用中）
+export NEXT_BASE_URL=http://localhost:3001
+```
+
+**PowerShell の場合:**
+
+```powershell
+# 通常（Next.js が 3000 で起動している場合）
+$env:NEXT_BASE_URL = "http://localhost:3000"
+
+# Next.js が 3001 で起動している場合
+$env:NEXT_BASE_URL = "http://localhost:3001"
+```
+
+curl で直接叩くときは、上記のどちらかに合わせて `http://localhost:3000` または `http://localhost:3001` を URL に使う。
+
+```bash
+# 現在の status を確認（3000 の場合）
 curl -s http://localhost:3000/api/dashboard | jq '.trays | to_entries[] | .value[] | select(.id=="{NODE_ID}") | {id, status}'
 ```
 
@@ -258,7 +284,7 @@ WHERE confirmation_id = '00000000-0000-0000-0000-expired00001';
 ## 9. ObserverReport の保存と取得（Phase 3-1 認証あり）
 
 前提: `.env.local` に `OBSERVER_TOKEN` が設定されていること。  
-以下では `$OBSERVER_TOKEN` をその値に置き換えるか、`export OBSERVER_TOKEN=...` で設定してから実行する。
+Bash では `export OBSERVER_TOKEN=...`、PowerShell では `$env:OBSERVER_TOKEN = "..."` で設定してから実行する。
 
 ### 9.1 認証なしで 401 になること
 
@@ -338,7 +364,7 @@ curl -s http://localhost:3000/api/observer/reports/latest | jq .
 ## 10. GitHub Actions 手動実行 → healthcheck まで通る（Phase 3-2 / 3-2.1）
 
 前提: リポジトリに `.github/workflows/observer_cron.yml` が push 済み。  
-GitHub Secrets に **NEXT_BASE_URL**（Vercel の URL）と **OBSERVER_TOKEN** を設定済み（docs/27_Observer_Operations.md 参照）。
+GitHub Secrets に **NEXT_BASE_URL**（Vercel の URL）と **OBSERVER_TOKEN** を設定済み（docs/27 §3.1 参照）。
 
 ### 10.1 手動実行
 
@@ -346,17 +372,31 @@ GitHub Secrets に **NEXT_BASE_URL**（Vercel の URL）と **OBSERVER_TOKEN** �
 2. **Run workflow** をクリックし、ブランチを選んで実行
 3. ワークフローが緑で完了するまで待つ
 
-### 10.2 期待結果（本番スモーク）
+### 10.2 チェックリスト（ログで確認）
+
+**workflow_dispatch で手動実行したあと、次をログで確認する。**
+
+1. **Actions** → **Observer Cron** → 直近の run をクリック
+2. **Run Observer and save report** ステップをクリックしてログを開く
+3. 以下をチェックする：
+
+- [ ] ログに **`✓ Saved: report_id=...`** が出ている（保存が成功している）
+- [ ] そのあとに **`✓ healthcheck passed: report_id and summary match latest`** が出ている（latest と report_id / summary が一致）
+- [ ] ステップが緑で完了し、workflow 全体が緑になっている
+
+上記 2 行がログに出ていれば、Phase 3-2.1 の本番スモークは成功している。
+
+### 10.3 期待結果（本番スモーク）
 
 - **Run Observer and save report** ステップで次が順に成功すること：
   1. `python agent/observer/main.py --save` が POST /api/observer/reports に保存
   2. 直後に GET /api/observer/reports/latest で **healthcheck**
   3. 保存した `report_id` と latest の `report_id` が **一致**
   4. 保存した `payload.summary` と latest の `payload.summary` が **一致**
-- ログに `✓ Saved: report_id=...` のあと `✓ healthcheck passed: report_id and summary match latest` が出力されること
-- いずれかが失敗した場合は exit code 1 でステップが失敗し、Actions が「赤」になる
+- ログに `✓ Saved: report_id=...` のあと `✓ healthcheck passed: report_id and summary match latest` が出力されること（→ 10.2 チェックリストで確認）
+- いずれかが失敗した場合は exit code 1 でステップが失敗し、Actions が「赤」になる。失敗時は docs/27 §2（ログの見方・典型原因）を参照する。
 
-### 10.3 latest に反映していることの確認（手動）
+### 10.4 latest に反映していることの確認（手動）
 
 **API で確認（本番 URL を使う場合）:**
 
@@ -418,7 +458,124 @@ WEBHOOK_URL を未設定の場合は通知は届かないが、workflow の失�
 
 ---
 
-## 12. テスト結果サマリ
+## 12. Phase 3-4 suggested_next scoring の確認
+
+Phase 3-4 のスコアリングがローカルと本番（Vercel）で動いていることを、コピペで確認する。  
+docs/28_Observer_SuggestedNext_Scoring.md が SSOT。
+
+### 12.1 ローカル：stdout の suggested_next 確認
+
+1. Next.js を起動する（どちらか一方に合わせる）。
+
+```bash
+# ターミナル1: Next.js（3000 または 3001）
+npm run dev
+```
+
+2. Observer を実行し、stdout の **suggested_next** を確認する。**NEXT_BASE_URL** は Next.js のポートに合わせる。  
+   **注意**: すでに `agent/observer` にいる場合は `cd` は不要（リポジトリルートから開いたときだけ `cd agent/observer` する）。
+
+Bash の場合（リポジトリルートから）:
+
+```bash
+# ターミナル2: Observer（3000 の場合）
+cd agent/observer
+export NEXT_BASE_URL=http://localhost:3000
+python main.py
+```
+
+```bash
+# 3001 で Next.js を起動している場合
+export NEXT_BASE_URL=http://localhost:3001
+python main.py
+```
+
+**PowerShell の場合:**
+
+```powershell
+# リポジトリルートにいる場合のみ
+cd agent/observer
+
+$env:NEXT_BASE_URL = "http://localhost:3000"   # または 3001
+python main.py
+```
+
+**期待結果**
+
+- JSON に **suggested_next** が含まれる（候補が 0 件のときは `null`）。
+- suggested_next が非 null のとき、**next_action** が status に応じた文言（28 §7 のテンプレ）になっている。
+
+### 12.2 ローカル：--save と healthcheck 確認
+
+Observer で保存し、latest 取得 → report_id / summary 一致まで確認する。  
+（すでに `agent/observer` にいる場合は `cd` は不要。）
+
+Bash の場合:
+
+```bash
+cd agent/observer
+export NEXT_BASE_URL=http://localhost:3000   # または 3001
+export OBSERVER_TOKEN=あなたのトークン
+python main.py --save
+```
+
+**PowerShell の場合:**
+
+```powershell
+# リポジトリルートにいる場合のみ
+cd agent/observer
+
+$env:NEXT_BASE_URL = "http://localhost:3000"   # または 3001
+$env:OBSERVER_TOKEN = "あなたのトークン"
+python main.py --save
+```
+
+**期待結果**
+
+- 標準エラーに `✓ Saved: report_id=...` と `✓ healthcheck passed: report_id and summary match latest` が出ること。
+- 保存した report の **report_id** と GET latest の **report_id** が一致し、**summary** も一致していること（main.py の healthcheck がこれを検証している）。
+
+### 12.3 suggested_next.debug が payload に入っていることの確認
+
+latest API から **debug**（total / breakdown / rule_version）が取得できることを確認する。
+
+```bash
+# 最新レポートの payload.suggested_next.debug を表示（3000 の場合）
+curl -s http://localhost:3000/api/observer/reports/latest | jq '.report.payload.suggested_next.debug'
+```
+
+**期待結果**
+
+- suggested_next が非 null のとき、**debug** が存在し、次を満たすこと：
+  - **debug.total**: 数値（スコア合計）
+  - **debug.breakdown**: オブジェクトで **4 キー** を持つ（`temp`, `stale`, `status_bonus`, `stuck`）
+  - **debug.rule_version**: 文字列 **"3-4.0"**
+- 候補 0 件で suggested_next が null のときは、debug は存在しない。
+
+例（抜粋）：
+
+```json
+{
+  "total": 45,
+  "breakdown": {
+    "temp": 0,
+    "stale": 25,
+    "status_bonus": 20,
+    "stuck": 0
+  },
+  "rule_version": "3-4.0"
+}
+```
+
+### 12.4 本番（Vercel）での確認
+
+GitHub Actions の **Observer Cron** を手動実行し、§10 と同様に workflow が緑で完了することを確認する。  
+本番では **NEXT_BASE_URL** に Vercel の URL（例: `https://your-app.vercel.app`）が Secrets で設定されている。  
+完了後、ダッシュボードの「Observer の提案」で、保存された suggested_next と **debug** の内容が確認できれば Phase 3-4 は本番でも有効。
+
+---
+
+## 13. テスト結果サマリ
 
 | # | テスト | 期待 HTTP | 期待する状態 |
 |---|--------|-----------|------------|
@@ -435,3 +592,7 @@ WEBHOOK_URL を未設定の場合は通知は届かないが、workflow の失�
 | 9.3 | ObserverReport 最新取得 | 200 | 最新 1 件を返却 |
 | 10 | Actions 手動実行 → healthcheck まで通る | — | report_id 一致・summary 一致で緑。失敗時は exit 1 で赤 |
 | 11 | 意図的にトークン壊して失敗 → 通知 | — | run が赤。Slack 等に実行日時・step・Run URL の通知が届く |
+| 12.1 | Phase 3-4 ローカル stdout | — | suggested_next が JSON に含まれる。next_action がテンプレ通り |
+| 12.2 | Phase 3-4 --save → healthcheck | — | ✓ Saved と ✓ healthcheck passed が表示される |
+| 12.3 | suggested_next.debug 確認 | 200 | latest の payload.suggested_next.debug に total / breakdown（4キー）/ rule_version=3-4.0 |
+| 12.4 | Phase 3-4 本番（Actions 手動） | — | workflow 緑。ダッシュボードで suggested_next と debug が確認できる |

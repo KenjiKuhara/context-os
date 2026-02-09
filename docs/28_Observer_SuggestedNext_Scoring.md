@@ -1,154 +1,235 @@
 # 28_Observer_SuggestedNext_Scoring.md
-## suggested_next スコアリング設計（Phase 3-4）
+## suggested_next スコアリング仕様（Phase 3-4）— SSOT
 
 ---
 
 ## 0. 目的
 
 **「今なにやる？」** に返す 1 件の **suggested_next** を、  
-「人が動く」提案になるよう **スコアリング方式** で選定する。
-
-- 候補: アクティブ Node のうち、終了・冷却を除いたもの
-- 各ノードにスコアを付け、最高スコア 1 件を suggested_next とする
-- スコア内訳は report.payload の **suggested_next.debug** に残し、運用でチューニング可能にする
+「人が動く」提案になるよう **スコアリング方式** で選定する。  
+本ドキュメントがスコア・候補除外・欠損値・tie-break・debug の **Single Source of Truth** とする。
 
 ---
 
-## 1. 候補除外
+## 1. 候補除外（suggested_next 対象外）
 
-次の status は **suggested_next の候補から除外** する。
-
-| status    | 理由 |
-|----------|------|
-| DONE     | 完了済み。次のアクションは別ノード |
-| COOLING  | 冷却中。cooling_alerts で別途通知 |
-| CANCELLED| 中止済み |
+- **status** が **DONE / CANCELLED / COOLING** の Node は suggested_next の候補から除外する。
+- 候補が 0 件のときは **suggested_next = null** とする。**summary は従来どおり出力する。**
 
 ---
 
-## 2. スコア付与ルール（たたき台）
+## 2. updated_at の定義（SSOT）
 
-以下の条件を満たすごとに **加算**。複数満たす場合は **合計** で比較する。
-
-| 条件 | 加点 | 意図 |
-|------|------|------|
-| temperature ≤ 40 | +30 | 冷えかけ＝放置されやすい。早めに「やる／やめる」を決めたい |
-| updated_at が 7 日以上前 | +25 | 長く触られていない＝再開 or 整理の判断が必要 |
-| status = WAITING_EXTERNAL | +20 | 外部返答の確認という「人がやる」アクションが明確 |
-| status = CLARIFYING | +15 | 言語化・整理という「人がやる」アクション |
-| status = READY | +10 | 着手可能。次の一手を決める |
-| status = IN_PROGRESS かつ 3 日以上更新なし | +15 | 実施中だが止まっている。再開 or 状態変更の判断 |
-| status = NEEDS_DECISION | +12 | 判断待ち。人が決断するアクションが明確 |
-| status = BLOCKED | +8 | 障害解消策の検討というアクション。READY より少し弱く |
-
-**補足**
-
-- **temperature ≤ 40** と **7 日以上前** は「放置リスク」の二軸。両方満たすと +55 になり、他より強く「まずこれ」になりやすい。
-- **NEEDS_DECISION** は READY(10) より高く、CLARIFYING(15) より低い +12 で「判断する」を促す。
-- **BLOCKED** は +8 で READY より少し弱く、解消策検討を提案する。
+- **dashboard API** が返す **node.updated_at** を使用する（history などは見ない）。
+- **node.updated_at** が無い場合は **node.created_at** を使う。
+- **どちらも無い** 場合は「更新が古い扱い」とし、**stale 判定を true** とする（7 日以上前と同様に加点する）。
 
 ---
 
-## 3. status 別 next_action テンプレート
+## 3. temperature の欠損時
 
-「人が動く」文言にするため、status ごとに **next_action** をテンプレで出す。
-
-| status | next_action（テンプレ） |
-|--------|-------------------------|
-| WAITING_EXTERNAL | 「{title}」の外部返答を確認し、必要なら返信や次のアクションを決める |
-| CLARIFYING | 「{title}」で何をすべきか整理し、next_action を明確にする |
-| READY | 「{title}」に着手し、最初の一手を進める |
-| IN_PROGRESS | 「{title}」の context を確認し、次の一手を決める |
-| NEEDS_DECISION | 「{title}」の判断材料を確認し、決断する |
-| BLOCKED | 「{title}」の障害内容を確認し、解消策を検討する |
-| その他 | 「{title}」の context を確認し、次の一手を決める |
-
-`{title}` はノードの title（または name）で置換する。
+- **temperature** が null / undefined の場合は **50** とみなす（temp 加点なし。50 > 40 のため）。
+- **temperature** が文字列の場合は **数値化してから** 判定する。
 
 ---
 
-## 4. 出力形（report.payload）
+## 4. スコア付与ルール
 
-**suggested_next** の形は 19 §4.2 を維持しつつ、**debug** を追加する。
+| 条件 | 加点 | breakdown のキー |
+|------|------|------------------|
+| temperature ≤ 40 | +30 | temp |
+| updated_at/created_at が 7 日以上前、または日付なし | +25 | stale |
+| status = WAITING_EXTERNAL | +20 | status_bonus |
+| status = CLARIFYING | +15 | status_bonus |
+| status = IN_PROGRESS かつ 3 日以上更新なし | +15 | stuck |
+| status = READY | +10 | status_bonus |
+| status = NEEDS_DECISION | +12 | status_bonus |
+| status = BLOCKED | +8 | status_bonus |
+
+複数満たす場合は **合計** で比較する。
+
+---
+
+## 5. スコアの内訳を必ず残す（デバッグ用）
+
+suggested_next が非 null のとき、**suggested_next.debug** を次の形で必ず付与する。
 
 ```json
 {
-  "suggested_next": {
-    "node_id": "uuid",
-    "title": "ノード名",
-    "reason": "外部待ちのノードです",
-    "next_action": "「ノード名」の外部返答を確認し、必要なら返信や次のアクションを決める",
-    "debug": {
-      "score": 50,
-      "breakdown": [
-        { "label": "temperature_le_40", "points": 30 },
-        { "label": "status_WAITING_EXTERNAL", "points": 20 }
-      ]
-    }
-  }
+  "total": 45,
+  "breakdown": {
+    "temp": 0,
+    "stale": 25,
+    "status_bonus": 20,
+    "stuck": 0
+  },
+  "rule_version": "3-4.0"
 }
 ```
 
-- **debug** は運用・チューニング用。UI で必須表示しなくてよい。
-- 候補が 0 件のときは **suggested_next: null**（debug なし）。
+- **total**: 上記ルールの合計点。
+- **breakdown.temp**: temperature による加点（0 または 30）。
+- **breakdown.stale**: 7 日以上前 or 日付なしによる加点（0 または 25）。
+- **breakdown.status_bonus**: status による加点の合計（0 または WAITING_EXTERNAL 20, CLARIFYING 15, READY 10, NEEDS_DECISION 12, BLOCKED 8 のいずれか／複数は該当しない）。
+- **breakdown.stuck**: IN_PROGRESS かつ 3 日以上更新なし（0 または 15）。
+- **rule_version**: 固定文字列 `"3-4.0"`。
+
+status_proposals の各要素に debug（total / breakdown）を付与してもよい（optional）。
 
 ---
 
-## 5. 安全性の維持
+## 6. 同点のときの決め方（安定化）
 
-- **Preview のみ・Apply なし** は変更しない（confirm_status を送らない）。
-- 変更するのは **suggested_next の選定ロジックと next_action 文言・debug の追加** のみ。
-- status_proposals / cooling_alerts / summary の算出は従来どおり。
+次の順で比較し、**1 件** を選ぶ。
+
+1. **total score 降順**
+2. 次に **updated_at が古い順**（effective_updated_at 昇順。日付なしは最後）
+3. 最後に **node_id の辞書順**（昇順）
 
 ---
 
-## 6. サンプルデータと期待値（ユニット的な検証用）
+## 7. next_action テンプレート（最低 4 つ）
 
-以下 3 ケースで、**入力ノード一覧 → 期待する suggested_next（node_id / score / reason の方向性）** を記載する。  
-実際のユニットテストは、`observe()` の手前で `all_nodes` を差し替えるか、スコア計算関数だけをテストする想定。
+status ごとに「人が動く」文言を出す。最低でも次の 4 種を用意する。
+
+| status | 方針 | next_action（テンプレ例） |
+|--------|------|---------------------------|
+| WAITING_EXTERNAL | 相手に確認する（メール/電話/メッセージ）系 | 「{title}」の相手に確認する（メール・電話・チャットのどれか 1 本） |
+| CLARIFYING | 不明点を 1 つ質問にする系 | 「{title}」の不明点を 1 つだけ質問にまとめる |
+| READY | 最初の 10 分タスク系（着手を促す） | 「{title}」の最初の 10 分でできるタスクを 1 つやる |
+| IN_PROGRESS | 詰まり確認 or 次の一手系 | 「{title}」で詰まっていないか確認し、次の一手を決める |
+
+その他 status（NEEDS_DECISION, BLOCKED 等）は、上記に合わせた文言か、「context を確認し次の一手を決める」系でよい。
+
+---
+
+## 8. 安全性ガード（絶対）
+
+- **confirm_status** を送らない（**Preview-only** のまま）。
+- **Apply / confirmations** を呼ばない。
+- 書き込みは **/api/observer/reports** だけ（**--save** のときのみ）。
+
+---
+
+## 9. 成果物
+
+- 本ドキュメント **docs/28_Observer_SuggestedNext_Scoring.md** を作成/更新（スコア仕様・tie-break・欠損値ルール・テンプレ）。
+- **agent/observer/main.py** を変更（score 関数・テンプレ・debug 付与・suggested_next 選定）。
+- 本ドキュメントに **サンプル 3 ケース**（Node 配列と期待 suggested_next.node_id）を記載する。
+
+---
+
+## 10. サンプル 3 ケース（Node 配列と期待値）
 
 ### サンプル 1: WAITING_EXTERNAL ＋ 7 日以上前
 
-**入力（要約）**
+**入力 Node 配列（dashboard が返す形に準拠）**
 
-- Node A: status=WAITING_EXTERNAL, temperature=55, updated_at=10 日前
-- Node B: status=IN_PROGRESS, temperature=70, updated_at=1 日前
+```json
+[
+  {
+    "id": "node-a",
+    "title": "A社返信待ち",
+    "status": "WAITING_EXTERNAL",
+    "temperature": 55,
+    "updated_at": "2026-01-30T12:00:00Z",
+    "created_at": "2026-01-20T09:00:00Z"
+  },
+  {
+    "id": "node-b",
+    "title": "講演資料",
+    "status": "IN_PROGRESS",
+    "temperature": 70,
+    "updated_at": "2026-02-08T10:00:00Z",
+    "created_at": "2026-02-01T09:00:00Z"
+  }
+]
+```
+
+**実行日**: 2026-02-09 とする。
 
 **期待**
 
-- **suggested_next** は Node A になること。
-- **score**: 20 (WAITING_EXTERNAL) + 25 (7 日以上前) = **45**。
-- **reason**: 外部待ちであることが分かる文言。
-- **next_action**: WAITING_EXTERNAL テンプレ（外部返答を確認し…）。
+- **suggested_next.node_id**: **"node-a"**
+- **suggested_next.debug.total**: 45
+- **suggested_next.debug.breakdown**: temp=0, stale=25, status_bonus=20, stuck=0
+
+（Node A: WAITING_EXTERNAL で +20、10 日以上前で +25 → 45。Node B: 1 日前で stale なし、IN_PROGRESS のみで status_bonus なし、2 日なので stuck なし → 0。）
 
 ---
 
 ### サンプル 2: temperature ≤ 40 の READY
 
-**入力（要約）**
+**入力 Node 配列**
 
-- Node C: status=READY, temperature=38, updated_at=2 日前
-- Node D: status=CLARIFYING, temperature=50, updated_at=5 日前
+```json
+[
+  {
+    "id": "node-c",
+    "title": "企画メモ",
+    "status": "READY",
+    "temperature": 38,
+    "updated_at": "2026-02-07T12:00:00Z",
+    "created_at": "2026-02-01T09:00:00Z"
+  },
+  {
+    "id": "node-d",
+    "title": "要件整理",
+    "status": "CLARIFYING",
+    "temperature": 50,
+    "updated_at": "2026-02-04T12:00:00Z",
+    "created_at": "2026-01-28T09:00:00Z"
+  }
+]
+```
+
+**実行日**: 2026-02-09 とする。
 
 **期待**
 
-- **suggested_next** は Node C になること。
-- **score**: 30 (temperature≤40) + 10 (READY) = **40**。Node D は 15 (CLARIFYING) のみで 15。
-- **next_action**: READY テンプレ（着手し、最初の一手を…）。
+- **suggested_next.node_id**: **"node-c"**
+- **suggested_next.debug.total**: 40（temp=30, status_bonus=10）。Node D は status_bonus=15 のみで 15。
 
 ---
 
-### サンプル 3: 候補がすべて DONE/COOLING のとき
+### サンプル 3: 候補が 0 件（すべて DONE/COOLING）
 
-**入力（要約）**
+**入力 Node 配列**
 
-- 全ノードが status は DONE または COOLING のみ（※ dashboard は通常 DONE を返さないが、フィルタの意味で）
+```json
+[
+  { "id": "node-e", "title": "終了タスク", "status": "DONE", "temperature": 20, "updated_at": "2026-02-08T10:00:00Z" },
+  { "id": "node-f", "title": "冷却中", "status": "COOLING", "temperature": 35, "updated_at": "2026-02-01T10:00:00Z" }
+]
+```
 
 **期待**
 
-- **suggested_next**: **null**。
-- **debug** は存在しない。
+- **suggested_next**: **null**
+- **summary**: 従来どおり出力（例: 「机の上に 2 件のノードがあります。…」）。
 
 ---
 
-（以上、Phase 3-4 スコアリング設計・サンプル期待値）
+## 11. 検証観点（Smoke Test 用）
+
+ローカル・本番とも、**25_Smoke_Test.md §12** で次を確認する。  
+(1) Observer 実行で stdout に suggested_next が出る（候補 0 件なら null）。  
+(2) --save で healthcheck が通り、report_id と summary が latest と一致する。  
+(3) GET /api/observer/reports/latest の **report.payload.suggested_next.debug** に **total**（数値）、**breakdown**（temp / stale / status_bonus / stuck の 4 キー）、**rule_version**（"3-4.0"）が含まれること。
+
+---
+
+## 12. 品質ルール（ObserverReport 整合性）
+
+**node_count と summary の件数がズレないようにする** ため、次を守る。
+
+- **node_count の SSOT**: **node_count** は **dashboard から取得した Node 数**（`len(all_nodes)`）を必ず入れる。他で数え直さない。
+- **summary の生成**: **summary** の先頭「机の上に N 件のノードがあります」の **N** は **node_count** から生成する（tray の合計を別途計算して N にしない）。同一の node_count を 1 回だけ使い、summary はそれに従う。
+- **mismatch 検知**: summary の先頭から抽出した件数と node_count が一致しない場合、**payload.warnings[]** に警告を追加する。  
+  例: `"node_count and summary total mismatch: node_count=5, summary_total=3"`  
+  実装では正しく node_count から summary を組み立てるため、通常は warnings は空である。既存レポートの検証や将来の変更時の保険として検知する。
+- **payload の形**: **payload.warnings** は文字列の配列。0 件のときは `[]`。**payload.node_count** に上記 node_count を入れておく（DB の node_count 列と一致させる）。
+
+---
+
+（以上、Phase 3-4 スコアリング仕様 SSOT）

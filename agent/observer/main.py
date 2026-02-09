@@ -23,9 +23,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from dotenv import load_dotenv
@@ -55,20 +57,55 @@ IN_PROGRESS_STALE_DAYS = 3     # IN_PROGRESS でこの日数以上更新なし�
 TEMPERATURE_LOW_THRESHOLD = 40  # この値以下で加点
 
 
-# ─── API クライアント ──────────────────────────────────────
+# ─── API クライアント・エラー表示（Phase 3-4.3）────────────────
 # 25_Boundary §5.1: Python は Next.js Skill API を HTTP で呼ぶ。DB には触れない。
+# 秘密情報は出さない。BASE_URL と呼び出し先 URL を必ず stderr で案内する。
+
+def _call_desc(method: str, path: str) -> str:
+    """呼び出し先の1行説明（秘密情報なし）。"""
+    return f"BASE_URL={BASE_URL}, 呼び出し先: {method} {BASE_URL.rstrip('/')}{path}"
+
+
+def _parse_body_error(resp: httpx.Response) -> str:
+    """レスポンス本文の error を短く返す。"""
+    try:
+        data = resp.json()
+        err = data.get("error")
+        return (err[:200] + "…") if err and len(str(err)) > 200 else (str(err) if err else resp.text[:100] or str(resp.status_code))
+    except Exception:
+        return resp.text[:100] or str(resp.status_code)
+
+
+def _check_http_error(resp: httpx.Response, method: str, path: str) -> None:
+    """4xx/5xx のとき RuntimeError（メッセージに BASE_URL・呼び出し先・status・body error）。"""
+    if resp.status_code >= 400:
+        err = _parse_body_error(resp)
+        msg = f"{_call_desc(method, path)} HTTP {resp.status_code} — {err}"
+        raise RuntimeError(msg)
+
 
 async def fetch_dashboard(client: httpx.AsyncClient) -> dict[str, Any]:
     """GET /api/dashboard — アクティブ Node 一覧を取得。"""
+    path = "/api/dashboard"
+    url = f"{BASE_URL.rstrip('/')}{path}"
     try:
-        resp = await client.get(f"{BASE_URL}/api/dashboard")
+        resp = await client.get(url)
     except httpx.ConnectError as e:
+        port_hint = ""
+        try:
+            p = urlparse(BASE_URL)
+            if p.port:
+                port_hint = f" ポートは {p.port}。"
+            else:
+                port_hint = " ポート（例: 3000）を確認。"
+        except Exception:
+            port_hint = " ポート（例: 3000）を確認。"
         msg = (
-            f"Connection to {BASE_URL!r} failed. "
-            "Check NEXT_BASE_URL (e.g. https://your-app.vercel.app) and that the app is deployed and reachable."
+            f"{_call_desc('GET', path)} 接続できません。"
+            f"Next.js は起動していますか？{port_hint} NEXT_BASE_URL を確認してください。"
         )
         raise RuntimeError(msg) from e
-    resp.raise_for_status()
+    _check_http_error(resp, "GET", path)
     data = resp.json()
     if not data.get("ok"):
         raise RuntimeError(f"dashboard API error: {data.get('error')}")
@@ -86,12 +123,10 @@ async def preview_status(
     CRITICAL: confirm_status を送らない。
     これにより DB への副作用ゼロが保証される (17 §5, 19 §3.2)。
     """
-    resp = await client.post(
-        f"{BASE_URL}/api/nodes/{node_id}/estimate-status",
-        json={"intent": intent},
-        # confirm_status を送らない = Preview mode
-    )
-    resp.raise_for_status()
+    path = f"/api/nodes/{node_id}/estimate-status"
+    url = f"{BASE_URL.rstrip('/')}{path}"
+    resp = await client.post(url, json={"intent": intent})
+    _check_http_error(resp, "POST", path)
     data = resp.json()
     if not data.get("ok"):
         raise RuntimeError(f"estimate-status Preview error: {data.get('error')}")
@@ -99,69 +134,107 @@ async def preview_status(
 
 
 # ─── Node ヘルパー ─────────────────────────────────────────
+# 28 §2: updated_at の SSOT。dashboard API の node.updated_at / node.created_at のみ使用。
 
 def get_title(node: dict[str, Any]) -> str:
     return node.get("title") or node.get("name") or "(タイトルなし)"
 
 
-def days_since_update(node: dict[str, Any]) -> int | None:
-    updated = node.get("updated_at")
-    if not updated:
+def _parse_iso(s: str) -> datetime | None:
+    if not s:
         return None
     try:
-        dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
-        return (datetime.now(timezone.utc) - dt).days
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
     except (ValueError, TypeError):
         return None
 
 
+def get_effective_updated(node: dict[str, Any]) -> tuple[datetime | None, int | None]:
+    """
+    SSOT: updated_at があればそれ、なければ created_at。
+    戻り値: (effective_dt, days_since)。どちらも無い場合は (None, None)。
+    """
+    raw = node.get("updated_at") or node.get("created_at")
+    dt = _parse_iso(raw) if raw else None
+    if dt is None:
+        return None, None
+    days = (datetime.now(timezone.utc) - dt).days
+    return dt, days
+
+
+def days_since_update(node: dict[str, Any]) -> int | None:
+    """get_effective_updated の days のみ返す（冷却検知・intent 用）。"""
+    _, days = get_effective_updated(node)
+    return days
+
+
+def normalize_temperature(val: Any) -> int:
+    """28 §3: null/undefined → 50。文字列なら数値化してから判定。"""
+    if val is None:
+        return 50
+    if isinstance(val, str):
+        try:
+            return int(float(val))
+        except (ValueError, TypeError):
+            return 50
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return 50
+
+
 # ─── suggested_next スコアリング（Phase 3-4, docs/28）────────────────
 
-def compute_suggested_next_score(node: dict[str, Any]) -> tuple[int, list[dict[str, Any]]]:
+def compute_suggested_next_score(node: dict[str, Any]) -> tuple[int, dict[str, Any], str]:
     """
-    候補ノードのスコアと内訳を返す。呼び出し側で除外 status を除いたうえで使う。
-    戻り値: (total_score, breakdown)
+    候補ノードのスコア・内訳・tie-break 用 effective_ts を返す。
+    戻り値: (total, breakdown_dict, effective_ts_for_sort)
+    breakdown_dict = { temp, stale, status_bonus, stuck }（28 §4, §5）
     """
-    score = 0
-    breakdown: list[dict[str, Any]] = []
     status = node.get("status") or ""
-    temp = node.get("temperature")
-    days = days_since_update(node)
+    temp_val = normalize_temperature(node.get("temperature"))
+    effective_dt, days = get_effective_updated(node)
+    effective_ts = effective_dt.isoformat() if effective_dt else ""
 
-    if temp is not None and temp <= TEMPERATURE_LOW_THRESHOLD:
-        score += 30
-        breakdown.append({"label": "temperature_le_40", "points": 30})
-    if days is not None and days >= STALE_DAYS_FOR_SUGGESTED:
-        score += 25
-        breakdown.append({"label": "updated_7d_ago", "points": 25})
+    temp = 30 if temp_val <= TEMPERATURE_LOW_THRESHOLD else 0
+    # どちらも無い場合は stale 扱い（28 §2）。7 日以上前も stale。
+    no_date = effective_dt is None
+    stale = 25 if (no_date or (days is not None and days >= STALE_DAYS_FOR_SUGGESTED)) else 0
+
+    status_bonus = 0
     if status == "WAITING_EXTERNAL":
-        score += 20
-        breakdown.append({"label": "status_WAITING_EXTERNAL", "points": 20})
-    if status == "CLARIFYING":
-        score += 15
-        breakdown.append({"label": "status_CLARIFYING", "points": 15})
-    if status == "READY":
-        score += 10
-        breakdown.append({"label": "status_READY", "points": 10})
-    if status == "NEEDS_DECISION":
-        score += 12
-        breakdown.append({"label": "status_NEEDS_DECISION", "points": 12})
-    if status == "BLOCKED":
-        score += 8
-        breakdown.append({"label": "status_BLOCKED", "points": 8})
-    if status == "IN_PROGRESS" and days is not None and days >= IN_PROGRESS_STALE_DAYS:
-        score += 15
-        breakdown.append({"label": "in_progress_stale_3d", "points": 15})
+        status_bonus = 20
+    elif status == "CLARIFYING":
+        status_bonus = 15
+    elif status == "READY":
+        status_bonus = 10
+    elif status == "NEEDS_DECISION":
+        status_bonus = 12
+    elif status == "BLOCKED":
+        status_bonus = 8
 
-    return score, breakdown
+    stuck = 0
+    if status == "IN_PROGRESS" and (no_date or (days is not None and days >= IN_PROGRESS_STALE_DAYS)):
+        stuck = 15
+
+    total = temp + stale + status_bonus + stuck
+    breakdown = {
+        "temp": temp,
+        "stale": stale,
+        "status_bonus": status_bonus,
+        "stuck": stuck,
+    }
+    # tie-break: 日付なしは最後にしたいので、空でない値を使う（asc で古い順のとき '' は先頭になるため）
+    sort_ts = effective_ts if effective_ts else "\uffff"  # 辞書順で最後
+    return total, breakdown, sort_ts
 
 
-# status ごとの next_action テンプレ（{title} をノード名で置換）
+# next_action テンプレ（28 §7 最低4つ。{title} をノード名で置換）
 NEXT_ACTION_TEMPLATES: dict[str, str] = {
-    "WAITING_EXTERNAL": "「{title}」の外部返答を確認し、必要なら返信や次のアクションを決める",
-    "CLARIFYING": "「{title}」で何をすべきか整理し、next_action を明確にする",
-    "READY": "「{title}」に着手し、最初の一手を進める",
-    "IN_PROGRESS": "「{title}」の context を確認し、次の一手を決める",
+    "WAITING_EXTERNAL": "「{title}」の相手に確認する（メール・電話・チャットのどれか 1 本）",
+    "CLARIFYING": "「{title}」の不明点を 1 つだけ質問にまとめる",
+    "READY": "「{title}」の最初の 10 分でできるタスクを 1 つやる",
+    "IN_PROGRESS": "「{title}」で詰まっていないか確認し、次の一手を決める",
     "NEEDS_DECISION": "「{title}」の判断材料を確認し、決断する",
     "BLOCKED": "「{title}」の障害内容を確認し、解消策を検討する",
 }
@@ -198,6 +271,8 @@ async def observe() -> dict[str, Any]:
                 "status_proposals": [],
                 "cooling_alerts": [],
                 "summary": "机の上にノードがありません。",
+                "node_count": 0,
+                "warnings": [],
             }
 
         # ── Step 2: 各 Node に estimate-status Preview ──
@@ -244,8 +319,9 @@ async def observe() -> dict[str, Any]:
             node_id = node["id"]
             title = get_title(node)
             temp = node.get("temperature")
-            days = days_since_update(node)
-            updated = node.get("updated_at", "")
+            days = days_since_update(node)  # 28 §2: updated_at else created_at
+            effective_dt, _ = get_effective_updated(node)
+            last_updated = effective_dt.isoformat() if effective_dt else node.get("updated_at", "")
 
             is_cooling = False
             reason_parts: list[str] = []
@@ -263,13 +339,12 @@ async def observe() -> dict[str, Any]:
                     "node_id": node_id,
                     "title": title,
                     "temperature": temp,
-                    "last_updated": updated,
+                    "last_updated": last_updated,
                     "message": f"「{title}」は{' / '.join(reason_parts)}。止めてよいですか？",
                 })
 
-        # ── Step 4: suggested_next を構成（Phase 3-4 スコアリング）──
-        # 28_Observer_SuggestedNext_Scoring.md: 候補除外 → スコア計算 → 最高 1 件
-        # 既存の安全性（Preview のみ・Apply なし）は変更しない。
+        # ── Step 4: suggested_next を構成（Phase 3-4, 28 SSOT）──
+        # 候補除外 → スコア計算 → tie-break（28 §6）→ 1 件。安全性は 28 §8 のまま。
 
         candidates = [
             n for n in all_nodes
@@ -277,13 +352,13 @@ async def observe() -> dict[str, Any]:
         ]
         suggested_next = None
         if candidates:
-            scored: list[tuple[dict[str, Any], int, list[dict[str, Any]]]] = []
+            scored: list[tuple[dict[str, Any], int, dict[str, Any], str]] = []
             for node in candidates:
-                s, bd = compute_suggested_next_score(node)
-                scored.append((node, s, bd))
-            # スコア降順、同点なら temperature 降順
-            scored.sort(key=lambda x: (x[1], (x[0].get("temperature") or 0)), reverse=True)
-            best, total_score, breakdown = scored[0]
+                total, breakdown, sort_ts = compute_suggested_next_score(node)
+                scored.append((node, total, breakdown, sort_ts))
+            # 28 §6: total 降順 → updated_at 古い順 → node_id 辞書順
+            scored.sort(key=lambda x: (-x[1], x[3], x[0].get("id", "")))
+            best, total_score, breakdown, _ = scored[0]
             title = get_title(best)
             status = best.get("status", "")
             reason_map = {
@@ -299,13 +374,18 @@ async def observe() -> dict[str, Any]:
                 "title": title,
                 "reason": reason_map.get(status, f"{status} のノードです"),
                 "next_action": get_next_action_for_status(status, title),
-                "debug": {"score": total_score, "breakdown": breakdown},
+                "debug": {
+                    "total": total_score,
+                    "breakdown": breakdown,
+                    "rule_version": "3-4.0",
+                },
             }
 
-        # ── Step 5: summary 構成 ──
+        # ── Step 5: node_count（SSOT）と summary 構成 ──
+        # 28 品質ルール: node_count は dashboard の Node 数のみ。summary は node_count から生成（数え直さない）。
+        node_count = len(all_nodes)
         tray_counts = {k: len(v) for k, v in trays.items()}
-        total = sum(tray_counts.values())
-        summary_parts = [f"机の上に {total} 件のノードがあります"]
+        summary_parts = [f"机の上に {node_count} 件のノードがあります"]
         if tray_counts.get("in_progress"):
             summary_parts.append(f"実施中 {tray_counts['in_progress']} 件")
         if tray_counts.get("needs_decision"):
@@ -319,12 +399,24 @@ async def observe() -> dict[str, Any]:
 
         summary = "。".join(summary_parts) + "。"
 
+        # ── 整合性チェック: summary 先頭の件数と node_count の一致 ──
+        warnings: list[str] = []
+        m = re.search(r"机の上に\s*(\d+)\s*件", summary)
+        if m:
+            summary_total = int(m.group(1))
+            if summary_total != node_count:
+                warnings.append(
+                    f"node_count and summary total mismatch: node_count={node_count}, summary_total={summary_total}"
+                )
+
         # ── ObserverReport を返す (19 §4.2) ──
         return {
             "suggested_next": suggested_next,
             "status_proposals": status_proposals,
             "cooling_alerts": cooling_alerts,
             "summary": summary,
+            "node_count": node_count,
+            "warnings": warnings,
         }
 
 
@@ -345,26 +437,39 @@ async def save_report(
     node_count: int,
 ) -> dict[str, Any]:
     """ObserverReport を POST /api/observer/reports に保存する。"""
-    resp = await client.post(
-        f"{BASE_URL}/api/observer/reports",
-        json={
-            "payload": report,
-            "generated_by": "observer_cli",
-            "node_count": node_count,
-        },
-        headers=_save_report_headers(),
-    )
-    resp.raise_for_status()
+    path = "/api/observer/reports"
+    url = f"{BASE_URL.rstrip('/')}{path}"
+    try:
+        resp = await client.post(
+            url,
+            json={
+                "payload": report,
+                "generated_by": "observer_cli",
+                "node_count": node_count,
+            },
+            headers=_save_report_headers(),
+        )
+    except httpx.ConnectError as e:
+        msg = f"{_call_desc('POST', path)} 接続できません。NEXT_BASE_URL を確認してください。"
+        raise RuntimeError(msg) from e
+    _check_http_error(resp, "POST", path)
     data = resp.json()
     if not data.get("ok"):
-        raise RuntimeError(f"save report error: {data.get('error')}")
+        err = data.get("error", "unknown")
+        raise RuntimeError(f"{_call_desc('POST', path)} — {err}")
     return data
 
 
 async def fetch_latest_report(client: httpx.AsyncClient) -> dict[str, Any]:
     """GET /api/observer/reports/latest — Phase 3-2.1 本番スモーク用。"""
-    resp = await client.get(f"{BASE_URL}/api/observer/reports/latest")
-    resp.raise_for_status()
+    path = "/api/observer/reports/latest"
+    url = f"{BASE_URL.rstrip('/')}{path}"
+    try:
+        resp = await client.get(url)
+    except httpx.ConnectError as e:
+        msg = f"{_call_desc('GET', path)} 接続できません。NEXT_BASE_URL を確認してください。"
+        raise RuntimeError(msg) from e
+    _check_http_error(resp, "GET", path)
     data = resp.json()
     if not data.get("ok"):
         raise RuntimeError(f"latest API error: {data.get('error')}")
@@ -388,13 +493,15 @@ async def main() -> None:
 
     # --save フラグがあれば API に保存し、Phase 3-2.1 で latest と突き合わせて healthcheck
     if should_save:
-        all_count = (
-            len(report.get("status_proposals", []))
-            + len(report.get("cooling_alerts", []))
-            + (1 if report.get("suggested_next") else 0)
-        )
+        node_count = report.get("node_count")
+        if node_count is None:
+            node_count = (
+                len(report.get("status_proposals", []))
+                + len(report.get("cooling_alerts", []))
+                + (1 if report.get("suggested_next") else 0)
+            )
         async with httpx.AsyncClient(timeout=30.0) as client:
-            result = await save_report(client, report, all_count)
+            result = await save_report(client, report, node_count)
             print(
                 f"\n✓ Saved: report_id={result.get('report_id')} "
                 f"created_at={result.get('created_at')}",
@@ -428,4 +535,8 @@ async def main() -> None:
 if __name__ == "__main__":
     import asyncio
 
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)
