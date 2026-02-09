@@ -1,9 +1,11 @@
 # Phase 3-2: Observer 定期実行（GitHub Actions）
+# Phase 3-3: 失敗時に Slack/ChatWork へ webhook 通知
 #
 # Python Observer を cron で実行し、Vercel 上の POST /api/observer/reports に保存する。
 # Vercel には Python を載せない。Observer は外部ジョブとして実行する。
 #
-# 必要な Secrets: NEXT_BASE_URL, OBSERVER_TOKEN（設定手順は docs/27_Observer_Operations.md）
+# 必要な Secrets: NEXT_BASE_URL, OBSERVER_TOKEN
+# 失敗通知（いずれか）: WEBHOOK_URL（Slack） または CHATWORK_API_TOKEN + CHATWORK_ROOM_ID（ChatWork）
 
 name: Observer Cron
 
@@ -34,3 +36,24 @@ jobs:
           OBSERVER_TOKEN: ${{ secrets.OBSERVER_TOKEN }}
         run: python3 agent/observer/main.py --save
         # Secrets はログに出力されない（GitHub がマスクする）。直書き禁止。
+
+      - name: Notify failure to Slack/ChatWork
+        if: failure()
+        continue-on-error: true
+        env:
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+          CHATWORK_API_TOKEN: ${{ secrets.CHATWORK_API_TOKEN }}
+          CHATWORK_ROOM_ID: ${{ secrets.CHATWORK_ROOM_ID }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          MSG="[Observer Cron] 失敗"$'\n'"実行日時: ${TIME}"$'\n'"失敗した step: Run Observer and save report（想定）"$'\n'"Run: ${RUN_URL}"
+          if [ -n "$WEBHOOK_URL" ]; then
+            BODY=$(jq -n --arg text "$MSG" '{text: $text}')
+            curl -s -X POST "$WEBHOOK_URL" -H "Content-Type: application/json" -d "$BODY"
+          fi
+          if [ -n "$CHATWORK_API_TOKEN" ] && [ -n "$CHATWORK_ROOM_ID" ]; then
+            curl -s -X POST "https://api.chatwork.com/v2/rooms/${CHATWORK_ROOM_ID}/messages" \
+              -H "X-ChatWorkToken: $CHATWORK_API_TOKEN" \
+              --data-urlencode "body=$MSG"
+          fi

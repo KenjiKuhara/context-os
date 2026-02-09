@@ -398,7 +398,27 @@ echo "latest report_id: $LATEST_ID"
 
 ---
 
-## 11. テスト結果サマリ
+## 11. 失敗通知の確認（Phase 3-3）
+
+Observer Cron が失敗したときに Slack（または WEBHOOK_URL 先）へ通知が届くことを確認する。
+
+### 11.1 意図的にトークンを壊して失敗 → 通知
+
+1. **GitHub** → **Settings** → **Secrets and variables** → **Actions** で **OBSERVER_TOKEN** を編集する。
+2. 値を **一時的に誤ったもの** に変更する（例: 末尾 1 文字を変える）。保存する。
+3. **Actions** → **Observer Cron** → **Run workflow** で手動実行する。
+4. **Run Observer and save report** が 401 等で失敗し、run が赤になることを確認する。
+5. **Slack（または WEBHOOK_URL で設定した通知先）** に、次の内容が含まれた通知が届くことを確認する：
+   - 実行日時（UTC）
+   - 失敗した step の想定（Run Observer and save report）
+   - Actions の Run URL（クリックで該当 run を開ける）
+6. 確認後、**OBSERVER_TOKEN** を**正しい値に戻す**（次の cron が成功するようにする）。
+
+WEBHOOK_URL を未設定の場合は通知は届かないが、workflow の失敗通知 step は `continue-on-error: true` のため、run は「Observer 失敗」で終わる。
+
+---
+
+## 12. テスト結果サマリ
 
 | # | テスト | 期待 HTTP | 期待する状態 |
 |---|--------|-----------|------------|
@@ -414,3 +434,4 @@ echo "latest report_id: $LATEST_ID"
 | 9.2 | ObserverReport 認証ありで保存 | 200 | observer_reports に INSERT（source/received_at 含む） |
 | 9.3 | ObserverReport 最新取得 | 200 | 最新 1 件を返却 |
 | 10 | Actions 手動実行 → healthcheck まで通る | — | report_id 一致・summary 一致で緑。失敗時は exit 1 で赤 |
+| 11 | 意図的にトークン壊して失敗 → 通知 | — | run が赤。Slack 等に実行日時・step・Run URL の通知が届く |

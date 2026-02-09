@@ -54,8 +54,12 @@ GitHub リポジトリの **Settings → Secrets and variables → Actions** で
 |-----------|------|-----|
 | **NEXT_BASE_URL** | Vercel の Next.js API のベース URL（末尾スラッシュなし）。`https://` を省略すると main.py が自動で付与する | `https://context-os.vercel.app` または `context-os.vercel.app` |
 | **OBSERVER_TOKEN** | Phase 3-1 で設定した Bearer token（長いランダム文字列） | （Vercel の環境変数 OBSERVER_TOKEN と同一） |
+| **WEBHOOK_URL** | Phase 3-3（Slack 用）：失敗通知。Slack Incoming Webhook の URL。Slack を使う場合のみ | `https://hooks.slack.com/services/...` |
+| **CHATWORK_API_TOKEN** | Phase 3-3（ChatWork 用）：失敗通知。ChatWork API トークン。ChatWork を使う場合のみ | （ChatWork の API トークン） |
+| **CHATWORK_ROOM_ID** | Phase 3-3（ChatWork 用）：通知先ルーム ID。CHATWORK_API_TOKEN とセットで設定 | （数値のルーム ID） |
 
 - **直書き禁止**: workflow ファイルにトークンや URL を書かない。
+- **失敗通知**: Slack なら **WEBHOOK_URL** のみ。ChatWork なら **CHATWORK_API_TOKEN** と **CHATWORK_ROOM_ID** の両方を設定する。両方設定した場合は両方に送信される。
 - **OBSERVER_TOKEN**: 必ず Secrets で渡す。GitHub がログ内をマスクするが、意図的に echo しないこと。
 
 Vercel 側（Environment Variables）にも同じ `OBSERVER_TOKEN` を設定しておく（POST /api/observer/reports の検証用）。
@@ -84,7 +88,34 @@ Vercel 側（Environment Variables）にも同じ `OBSERVER_TOKEN` を設定し�
 
 ---
 
-## 6. この文書の位置づけ
+## 6. 失敗通知（Phase 3-3）
 
-- Observer の **定期実行・運用** の SSOT
+Observer Cron のいずれかの step が失敗したとき、**Slack（または ChatWork）** に webhook で通知する。
+
+### 6.1 通知設定
+
+**Slack の場合**
+
+1. Slack アプリの **Incoming Webhooks** を有効にし、通知先チャンネル用の Webhook URL を発行する。
+2. GitHub Secrets に **WEBHOOK_URL** を追加し、その URL を設定する。
+
+**ChatWork の場合**
+
+1. ChatWork にログイン → **設定** → **API** で **API トークン** を発行する。
+2. 通知先のルームを開き、URL の `room_id=12345678` の部分から **ルーム ID** を確認する（数値のみ）。
+3. GitHub Secrets に **CHATWORK_API_TOKEN**（トークン）と **CHATWORK_ROOM_ID**（ルーム ID）を追加する。両方必須。
+
+通知内容は **実行日時（UTC）**・**失敗した step の想定**・**Actions の Run URL** を含む。Slack / ChatWork どちらも未設定の場合は通知は送られない（workflow の失敗自体には影響しない）。
+
+### 6.2 テスト方法
+
+- **意図的に失敗させる**: GitHub Secrets の **OBSERVER_TOKEN** を一時的に誤った値（1 文字変える等）に変更し、Observer Cron を手動実行する。失敗後に Slack（WEBHOOK_URL 設定時）または ChatWork（CHATWORK_* 設定時）に通知が届くことを確認する。
+- 確認後、**OBSERVER_TOKEN** を正しい値に戻す。
+- 通知内容に「実行日時」「失敗した step（想定）」「Run URL」が含まれていることを確認する。
+
+---
+
+## 7. この文書の位置づけ
+
+- Observer の **定期実行・運用・失敗通知** の SSOT
 - 26_Agent_Observer_MVP.md の「保存」「認証」の先にある「どこで・どう回すか」を補足する
