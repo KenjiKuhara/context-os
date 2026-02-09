@@ -933,7 +933,7 @@ export default function DashboardPage() {
               </span>
               <span>
                 <b>node_count:</b>{" "}
-                {(observerReport as Record<string, unknown>).node_count ?? "—"}
+                {String((observerReport as Record<string, unknown>).node_count ?? "—")}
               </span>
               <span>
                 <b>rule_version:</b>{" "}
