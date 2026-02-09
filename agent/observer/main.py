@@ -266,6 +266,11 @@ async def observe() -> dict[str, Any]:
             all_nodes.extend(tray_nodes)
 
         if not all_nodes:
+            now_utc = datetime.now(timezone.utc)
+            meta = {
+                "observed_at": now_utc.isoformat(),
+                "freshness_minutes": 0,
+            }
             return {
                 "suggested_next": None,
                 "status_proposals": [],
@@ -273,6 +278,7 @@ async def observe() -> dict[str, Any]:
                 "summary": "机の上にノードがありません。",
                 "node_count": 0,
                 "warnings": [],  # 29: list of { code, message, details? }
+                "meta": meta,  # 31: 鮮度表示用
             }
 
         # ── Step 2: 各 Node に estimate-status Preview ──
@@ -431,6 +437,13 @@ async def observe() -> dict[str, Any]:
                 },
             })
 
+        # ── 鮮度（31_Observer_Freshness.md）: payload.meta ──
+        now_utc = datetime.now(timezone.utc)
+        meta = {
+            "observed_at": now_utc.isoformat(),
+            "freshness_minutes": 0,  # 保存時点では 0。表示時に observed_at から再計算する想定。
+        }
+
         # ── ObserverReport を返す (19 §4.2) ──
         return {
             "suggested_next": suggested_next,
@@ -439,6 +452,7 @@ async def observe() -> dict[str, Any]:
             "summary": summary,
             "node_count": node_count,
             "warnings": warnings,
+            "meta": meta,
         }
 
 

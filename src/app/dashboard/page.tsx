@@ -945,6 +945,48 @@ export default function DashboardPage() {
                   return ver != null ? String(ver) : "—";
                 })()}
               </span>
+              {/* 31: 鮮度 — observed_at から経過時間を表示 */}
+              {(() => {
+                const payload = (observerReport as Record<string, unknown>).payload as Record<string, unknown> | undefined;
+                const meta = payload?.meta && typeof payload.meta === "object" ? (payload.meta as Record<string, unknown>) : undefined;
+                const observedAtRaw = (meta?.observed_at as string) ?? (observerReport as Record<string, unknown>).created_at as string | undefined;
+                if (!observedAtRaw) return <span><b>最終観測:</b> —</span>;
+                try {
+                  const observedAt = new Date(observedAtRaw).getTime();
+                  const now = Date.now();
+                  const minutes = Math.floor((now - observedAt) / 60_000);
+                  let label: string;
+                  if (minutes < 60) label = `${minutes}分前`;
+                  else if (minutes < 24 * 60) label = `${Math.floor(minutes / 60)}時間前`;
+                  else label = `${Math.floor(minutes / (24 * 60))}日以上前`;
+                  return (
+                    <span>
+                      <b>最終観測:</b> {label}
+                    </span>
+                  );
+                } catch {
+                  return <span><b>最終観測:</b> —</span>;
+                }
+              })()}
+              {/* 31: 60分以上で「少し古い提案です」を薄く表示（warnings とは別） */}
+              {observerReport && (() => {
+                const payload = (observerReport as Record<string, unknown>).payload as Record<string, unknown> | undefined;
+                const meta = payload?.meta && typeof payload.meta === "object" ? (payload.meta as Record<string, unknown>) : undefined;
+                const observedAtRaw = (meta?.observed_at as string) ?? (observerReport as Record<string, unknown>).created_at as string | undefined;
+                if (!observedAtRaw) return null;
+                try {
+                  const observedAt = new Date(observedAtRaw).getTime();
+                  const minutes = Math.floor((Date.now() - observedAt) / 60_000);
+                  if (minutes < 60) return null;
+                  return (
+                    <span style={{ color: "#888", fontStyle: "italic" }}>
+                      ⚠ 少し古い提案です
+                    </span>
+                  );
+                } catch {
+                  return null;
+                }
+              })()}
             </div>
           )}
 
