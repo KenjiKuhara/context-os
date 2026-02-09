@@ -1,11 +1,17 @@
 # Phase 3-2: Observer 定期実行（GitHub Actions）
 # Phase 3-3: 失敗時に Slack/ChatWork へ webhook 通知
+# Phase 3-5: 失敗時の判断基準を明文化（「止まる＝壊れた」ではない）
 #
 # Python Observer を cron で実行し、Vercel 上の POST /api/observer/reports に保存する。
 # Vercel には Python を載せない。Observer は外部ジョブとして実行する。
 #
 # 必要な Secrets: NEXT_BASE_URL, OBSERVER_TOKEN
 # 失敗通知（いずれか）: WEBHOOK_URL（Slack） または CHATWORK_API_TOKEN + CHATWORK_ROOM_ID（ChatWork）
+#
+# --- 失敗時の判断基準（docs/27 §10, docs/32）---
+# - run が赤くなることは「仕様ズレ検知」や「接続・認証の異常」のシグナルであり、設計どおりの挙動である。
+# - --strict による失敗: payload.warnings が 1 件以上。仕様のズレ or バグの可能性。人の判断が必要。
+# - 連続失敗時の対応方針（通知 or 手動確認）は docs/27_Observer_Operations.md に記載する。
 
 name: Observer Cron
 

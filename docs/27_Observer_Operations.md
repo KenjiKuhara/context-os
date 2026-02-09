@@ -235,7 +235,48 @@ curl -s "https://YOUR_VERCEL_URL/api/observer/reports/latest"
 
 ---
 
-## 9. この文書の位置づけ
+## 9. 失敗と「止まる」の設計思想（Phase 3-5）
 
-- Observer の **定期実行・運用・失敗通知** の SSOT
+Observer Cron の run が**失敗（赤）になること**は、異常を検知するための設計であり、「壊れた」ことを意味しない。運用者が「何を見て、どう判断するか」を以下に固定する。
+
+### 9.1 いつ cron（run）が止まるのか
+
+**止まる**＝その回の run が **exit(1)** または step 失敗で **赤** になること。cron 自体は「止まらない」— 次のスケジュール時刻に再度 run が走る。
+
+| 原因 | いつ止まるか | 備考 |
+|------|--------------|------|
+| **--strict** | 保存直後の healthcheck で、latest の **payload.warnings** が 1 件以上のとき | 仕様ズレ検知。次の run も同じ条件なら再び赤。 |
+| **healthcheck** | report_id 不一致 or summary 不一致 | 保存と GET latest の不整合。まれ。 |
+| **401** | POST /api/observer/reports が 401 を返したとき | トークン不一致。Secrets と Vercel の OBSERVER_TOKEN を確認。 |
+| **500 / 接続エラー** | API が 500 や接続不可のとき | NEXT_BASE_URL や Vercel の状態を確認。 |
+| **Timeout** | httpx がタイムアウトしたとき | ノード数・ネット状況。頻度を落とすかタイムアウト延長を検討。 |
+| **pip / Python** | 依存インストールやスクリプト実行が失敗したとき | リポジトリの変更や環境を確認。 |
+
+いずれも **「その回の run が失敗する」** だけで、cron スケジュールは継続する。意図的に **cron を止めたい** 場合は、workflow の `schedule` をコメントアウトするか、workflow_dispatch のみに変更する。
+
+### 9.2 warnings が出たときの人の判断フロー
+
+1. **Actions で run が赤** → ログの「Run Observer and save report」を開く。
+2. **`healthcheck failed: --strict and payload has warnings`** が出ているか確認。
+3. **stderr の `⚠ Observer report has warnings:`** 以下に、code（COUNT_MISMATCH / SUMMARY_MISMATCH 等）と message / details が出ている。
+4. **判断**:
+   - **仕様のズレ**（例: summary の件数表記と node_count の数え方が食い違った）→ 19 / 29 の仕様と実装を突き合わせて修正する。
+   - **バグ**（集計ミスや正規表現の誤り）→ main.py を修正し、コミット・デプロイ後に手動で再実行して緑になるか確認。
+   - **一時的なデータ不整合**（例: 観測中に Node が別プロセスで更新された）→ 再実行で解消するか確認。続く場合は仕様・競合を検討。
+5. **対応後**: 手動で「Run workflow」を実行し、緑になることを確認。連続失敗時は **docs/32** の「連続失敗時の対応方針」も参照。
+
+### 9.3 「止まる＝壊れた」ではない
+
+- **run が赤になること**は、**「異常を検知した」というシグナル**であり、設計どおりの挙動である。
+- **--strict** は「warnings を無視して保存し続ける」ことを防ぎ、**仕様ズレやバグを早期に気づく**ための仕組みである。
+- 運用の目的は「**静かに・安全に・止められる**」こと。  
+  「止まる」＝「次に何をすべきかが分かる状態」であり、**止めたままにしておく選択**（cron を止める）も運用として許容する。  
+  詳細な到達点とやっていないことは **docs/32_Observer_Production_Ready.md** を参照。
+
+---
+
+## 10. この文書の位置づけ
+
+- Observer の **定期実行・運用・失敗通知・失敗時の判断** の SSOT
 - 26_Agent_Observer_MVP.md の「保存」「認証」の先にある「どこで・どう回すか」を補足する
+- 32_Observer_Production_Ready.md は「本番で静かに・安全に・止められる」到達点と言語化のまとめ
