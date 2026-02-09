@@ -571,6 +571,19 @@ async def main() -> None:
                 if strict_warnings:
                     print("healthcheck failed: --strict and payload has warnings (exit 1)", file=sys.stderr)
                     sys.exit(1)
+            # Phase 3-4.6: 本番運用テスト用の1行目印（Actions ログで合否判定しやすい）
+            latest_id = report_latest.get("report_id", "")
+            w_count = len(warnings_latest)
+            nc = payload_latest.get("node_count")
+            nc_str = str(nc) if nc is not None else "-"
+            sn = payload_latest.get("suggested_next")
+            rule_ver = "-"
+            if isinstance(sn, dict) and isinstance(sn.get("debug"), dict):
+                rule_ver = str(sn["debug"].get("rule_version", "-"))
+            print(
+                f"OP_TEST: saved={saved_id} latest={latest_id} warnings={w_count} node_count={nc_str} rule={rule_ver}",
+                file=sys.stderr,
+            )
             print("✓ healthcheck passed: report_id and summary match latest", file=sys.stderr)
 
 
