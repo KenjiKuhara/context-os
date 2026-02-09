@@ -272,7 +272,7 @@ async def observe() -> dict[str, Any]:
                 "cooling_alerts": [],
                 "summary": "机の上にノードがありません。",
                 "node_count": 0,
-                "warnings": [],
+                "warnings": [],  # 29: list of { code, message, details? }
             }
 
         # ── Step 2: 各 Node に estimate-status Preview ──
@@ -399,15 +399,37 @@ async def observe() -> dict[str, Any]:
 
         summary = "。".join(summary_parts) + "。"
 
-        # ── 整合性チェック: summary 先頭の件数と node_count の一致 ──
-        warnings: list[str] = []
+        # ── 整合性チェック（29_Observer_Warnings.md）────────────────
+        # warnings は { code, message, details? } のリスト。COUNT_MISMATCH / SUMMARY_MISMATCH
+        warnings: list[dict[str, Any]] = []
+
+        # (1) summary 先頭の件数と node_count の一致
         m = re.search(r"机の上に\s*(\d+)\s*件", summary)
         if m:
             summary_total = int(m.group(1))
             if summary_total != node_count:
-                warnings.append(
-                    f"node_count and summary total mismatch: node_count={node_count}, summary_total={summary_total}"
-                )
+                warnings.append({
+                    "code": "SUMMARY_MISMATCH",
+                    "message": "node_count と summary の件数が一致しません",
+                    "details": {"node_count": node_count, "summary_total": summary_total},
+                })
+
+        # (2) status 別集計の合計と node_count の一致（COUNT_MISMATCH）
+        by_status: dict[str, int] = {}
+        for node in all_nodes:
+            s = (node.get("status") or "UNKNOWN").strip() or "UNKNOWN"
+            by_status[s] = by_status.get(s, 0) + 1
+        status_sum = sum(by_status.values())
+        if status_sum != node_count:
+            warnings.append({
+                "code": "COUNT_MISMATCH",
+                "message": "node_count と status 集計の合計が一致しません",
+                "details": {
+                    "node_count": node_count,
+                    "status_sum": status_sum,
+                    "by_status": by_status,
+                },
+            })
 
         # ── ObserverReport を返す (19 §4.2) ──
         return {
@@ -480,6 +502,7 @@ async def fetch_latest_report(client: httpx.AsyncClient) -> dict[str, Any]:
 
 async def main() -> None:
     should_save = "--save" in sys.argv
+    strict_warnings = "--strict" in sys.argv
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         # observe() の内部で client を使うため、ここで再実装せず
@@ -529,6 +552,25 @@ async def main() -> None:
                     file=sys.stderr,
                 )
                 sys.exit(1)
+            # Phase 3-4.5: latest の payload.warnings を確認。1 件以上なら stderr に出す。--strict なら exit(1)
+            warnings_latest = payload_latest.get("warnings") or []
+            if not isinstance(warnings_latest, list):
+                warnings_latest = []
+            if warnings_latest:
+                print("⚠ Observer report has warnings:", file=sys.stderr)
+                for i, w in enumerate(warnings_latest):
+                    if isinstance(w, dict):
+                        code = w.get("code", "?")
+                        msg = w.get("message", "")
+                        details = w.get("details")
+                        print(f"  [{i+1}] {code}: {msg}", file=sys.stderr)
+                        if details is not None:
+                            print(f"      details: {json.dumps(details, ensure_ascii=False)}", file=sys.stderr)
+                    else:
+                        print(f"  [{i+1}] {w!r}", file=sys.stderr)
+                if strict_warnings:
+                    print("healthcheck failed: --strict and payload has warnings (exit 1)", file=sys.stderr)
+                    sys.exit(1)
             print("✓ healthcheck passed: report_id and summary match latest", file=sys.stderr)
 
 

@@ -382,17 +382,19 @@ GitHub Secrets に **NEXT_BASE_URL**（Vercel の URL）と **OBSERVER_TOKEN** �
 
 - [ ] ログに **`✓ Saved: report_id=...`** が出ている（保存が成功している）
 - [ ] そのあとに **`✓ healthcheck passed: report_id and summary match latest`** が出ている（latest と report_id / summary が一致）
+- [ ] **--strict** 運用のため、payload.warnings が 0 件である（warnings があれば run は赤になる）
 - [ ] ステップが緑で完了し、workflow 全体が緑になっている
 
-上記 2 行がログに出ていれば、Phase 3-2.1 の本番スモークは成功している。
+上記が満たされていれば、Phase 3-2.1 / 3-4.5 の本番スモークは成功している。
 
 ### 10.3 期待結果（本番スモーク）
 
 - **Run Observer and save report** ステップで次が順に成功すること：
-  1. `python agent/observer/main.py --save` が POST /api/observer/reports に保存
-  2. 直後に GET /api/observer/reports/latest で **healthcheck**
+  1. `python agent/observer/main.py --save --strict` が POST /api/observer/reports に保存
+  2. 直後に GET /api/observer/reports/latest で **healthcheck**（report_id / summary 一致に加え、**payload.warnings が 0 件**であることを確認）
   3. 保存した `report_id` と latest の `report_id` が **一致**
   4. 保存した `payload.summary` と latest の `payload.summary` が **一致**
+  5. latest の **payload.warnings** が 0 件（1 件以上なら --strict により exit 1）
 - ログに `✓ Saved: report_id=...` のあと `✓ healthcheck passed: report_id and summary match latest` が出力されること（→ 10.2 チェックリストで確認）
 - いずれかが失敗した場合は exit code 1 でステップが失敗し、Actions が「赤」になる。失敗時は docs/27 §2（ログの見方・典型原因）を参照する。
 
@@ -573,6 +575,23 @@ GitHub Actions の **Observer Cron** を手動実行し、§10 と同様に work
 本番では **NEXT_BASE_URL** に Vercel の URL（例: `https://your-app.vercel.app`）が Secrets で設定されている。  
 完了後、ダッシュボードの「Observer の提案」で、保存された suggested_next と **debug** の内容が確認できれば Phase 3-4 は本番でも有効。
 
+### 12.5 warnings と --strict の確認（Phase 3-4.5）
+
+**(A) warnings=0 のとき --strict でも成功する**
+
+- 通常、Observer が返す report には **payload.warnings** が 0 件（または空配列）である。
+- `python main.py --save --strict` を実行すると、healthcheck で latest の warnings を確認し、0 件なら **exit(0)** のまま成功する。
+- 確認: ローカルまたは Actions で `--save --strict` を実行し、ログに `✓ healthcheck passed: report_id and summary match latest` が出て run が緑になること。
+
+**(B) わざと warnings を出したとき --strict で失敗する**
+
+- **手順（モックで検証）**: `observe()` が返す report に一時的に warnings を 1 件追加し、`--save --strict` で実行する。
+  1. `agent/observer/main.py` の `observe()` の return 直前で、返す dict の `warnings` に `[{"code": "TEST_WARNING", "message": "テスト用", "details": {}}]` を追加する（または既存の warnings に append）。
+  2. `python main.py --save --strict` を実行する。
+  3. 期待: 保存は成功するが、healthcheck で latest の payload.warnings が 1 件以上と判定され、stderr に `⚠ Observer report has warnings:` と各 code / message が出たあと **exit(1)** する。
+  4. 確認後、追加したモック用 warnings を元に戻す。
+- これにより「warnings が出たら Actions が赤になる」運用が有効であることを確認できる。
+
 ---
 
 ## 13. テスト結果サマリ
@@ -596,3 +615,5 @@ GitHub Actions の **Observer Cron** を手動実行し、§10 と同様に work
 | 12.2 | Phase 3-4 --save → healthcheck | — | ✓ Saved と ✓ healthcheck passed が表示される |
 | 12.3 | suggested_next.debug 確認 | 200 | latest の payload.suggested_next.debug に total / breakdown（4キー）/ rule_version=3-4.0 |
 | 12.4 | Phase 3-4 本番（Actions 手動） | — | workflow 緑。ダッシュボードで suggested_next と debug が確認できる |
+| 12.5A | warnings=0 で --strict | — | python main.py --save --strict が成功（exit 0） |
+| 12.5B | warnings ありで --strict | — | モックで warnings を付与すると exit 1。stderr に warnings 一覧 |

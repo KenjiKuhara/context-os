@@ -34,7 +34,8 @@ jobs:
         env:
           NEXT_BASE_URL: ${{ secrets.NEXT_BASE_URL }}
           OBSERVER_TOKEN: ${{ secrets.OBSERVER_TOKEN }}
-        run: python3 agent/observer/main.py --save
+        run: python3 agent/observer/main.py --save --strict
+        # --strict: payload.warnings が 1 件以上なら exit(1) で run を赤にする（Phase 3-4.5）
         # Secrets はログに出力されない（GitHub がマスクする）。直書き禁止。
 
       - name: Notify failure to Slack/ChatWork

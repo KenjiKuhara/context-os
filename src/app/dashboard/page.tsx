@@ -178,6 +178,7 @@ export default function DashboardPage() {
   > | null>(null);
   const [observerLoading, setObserverLoading] = useState(false);
   const [observerError, setObserverError] = useState<string | null>(null);
+  const [observerWarningExpanded, setObserverWarningExpanded] = useState<number | null>(null);
 
   // ─── Data fetch ─────────────────────────────────────────
 
@@ -946,6 +947,81 @@ export default function DashboardPage() {
               </span>
             </div>
           )}
+
+          {/* Phase 3-4.5: payload.warnings が 1 件以上 → ⚠ 注意ブロック（29_Observer_Warnings.md） */}
+          {!observerLoading && observerReport && (() => {
+            const payload = (observerReport as Record<string, unknown>).payload as Record<string, unknown> | undefined;
+            const warnings = Array.isArray(payload?.warnings) ? payload.warnings as Array<Record<string, unknown>> : [];
+            if (warnings.length === 0) return null;
+            return (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: 12,
+                  border: "1px solid #b8860b",
+                  borderRadius: 8,
+                  background: "#fffde7",
+                  fontSize: 13,
+                }}
+              >
+                <div style={{ fontWeight: 800, color: "#8b6914", marginBottom: 8 }}>
+                  ⚠ Observer が異常を検知しました（{warnings.length}件）
+                </div>
+                {warnings.map((w, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      marginTop: i > 0 ? 10 : 0,
+                      padding: 8,
+                      background: "#fff9c4",
+                      borderRadius: 6,
+                    }}
+                  >
+                    <div style={{ fontWeight: 700 }}>
+                      {String(w.code ?? "UNKNOWN")}
+                    </div>
+                    <div style={{ marginTop: 4, color: "#333" }}>
+                      {String(w.message ?? "")}
+                    </div>
+                    {w.details != null && (
+                      <div style={{ marginTop: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => setObserverWarningExpanded(observerWarningExpanded === i ? null : i)}
+                          style={{
+                            fontSize: 12,
+                            padding: "4px 8px",
+                            border: "1px solid #b8860b",
+                            borderRadius: 4,
+                            background: "white",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {observerWarningExpanded === i ? "詳細を閉じる" : "詳細を見る"}
+                        </button>
+                        {observerWarningExpanded === i && (
+                          <pre
+                            style={{
+                              marginTop: 6,
+                              padding: 8,
+                              background: "#f5f5f5",
+                              borderRadius: 4,
+                              fontSize: 11,
+                              overflow: "auto",
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-all",
+                            }}
+                          >
+                            {JSON.stringify(w.details, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {observerLoading && (
             <div style={{ marginTop: 8, color: "#666" }}>読み込み中…</div>

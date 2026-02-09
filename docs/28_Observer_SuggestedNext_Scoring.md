@@ -225,10 +225,10 @@ status ごとに「人が動く」文言を出す。最低でも次の 4 種を�
 
 - **node_count の SSOT**: **node_count** は **dashboard から取得した Node 数**（`len(all_nodes)`）を必ず入れる。他で数え直さない。
 - **summary の生成**: **summary** の先頭「机の上に N 件のノードがあります」の **N** は **node_count** から生成する（tray の合計を別途計算して N にしない）。同一の node_count を 1 回だけ使い、summary はそれに従う。
-- **mismatch 検知**: summary の先頭から抽出した件数と node_count が一致しない場合、**payload.warnings[]** に警告を追加する。  
-  例: `"node_count and summary total mismatch: node_count=5, summary_total=3"`  
-  実装では正しく node_count から summary を組み立てるため、通常は warnings は空である。既存レポートの検証や将来の変更時の保険として検知する。
-- **payload の形**: **payload.warnings** は文字列の配列。0 件のときは `[]`。**payload.node_count** に上記 node_count を入れておく（DB の node_count 列と一致させる）。
+- **mismatch 検知**: summary の先頭から抽出した件数と node_count が一致しない場合、**payload.warnings[]** に **SUMMARY_MISMATCH** を追加する。  
+  **status 集計の合計** と node_count が一致しない場合は **COUNT_MISMATCH** を追加する。  
+  詳細は **docs/29_Observer_Warnings.md** に記載する。
+- **payload の形**: **payload.warnings** は `{ code, message, details? }` の配列。0 件のときは `[]`。**payload.node_count** に上記 node_count を入れておく（DB の node_count 列と一致させる）。
 
 ---
 

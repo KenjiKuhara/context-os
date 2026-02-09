@@ -60,6 +60,7 @@ Vercel 上では Next.js API だけが動き、Observer のコードはデプロ
 | **pip install 失敗** | ローカルで `pip install -r agent/observer/requirements.txt` が通るか確認。 |
 | **healthcheck failed: report_id mismatch** | 保存直後に別のレポートが書き込まれた可能性。手動で再実行して再現するか確認。 |
 | **healthcheck failed: summary mismatch** | 保存と latest の payload が一致していない。API や DB の不整合を疑う。 |
+| **healthcheck failed: --strict and payload has warnings** | latest の payload.warnings が 1 件以上。COUNT_MISMATCH / SUMMARY_MISMATCH 等。仕様のズレ or バグの可能性があるので docs/29 を参照し調査する。 |
 
 ---
 
@@ -134,6 +135,15 @@ Vercel 側（Environment Variables）にも同じ `OBSERVER_TOKEN` を設定し�
 4. ブランチを選び **Run workflow** で実行
 
 数分以内に「Run Observer and save report」が成功すれば、Vercel の `/api/observer/reports/latest` に最新レポートが反映される。ダッシュボード（`/dashboard`）の「Observer の提案」パネルで確認できる。
+
+### 5.1 通常運用は --save --strict を使う（Phase 3-4.5）
+
+cron および手動実行では **`python3 agent/observer/main.py --save --strict`** を使う。
+
+- **--strict** を付けると、保存した直後に GET latest で **payload.warnings** を確認し、**1 件以上あれば exit(1)** する。
+- これにより「warnings が出たら GitHub Actions が赤になる」状態になり、異常が埋もれない。
+- warnings が出た場合は **仕様のズレ or バグ** の可能性があるので、ログの `⚠ Observer report has warnings:` と各 code / message / details を確認し、調査する。  
+  詳細は **docs/29_Observer_Warnings.md** を参照。
 
 ---
 
