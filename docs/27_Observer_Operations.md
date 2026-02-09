@@ -52,7 +52,7 @@ GitHub リポジトリの **Settings → Secrets and variables → Actions** で
 
 | Secret 名 | 説明 | 例 |
 |-----------|------|-----|
-| **NEXT_BASE_URL** | Vercel の Next.js API のベース URL（末尾スラッシュなし）。SSOT はこの名前（main.py / workflow で統一） | `https://context-os.vercel.app` |
+| **NEXT_BASE_URL** | Vercel の Next.js API のベース URL（末尾スラッシュなし）。`https://` を省略すると main.py が自動で付与する | `https://context-os.vercel.app` または `context-os.vercel.app` |
 | **OBSERVER_TOKEN** | Phase 3-1 で設定した Bearer token（長いランダム文字列） | （Vercel の環境変数 OBSERVER_TOKEN と同一） |
 
 - **直書き禁止**: workflow ファイルにトークンや URL を書かない。

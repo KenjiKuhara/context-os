@@ -35,8 +35,12 @@ load_dotenv()
 # ─── 設定 ──────────────────────────────────────────────────
 # ベース URL の SSOT: 環境変数 NEXT_BASE_URL（Phase 3-2.1）
 # ローカル / Actions / 本番いずれもこの名前で渡す（docs/26, 27 参照）。
+# スキーム省略時は https:// を付与（GitHub Secrets で URL だけ設定した場合の救済）。
 
-BASE_URL = os.getenv("NEXT_BASE_URL", "http://localhost:3000")
+_raw = os.getenv("NEXT_BASE_URL", "http://localhost:3000")
+BASE_URL = (_raw or "").strip() or "http://localhost:3000"
+if not (BASE_URL.startswith("http://") or BASE_URL.startswith("https://")):
+    BASE_URL = "https://" + BASE_URL
 OBSERVER_TOKEN = os.getenv("OBSERVER_TOKEN", "")
 COOLING_THRESHOLD = int(os.getenv("COOLING_THRESHOLD", "40"))
 COOLING_DAYS = int(os.getenv("COOLING_DAYS", "7"))
