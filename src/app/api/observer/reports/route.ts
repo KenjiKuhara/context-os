@@ -70,6 +70,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const receivedAt = new Date().toISOString();
+
+    // 31: payload はそのまま保存する（meta 含む）。meta が無い場合は API 受信時刻で補完し、latest/ダッシュボードで一貫して meta を返す。
+    const payloadToStore =
+      payload.meta && typeof payload.meta === "object" && (payload.meta as { observed_at?: string }).observed_at
+        ? payload
+        : {
+            ...payload,
+            meta: {
+              observed_at: receivedAt,
+              freshness_minutes: 0,
+            },
+          };
+
     const generatedBy =
       typeof body.generated_by === "string"
         ? body.generated_by.trim()
@@ -81,13 +95,11 @@ export async function POST(req: NextRequest) {
     const nodeCount =
       typeof body.node_count === "number" ? body.node_count : 0;
 
-    const receivedAt = new Date().toISOString();
-
     const { data, error } = await supabaseAdmin
       .from("observer_reports")
       .insert({
         generated_by: generatedBy,
-        payload,
+        payload: payloadToStore,
         source_commit: sourceCommit,
         node_count: nodeCount,
         source: OBSERVER_SOURCE,

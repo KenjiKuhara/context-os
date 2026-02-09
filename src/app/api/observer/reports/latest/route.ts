@@ -3,6 +3,7 @@
  *
  * 最新の ObserverReport を 1 件返す。
  * ダッシュボードの「Observer 提案」パネルが呼び出す。
+ * payload は DB に保存された JSON をそのまま返す（meta を含む。31_Observer_Freshness）。
  *
  * Based on:
  *   19_SubAgent_Observer.md §4.2 — ObserverReport 型

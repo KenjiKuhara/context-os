@@ -617,3 +617,43 @@ GitHub Actions の **Observer Cron** を手動実行し、§10 と同様に work
 | 12.4 | Phase 3-4 本番（Actions 手動） | — | workflow 緑。ダッシュボードで suggested_next と debug が確認できる |
 | 12.5A | warnings=0 で --strict | — | python main.py --save --strict が成功（exit 0） |
 | 12.5B | warnings ありで --strict | — | モックで warnings を付与すると exit 1。stderr に warnings 一覧 |
+| 14 | Freshness（API + ダッシュボード） | 200 / 表示 | meta.observed_at 存在・ISO8601。表示は「最終観測：たった今/N分前/…」。60分以上で「⚠ 少し古い提案です」 |
+
+---
+
+## 14. Freshness（Phase 3-4.7）
+
+Observer の提案の「鮮度」（いつ時点の観測か）が API とダッシュボードで正しく出ていることを確認する。  
+本番では Vercel の URL（例: `https://your-app.vercel.app`）を `<VERCEL_APP>` に置き換える。
+
+### 14.1 API（latest）確認
+
+**手順**
+
+- 最新レポートを取得する。jq が無くても目視で確認できる。
+
+```bash
+curl -s "https://<VERCEL_APP>/api/observer/reports/latest"
+```
+
+**合格条件（すべて満たすこと）**
+
+- レスポンスの **ok** が `true` であり、**report** が null でない。
+- **report.payload.meta.observed_at** が存在し、空でない。
+- **observed_at** が ISO 8601 形式である（例：末尾に `Z` または `+00:00` を含む）。
+- **report.payload.meta.freshness_minutes** は存在してもよい。表示側で経過時間を計算するため、保存時点では **0 でも合格** とする。
+
+### 14.2 ダッシュボード表示確認
+
+**手順**
+
+1. ブラウザで **https://<VERCEL_APP>/dashboard** を開く。
+2. 「Observer の提案」パネルの **メタ行** を確認する。
+
+**合格条件（すべて満たすこと）**
+
+- **「最終観測：たった今」** または **「最終観測：N分前」** / **「N時間前」** / **「N日以上前」** のいずれかが表示される。  
+  - 基準時刻は **payload.meta.observed_at**。無い場合は **created_at** にフォールバックする。
+- **60 分未満** のときは「⚠ 少し古い提案です」は **表示されない**。
+- **60 分以上** のときは「⚠ 少し古い提案です」が **表示される**（グレー・イタリックの薄いスタイル）。  
+  - この表示は **warnings ブロックとは別**（同じメタ行内の注意表示であること）。

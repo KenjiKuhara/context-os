@@ -223,7 +223,19 @@ curl -s "https://YOUR_VERCEL_URL/api/observer/reports/latest"
 
 ---
 
-## 8. この文書の位置づけ
+## 8. 鮮度の見方（Phase 3-4.7）
+
+運用者が毎回確認するのは次の **2 つ** でよい。
+
+1. **最終観測** — メタ行の「最終観測：たった今 / N分前 / N時間前 / N日以上前」。提案が「いつ時点の観測か」を示す。
+2. **warnings** — 「Observer が異常を検知しました」ブロック。COUNT_MISMATCH / SUMMARY_MISMATCH 等。**--strict 時は 1 件でもあれば Actions が失敗（exit 1）** する。
+
+**「⚠ 少し古い提案です」** は **warnings ではない**。60 分以上経過した提案に薄く表示される「注意書き」であり、**strict の失敗条件には含まれない**。  
+鮮度は「人が古さを把握するため」の表示のみで、判断ロジックには使わない。詳細は **docs/31_Observer_Freshness.md** を参照。
+
+---
+
+## 9. この文書の位置づけ
 
 - Observer の **定期実行・運用・失敗通知** の SSOT
 - 26_Agent_Observer_MVP.md の「保存」「認証」の先にある「どこで・どう回すか」を補足する

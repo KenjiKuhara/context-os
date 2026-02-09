@@ -956,7 +956,8 @@ export default function DashboardPage() {
                   const now = Date.now();
                   const minutes = Math.floor((now - observedAt) / 60_000);
                   let label: string;
-                  if (minutes < 60) label = `${minutes}分前`;
+                  if (minutes < 1) label = "たった今";
+                  else if (minutes < 60) label = `${minutes}分前`;
                   else if (minutes < 24 * 60) label = `${Math.floor(minutes / 60)}時間前`;
                   else label = `${Math.floor(minutes / (24 * 60))}日以上前`;
                   return (

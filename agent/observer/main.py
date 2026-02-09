@@ -530,6 +530,13 @@ async def main() -> None:
 
     # --save フラグがあれば API に保存し、Phase 3-2.1 で latest と突き合わせて healthcheck
     if should_save:
+        # 31: payload.meta が欠落していないか確認（本番で meta が届かない原因切り分け用）
+        meta = report.get("meta") if isinstance(report.get("meta"), dict) else None
+        if not (meta and meta.get("observed_at")):
+            print(
+                "warning: report has no payload.meta.observed_at; API may backfill (31_Observer_Freshness)",
+                file=sys.stderr,
+            )
         node_count = report.get("node_count")
         if node_count is None:
             node_count = (
