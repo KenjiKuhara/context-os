@@ -41,6 +41,10 @@ _raw = os.getenv("NEXT_BASE_URL", "http://localhost:3000")
 BASE_URL = (_raw or "").strip() or "http://localhost:3000"
 if not (BASE_URL.startswith("http://") or BASE_URL.startswith("https://")):
     BASE_URL = "https://" + BASE_URL
+# GitHub Actions で localhost のままなら Secrets 未設定
+if os.getenv("GITHUB_ACTIONS") and ("localhost" in BASE_URL or "127.0.0.1" in BASE_URL):
+    print("Error: NEXT_BASE_URL is not set for GitHub Actions. Add Secret NEXT_BASE_URL (e.g. https://your-app.vercel.app)", file=sys.stderr)
+    sys.exit(1)
 OBSERVER_TOKEN = os.getenv("OBSERVER_TOKEN", "")
 COOLING_THRESHOLD = int(os.getenv("COOLING_THRESHOLD", "40"))
 COOLING_DAYS = int(os.getenv("COOLING_DAYS", "7"))
@@ -51,7 +55,14 @@ COOLING_DAYS = int(os.getenv("COOLING_DAYS", "7"))
 
 async def fetch_dashboard(client: httpx.AsyncClient) -> dict[str, Any]:
     """GET /api/dashboard — アクティブ Node 一覧を取得。"""
-    resp = await client.get(f"{BASE_URL}/api/dashboard")
+    try:
+        resp = await client.get(f"{BASE_URL}/api/dashboard")
+    except httpx.ConnectError as e:
+        msg = (
+            f"Connection to {BASE_URL!r} failed. "
+            "Check NEXT_BASE_URL (e.g. https://your-app.vercel.app) and that the app is deployed and reachable."
+        )
+        raise RuntimeError(msg) from e
     resp.raise_for_status()
     data = resp.json()
     if not data.get("ok"):
