@@ -51,6 +51,33 @@ type AdvisorReport = {
 
 type Tab = "organizer" | "advisor";
 
+/** Apply エラーを段階別に保持（ユーザー向け短メッセージ + 開発者向け詳細） */
+export type ApplyErrorInfo = {
+  stage: "confirmations" | "estimate" | "network";
+  message: string;
+  status?: number;
+  endpoint?: string;
+  body?: string;
+  rawError?: { name?: string; message?: string; stack?: string };
+};
+
+/** Apply 成功時の監査用詳細（折りたたみ表示） */
+type ApplySuccessDetail = { confirmation_id: string };
+
+function formatResponseBody(data: unknown): string {
+  if (data === null || data === undefined) return "";
+  if (typeof data === "string") return data;
+  if (typeof data === "object") {
+    const o = data as Record<string, unknown>;
+    const parts: string[] = [];
+    if (o.message != null) parts.push(`message: ${String(o.message)}`);
+    if (Array.isArray(o.errors)) parts.push(`errors: ${JSON.stringify(o.errors)}`);
+    if (parts.length > 0) return parts.join("\n");
+    return JSON.stringify(data, null, 2);
+  }
+  return String(data);
+}
+
 const TAB_LABEL: Record<Tab, string> = {
   organizer: "Organizer",
   advisor: "Advisor",
@@ -87,9 +114,11 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
   /** Apply（ステータス変更）用 */
   const applyInFlightRef = useRef(false);
   const [applyLoading, setApplyLoading] = useState(false);
-  const [applyError, setApplyError] = useState<string | null>(null);
+  const [applyError, setApplyError] = useState<ApplyErrorInfo | null>(null);
   const [applyErrorExpanded, setApplyErrorExpanded] = useState(false);
   const [applySuccessMessage, setApplySuccessMessage] = useState<string | null>(null);
+  const [applySuccessDetail, setApplySuccessDetail] = useState<ApplySuccessDetail | null>(null);
+  const [applySuccessDetailExpanded, setApplySuccessDetailExpanded] = useState(false);
   const [applyToStatus, setApplyToStatus] = useState<string>("");
 
   const allNodes = useMemo(() => (trays ? flattenTrays(trays) : []), [trays]);
@@ -181,31 +210,84 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
     setApplyLoading(true);
     setApplyError(null);
     setApplySuccessMessage(null);
+    setApplySuccessDetail(null);
+    const confEndpoint = "/api/confirmations";
+    const estEndpoint = `/api/nodes/${targetNodeId}/estimate-status`;
     try {
-      const confRes = await fetch("/api/confirmations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          node_id: targetNodeId,
-          ui_action: "advisor_apply",
-          proposed_change: { type: "status_change", from, to },
-        }),
-      });
-      const confJson = await confRes.json();
-      if (!confJson.ok || !confJson.confirmation?.confirmation_id) {
-        throw new Error(confJson.error || "confirmation failed");
+      let confRes: Response;
+      try {
+        confRes = await fetch(confEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            node_id: targetNodeId,
+            ui_action: "advisor_apply",
+            proposed_change: { type: "status_change", from, to },
+          }),
+        });
+      } catch (e) {
+        const err = e instanceof Error ? e : new Error(String(e));
+        setApplyError({
+          stage: "network",
+          message: "通信に失敗しました。ネットワークを確認して再実行してください",
+          rawError: {
+            name: err.name,
+            message: err.message,
+            stack: err.stack,
+          },
+        });
+        return;
       }
-      const res = await fetch(`/api/nodes/${targetNodeId}/estimate-status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          confirm_status: to,
-          source: "human_ui",
-          confirmation_id: confJson.confirmation.confirmation_id,
-        }),
-      });
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "apply failed");
+      const confJson = await confRes.json().catch(() => ({}));
+      if (!confRes.ok || !confJson.ok || !confJson.confirmation?.confirmation_id) {
+        setApplyError({
+          stage: "confirmations",
+          message: "確認IDの発行に失敗しました",
+          status: confRes.status,
+          endpoint: confEndpoint,
+          body: formatResponseBody(confJson),
+        });
+        return;
+      }
+      const confirmationId = confJson.confirmation.confirmation_id as string;
+
+      let res: Response;
+      try {
+        res = await fetch(estEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            confirm_status: to,
+            source: "human_ui",
+            confirmation_id: confirmationId,
+          }),
+        });
+      } catch (e) {
+        const err = e instanceof Error ? e : new Error(String(e));
+        setApplyError({
+          stage: "network",
+          message: "通信に失敗しました。ネットワークを確認して再実行してください",
+          rawError: {
+            name: err.name,
+            message: err.message,
+            stack: err.stack,
+          },
+        });
+        return;
+      }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok) {
+        setApplyError({
+          stage: "estimate",
+          message: "ステータス変更に失敗しました",
+          status: res.status,
+          endpoint: estEndpoint,
+          body: formatResponseBody(json),
+        });
+        return;
+      }
+
+      setApplySuccessDetail({ confirmation_id: confirmationId });
       const fromLabel = (STATUS_LABELS as Record<string, string>)[from] ?? from;
       const toLabel = (STATUS_LABELS as Record<string, string>)[json.to_status ?? to] ?? to;
       try {
@@ -226,8 +308,6 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
           "適用は成功しましたが、画面更新に失敗しました。再読み込みしてください"
         );
       }
-    } catch (e) {
-      setApplyError(e instanceof Error ? e.message : String(e));
     } finally {
       setApplyLoading(false);
       applyInFlightRef.current = false;
@@ -488,8 +568,46 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                               <span style={{ fontSize: 13, color: "#1b5e20" }}>{applySuccessMessage}</span>
                             )}
                           </div>
+                          {applySuccessMessage && applySuccessDetail && (
+                            <div style={{ marginTop: 8 }}>
+                              <button
+                                type="button"
+                                onClick={() => setApplySuccessDetailExpanded(!applySuccessDetailExpanded)}
+                                style={{
+                                  fontSize: 12,
+                                  padding: "4px 8px",
+                                  border: "1px solid #2e7d32",
+                                  borderRadius: 6,
+                                  background: "#e8f5e9",
+                                  color: "#1b5e20",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {applySuccessDetailExpanded ? "閉じる" : "監査用詳細"}
+                              </button>
+                              {applySuccessDetailExpanded && (
+                                <pre
+                                  style={{
+                                    marginTop: 6,
+                                    padding: 8,
+                                    background: "#fff",
+                                    border: "1px solid #a5d6a7",
+                                    borderRadius: 6,
+                                    fontSize: 12,
+                                    overflow: "auto",
+                                    whiteSpace: "pre-wrap",
+                                  }}
+                                >
+                                  {`confirmation_id: ${applySuccessDetail.confirmation_id}`}
+                                </pre>
+                              )}
+                            </div>
+                          )}
                           {applyError && (
                             <div style={{ marginTop: 8 }}>
+                              <div style={{ fontSize: 13, color: "#c62828", marginBottom: 4 }}>
+                                {applyError.message}
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => setApplyErrorExpanded(!applyErrorExpanded)}
@@ -518,7 +636,21 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                                     whiteSpace: "pre-wrap",
                                   }}
                                 >
-                                  {applyError}
+                                  {applyError.stage === "network" && applyError.rawError
+                                    ? [
+                                        applyError.rawError.name != null ? `name: ${applyError.rawError.name}` : "",
+                                        applyError.rawError.message != null ? `message: ${applyError.rawError.message}` : "",
+                                        applyError.rawError.stack != null ? `stack:\n${applyError.rawError.stack}` : "",
+                                      ]
+                                        .filter(Boolean)
+                                        .join("\n")
+                                    : [
+                                        applyError.endpoint != null ? `endpoint: ${applyError.endpoint}` : "",
+                                        applyError.status != null ? `HTTP status: ${applyError.status}` : "",
+                                        applyError.body != null ? `response body:\n${applyError.body}` : "",
+                                      ]
+                                        .filter(Boolean)
+                                        .join("\n")}
                                 </pre>
                               )}
                             </div>
