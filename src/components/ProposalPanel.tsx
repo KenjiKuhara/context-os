@@ -6,7 +6,7 @@
  * 41_phase4_quality_pipeline.md §7、POST /api/organizer/run, /api/advisor/run を使用。
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { STATUS_LABELS, getValidTransitions, isValidStatus, type Status } from "@/lib/status";
 
 // GET /api/dashboard の trays と同じ形
@@ -85,6 +85,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
   /** Advisor で「この案で進める」を押したときの選択中案（迷子防止のため下部に固定表示） */
   const [selectedAdvisorOption, setSelectedAdvisorOption] = useState<AdvisorOption | null>(null);
   /** Apply（ステータス変更）用 */
+  const applyInFlightRef = useRef(false);
   const [applyLoading, setApplyLoading] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [applyErrorExpanded, setApplyErrorExpanded] = useState(false);
@@ -162,16 +163,21 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
   }, [trays, advisorReport?.targetNodeId, allNodes]);
 
   const applyStatus = useCallback(async () => {
-    if (!applyTargetNode || !advisorReport || applyLoading) return;
+    if (applyInFlightRef.current) return;
+    if (!applyTargetNode || !advisorReport) return;
     const from = applyTargetNode.status ?? "";
     const validNext = isValidStatus(from) ? getValidTransitions(from) : [];
     const to = applyToStatus.trim() || validNext[0];
     if (!to) return;
+    applyInFlightRef.current = true;
     const targetNodeId = advisorReport.targetNodeId;
     const ok = window.confirm(
       `Node ${targetNodeId} のステータスを ${from} → ${to} に変更します。よろしいですか？`
     );
-    if (!ok) return;
+    if (!ok) {
+      applyInFlightRef.current = false;
+      return;
+    }
     setApplyLoading(true);
     setApplyError(null);
     setApplySuccessMessage(null);
@@ -208,8 +214,9 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
       setApplyError(e instanceof Error ? e.message : String(e));
     } finally {
       setApplyLoading(false);
+      applyInFlightRef.current = false;
     }
-  }, [advisorReport, applyTargetNode, applyToStatus, applyLoading, onRefreshDashboard]);
+  }, [advisorReport, applyTargetNode, applyToStatus, onRefreshDashboard]);
 
   if (!trays) {
     return (
@@ -425,6 +432,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                           <select
                             value={applyToStatus || (getValidTransitions(applyTargetNode.status as Status)[0] ?? "")}
                             onChange={(e) => setApplyToStatus(e.target.value)}
+                            disabled={applyLoading}
                             style={{
                               padding: "6px 10px",
                               borderRadius: 6,
@@ -432,6 +440,8 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                               marginBottom: 8,
                               minWidth: 200,
                               fontSize: 13,
+                              opacity: applyLoading ? 0.7 : 1,
+                              cursor: applyLoading ? "not-allowed" : "pointer",
                             }}
                           >
                             {getValidTransitions(applyTargetNode.status as Status).map((s) => (
