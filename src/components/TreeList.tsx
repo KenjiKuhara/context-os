@@ -37,6 +37,29 @@ function buildTreeMaps(roots: TreeNode[]): {
   return { parentById, treeNodeById };
 }
 
+/**
+ * 現在画面に表示されているノード ID を、描画順（DFS・展開状態に従う）で返す。
+ * TreeList の表示順と一致させる。
+ */
+function buildVisibleIds(
+  roots: TreeNode[],
+  expandedSet: Set<string>
+): string[] {
+  const out: string[] = [];
+  function walk(nodes: TreeNode[]) {
+    for (const tn of nodes) {
+      out.push(tn.id);
+      if (expandedSet.has(tn.id) && tn.children.length > 0) {
+        for (const c of tn.children) {
+          if (!c.cycleDetected) walk([c]);
+        }
+      }
+    }
+  }
+  walk(roots);
+  return out;
+}
+
 export interface TreeListProps {
   roots: TreeNode[];
   expandedSet: Set<string>;
@@ -208,6 +231,11 @@ export function TreeList(props: TreeListProps) {
     [props.roots]
   );
 
+  const visibleIds = useMemo(
+    () => buildVisibleIds(props.roots, props.expandedSet),
+    [props.roots, props.expandedSet]
+  );
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -253,9 +281,29 @@ export function TreeList(props: TreeListProps) {
           if (parentNode) onSelectNode(parentNode.node);
           e.preventDefault();
         }
+        return;
+      }
+
+      if (e.key === "ArrowDown") {
+        const idx = visibleIds.indexOf(selectedId);
+        if (idx >= 0 && idx < visibleIds.length - 1) {
+          const nextNode = treeNodeById.get(visibleIds[idx + 1]);
+          if (nextNode) onSelectNode(nextNode.node);
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (e.key === "ArrowUp") {
+        const idx = visibleIds.indexOf(selectedId);
+        if (idx > 0) {
+          const prevNode = treeNodeById.get(visibleIds[idx - 1]);
+          if (prevNode) onSelectNode(prevNode.node);
+          e.preventDefault();
+        }
       }
     },
-    [props, parentById, treeNodeById]
+    [props, parentById, treeNodeById, visibleIds]
   );
 
   if (props.roots.length === 0) {
