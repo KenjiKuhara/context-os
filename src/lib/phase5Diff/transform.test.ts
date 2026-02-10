@@ -1,6 +1,6 @@
 /**
- * Phase 5-A/5-B: transformOrganizerReportToDiffs の単体テスト（53 準拠）
- * relation と grouping を変換。
+ * Phase 5-A/5-B/5-C: transformOrganizerReportToDiffs の単体テスト（53 準拠）
+ * relation / grouping / decomposition を変換。
  */
 
 import { describe, it, expect } from "vitest";
@@ -224,5 +224,127 @@ describe("transformOrganizerReportToDiffs", () => {
     expect(groupingDiffs).toHaveLength(1);
     expect(relationDiffs[0].change.relation_type).toBe("related");
     expect(groupingDiffs[0].change.group_label).toBe("チームA");
+  });
+
+  it("decomposition_proposals が空のときは decomposition diffs なし", () => {
+    const report: OrganizerReport = {
+      decomposition_proposals: [],
+      grouping_proposals: [],
+      relation_proposals: [],
+      summary: "要約",
+    };
+    const out = transformOrganizerReportToDiffs(report, {
+      organizer_run_id: "run-1",
+      validNodeIds,
+    });
+    expect(out.diffs.filter((d) => d.type === "decomposition")).toHaveLength(0);
+  });
+
+  it("decomposition 1 件を正しく Diff に変換する", () => {
+    const report: OrganizerReport = {
+      decomposition_proposals: [
+        {
+          target_node_id: "node-a",
+          target_title: "親タスク",
+          reason: "大きなタスクを2つに分けるため。",
+          suggested_children: [
+            { title: "子1", context: "文脈1" },
+            { title: "子2", context: "文脈2", suggested_status: "READY" },
+          ],
+        },
+      ],
+      grouping_proposals: [],
+      relation_proposals: [],
+      summary: "要約",
+    };
+    const out = transformOrganizerReportToDiffs(report, {
+      organizer_run_id: "run-1",
+      attempt_id: 0,
+      validNodeIds,
+    });
+    expect(out.diffs.filter((d) => d.type === "decomposition")).toHaveLength(1);
+    const d = out.diffs.find((x) => x.type === "decomposition")!;
+    expect(d.type).toBe("decomposition");
+    expect(d.target_node_id).toBe("node-a");
+    expect(d.change.parent_node_id).toBe("node-a");
+    expect(d.change.add_children).toHaveLength(2);
+    expect(d.change.add_children[0].title).toBe("子1");
+    expect(d.change.add_children[0].context).toBe("文脈1");
+    expect(d.change.add_children[1].title).toBe("子2");
+    expect(d.change.add_children[1].suggested_status).toBe("READY");
+    expect(d.reason).toBe("大きなタスクを2つに分けるため。");
+    expect(d.diff_id).toBeTruthy();
+    expect(d.generated_from.source_proposal).toBe("decomposition_proposals[0]");
+  });
+
+  it("decomposition で parent_node_id が validNodeIds に無いときはスキップ", () => {
+    const report: OrganizerReport = {
+      decomposition_proposals: [
+        {
+          target_node_id: "node-x",
+          target_title: "親",
+          reason: "理由",
+          suggested_children: [{ title: "子1", context: "c" }],
+        },
+      ],
+      grouping_proposals: [],
+      relation_proposals: [],
+      summary: "要約",
+    };
+    const out = transformOrganizerReportToDiffs(report, {
+      organizer_run_id: "run-1",
+      validNodeIds,
+    });
+    expect(out.diffs.filter((d) => d.type === "decomposition")).toHaveLength(0);
+    expect(out.warnings.some((w) => w.includes("validNodeIds") || w.includes("parent_node_id"))).toBe(true);
+  });
+
+  it("decomposition で子の title が空のときはスキップ（その子のみ除外し、他は残す）", () => {
+    const report: OrganizerReport = {
+      decomposition_proposals: [
+        {
+          target_node_id: "node-a",
+          target_title: "親",
+          reason: "理由",
+          suggested_children: [
+            { title: "有効な子", context: "c" },
+            { title: "", context: "空タイトル" },
+          ],
+        },
+      ],
+      grouping_proposals: [],
+      relation_proposals: [],
+      summary: "要約",
+    };
+    const out = transformOrganizerReportToDiffs(report, {
+      organizer_run_id: "run-1",
+      validNodeIds,
+    });
+    expect(out.diffs.filter((d) => d.type === "decomposition")).toHaveLength(1);
+    expect(out.diffs[0].change.add_children).toHaveLength(1);
+    expect(out.diffs[0].change.add_children[0].title).toBe("有効な子");
+    expect(out.warnings.some((w) => w.includes("title") && w.includes("empty"))).toBe(true);
+  });
+
+  it("decomposition で suggested_children が空配列のときはスキップ", () => {
+    const report: OrganizerReport = {
+      decomposition_proposals: [
+        {
+          target_node_id: "node-a",
+          target_title: "親",
+          reason: "理由",
+          suggested_children: [],
+        },
+      ],
+      grouping_proposals: [],
+      relation_proposals: [],
+      summary: "要約",
+    };
+    const out = transformOrganizerReportToDiffs(report, {
+      organizer_run_id: "run-1",
+      validNodeIds,
+    });
+    expect(out.diffs.filter((d) => d.type === "decomposition")).toHaveLength(0);
+    expect(out.warnings.some((w) => w.includes("suggested_children") || w.includes("non-empty"))).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 /**
- * Phase 5-A/5-B: validateDiff の単体テスト（52 準拠）
- * relation と grouping を検証。
+ * Phase 5-A/5-B/5-C: validateDiff の単体テスト（52 準拠）
+ * relation / grouping / decomposition を検証。
  */
 
 import { describe, it, expect } from "vitest";
@@ -90,10 +90,10 @@ describe("validateDiff", () => {
     expect(out.errors.length).toBeGreaterThan(0);
   });
 
-  it("type が relation でも grouping でもないなら INVALID", () => {
-    const out = validateDiff({ ...validRelationDiff, type: "decomposition" }, { validNodeIds });
+  it("type が relation / grouping / decomposition のいずれでもないなら INVALID", () => {
+    const out = validateDiff({ ...validRelationDiff, type: "unknown" }, { validNodeIds });
     expect(out.result).toBe("INVALID");
-    expect(out.errors.some((e) => e.includes("relation") || e.includes("grouping"))).toBe(true);
+    expect(out.errors.some((e) => e.includes("decomposition"))).toBe(true);
   });
 
   const validGroupingDiff = {
@@ -156,5 +156,75 @@ describe("validateDiff", () => {
     const out = validateDiff(diff, { validNodeIds });
     expect(out.result).toBe("INVALID");
     expect(out.errors.some((e) => e.includes("target_node_id"))).toBe(true);
+  });
+
+  const validDecompositionDiff = {
+    diff_id: "550e8400-e29b-41d4-a716-446655440003",
+    type: "decomposition",
+    target_node_id: "node-a",
+    change: {
+      parent_node_id: "node-a",
+      add_children: [
+        { title: "子1", context: "文脈1" },
+        { title: "子2", context: "文脈2", suggested_status: "READY" },
+      ],
+    },
+    reason: "大きなタスクを2つに分けるため。",
+    generated_from: { organizer_run_id: "run-1", attempt_id: 0 },
+  };
+
+  it("正常な decomposition Diff は VALID", () => {
+    const out = validateDiff(validDecompositionDiff, { validNodeIds });
+    expect(out.result).toBe("VALID");
+    expect(out.errors).toHaveLength(0);
+  });
+
+  it("decomposition で parent_node_id が validNodeIds に無いなら INVALID", () => {
+    const diff = {
+      ...validDecompositionDiff,
+      change: { ...validDecompositionDiff.change, parent_node_id: "node-x" },
+    };
+    const out = validateDiff(diff, { validNodeIds });
+    expect(out.result).toBe("INVALID");
+    expect(out.errors.some((e) => e.includes("parent_node_id") && e.includes("validNodeIds"))).toBe(true);
+  });
+
+  it("decomposition で add_children が空なら INVALID", () => {
+    const diff = {
+      ...validDecompositionDiff,
+      change: { ...validDecompositionDiff.change, add_children: [] },
+    };
+    const out = validateDiff(diff, { validNodeIds });
+    expect(out.result).toBe("INVALID");
+    expect(out.errors.some((e) => e.includes("add_children") && e.includes("1"))).toBe(true);
+  });
+
+  it("decomposition で子の title が空なら INVALID", () => {
+    const diff = {
+      ...validDecompositionDiff,
+      change: {
+        ...validDecompositionDiff.change,
+        add_children: [{ title: "子1" }, { title: "", context: "x" }],
+      },
+    };
+    const out = validateDiff(diff, { validNodeIds });
+    expect(out.result).toBe("INVALID");
+    expect(out.errors.some((e) => e.includes("title") && e.includes("non-empty"))).toBe(true);
+  });
+
+  it("decomposition で子の title が重複していると NEEDS_REVIEW", () => {
+    const diff = {
+      ...validDecompositionDiff,
+      change: {
+        ...validDecompositionDiff.change,
+        add_children: [
+          { title: "同じタイトル" },
+          { title: "同じタイトル" },
+        ],
+      },
+    };
+    const out = validateDiff(diff, { validNodeIds });
+    expect(out.result).toBe("NEEDS_REVIEW");
+    expect(out.warnings.some((w) => w.includes("duplicate"))).toBe(true);
   });
 });

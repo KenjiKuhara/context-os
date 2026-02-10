@@ -1,6 +1,6 @@
 /**
- * Phase 5-A/5-B: Diff の事前検証（52 準拠）
- * type === "relation" と type === "grouping" を検証する。
+ * Phase 5-A/5-B/5-C: Diff の事前検証（52 準拠）
+ * type === "relation" / "grouping" / "decomposition" を検証する。
  */
 
 import type { DiffValidationOutput, ValidateDiffContext } from "./types";
@@ -15,8 +15,12 @@ export function validateDiff(diff: unknown, context: ValidateDiffContext): DiffV
 
   const d = diff as Record<string, unknown>;
 
-  if (d.type !== "relation" && d.type !== "grouping") {
-    return { result: "INVALID", errors: ["type must be 'relation' or 'grouping'"], warnings: [] };
+  if (d.type !== "relation" && d.type !== "grouping" && d.type !== "decomposition") {
+    return {
+      result: "INVALID",
+      errors: ["type must be 'relation', 'grouping', or 'decomposition'"],
+      warnings: [],
+    };
   }
 
   const diff_id = typeof d.diff_id === "string" ? d.diff_id.trim() : "";
@@ -103,10 +107,58 @@ export function validateDiff(diff: unknown, context: ValidateDiffContext): DiffV
         errors.push("target_node_id is not in validNodeIds");
       }
     }
+  } else if (d.type === "decomposition") {
+    if (!change || typeof change !== "object") {
+      errors.push("change is required and must be an object");
+    } else {
+      const c = change as Record<string, unknown>;
+      const parent_node_id =
+        typeof c.parent_node_id === "string" ? c.parent_node_id.trim() : "";
+      const rawAddChildren = Array.isArray(c.add_children) ? c.add_children : [];
+
+      if (!parent_node_id) errors.push("change.parent_node_id is required and must be non-empty");
+      if (!validSet.has(parent_node_id)) {
+        errors.push("change.parent_node_id is not in validNodeIds");
+      }
+      if (rawAddChildren.length < 1) {
+        errors.push("change.add_children must have at least 1 item");
+      }
+
+      const titles: string[] = [];
+      for (let idx = 0; idx < rawAddChildren.length; idx++) {
+        const item = rawAddChildren[idx];
+        if (!item || typeof item !== "object") {
+          errors.push(`change.add_children[${idx}] must be an object`);
+          continue;
+        }
+        const it = item as Record<string, unknown>;
+        const title = typeof it.title === "string" ? it.title.trim() : "";
+        if (!title) errors.push(`change.add_children[${idx}].title is required and must be non-empty`);
+        else titles.push(title);
+      }
+
+      if (titles.length > 0) {
+        const seen = new Set<string>();
+        for (const t of titles) {
+          if (seen.has(t)) {
+            warnings.push("duplicate child title(s); consider NEEDS_REVIEW");
+            break;
+          }
+          seen.add(t);
+        }
+        if (titles.length > 10) {
+          warnings.push("more than 10 children; consider NEEDS_REVIEW");
+        }
+      }
+    }
   }
 
   if (errors.length > 0) {
     return { result: "INVALID", errors, warnings };
+  }
+
+  if (warnings.length > 0) {
+    return { result: "NEEDS_REVIEW", errors: [], warnings };
   }
 
   return { result: "VALID", errors: [], warnings };

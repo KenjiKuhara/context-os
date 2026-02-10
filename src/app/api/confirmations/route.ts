@@ -62,11 +62,96 @@ export async function POST(req: NextRequest) {
 
     const changeType = proposedChange.type as string;
 
-    if (changeType !== "relation" && changeType !== "grouping" && !nodeId) {
+    if (changeType !== "relation" && changeType !== "grouping" && changeType !== "decomposition" && !nodeId) {
       return NextResponse.json(
-        { ok: false, error: "node_id is required for non-relation, non-grouping proposed_change" },
+        { ok: false, error: "node_id is required for status_change and other non-Diff proposed_change" },
         { status: 400 }
       );
+    }
+
+    if (changeType === "decomposition") {
+      // Phase 5-C: decomposition Diff 用
+      const diffId = typeof proposedChange.diff_id === "string" ? proposedChange.diff_id.trim() : "";
+      const parentNodeId =
+        typeof proposedChange.parent_node_id === "string" ? proposedChange.parent_node_id.trim() : "";
+      const rawChildren = Array.isArray(proposedChange.children)
+        ? proposedChange.children
+        : Array.isArray(proposedChange.add_children)
+          ? proposedChange.add_children
+          : [];
+      if (!diffId || !parentNodeId || rawChildren.length < 1) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "proposed_change (type=decomposition) requires diff_id, parent_node_id, children (array, 1+ items)",
+          },
+          { status: 400 }
+        );
+      }
+      const { data: parentNode } = await supabaseAdmin
+        .from("nodes")
+        .select("id")
+        .eq("id", parentNodeId)
+        .single();
+      if (!parentNode) {
+        return NextResponse.json(
+          { ok: false, error: `parent_node_id not found in nodes: ${parentNodeId}` },
+          { status: 404 }
+        );
+      }
+      const add_children: { title: string; context?: string; suggested_status?: string }[] = [];
+      for (let i = 0; i < rawChildren.length; i++) {
+        const item = rawChildren[i];
+        if (!item || typeof item !== "object") {
+          return NextResponse.json(
+            { ok: false, error: `proposed_change.children[${i}] must be an object with title` },
+            { status: 400 }
+          );
+        }
+        const title = typeof item.title === "string" ? item.title.trim() : "";
+        if (!title) {
+          return NextResponse.json(
+            { ok: false, error: `proposed_change.children[${i}].title is required and must be non-empty` },
+            { status: 400 }
+          );
+        }
+        const context =
+          typeof item.context === "string" ? item.context.trim() : undefined;
+        const suggested_status =
+          typeof item.suggested_status === "string" && item.suggested_status.trim() !== ""
+            ? item.suggested_status.trim()
+            : undefined;
+        add_children.push({
+          title,
+          ...(context !== undefined && { context }),
+          ...(suggested_status !== undefined && { suggested_status }),
+        });
+      }
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + EXPIRY_HOURS * 60 * 60 * 1000);
+      const confirmationId = randomUUID();
+      const record = {
+        confirmation_id: confirmationId,
+        node_id: parentNodeId,
+        confirmed_by: "human",
+        confirmed_at: now.toISOString(),
+        ui_action: uiAction,
+        proposed_change: {
+          type: "decomposition",
+          diff_id: diffId,
+          parent_node_id: parentNodeId,
+          add_children,
+        },
+        consumed: false,
+        consumed_at: null,
+        expires_at: expiresAt.toISOString(),
+      };
+      const { error: insErr } = await supabaseAdmin.from("confirmation_events").insert(record);
+      if (insErr) {
+        return NextResponse.json({ ok: false, error: insErr.message }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true, confirmation: record });
     }
 
     if (changeType === "grouping") {

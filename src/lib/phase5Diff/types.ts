@@ -26,6 +26,18 @@ export interface GroupingChange {
   node_ids: string[];
 }
 
+/** decomposition 用 change（51 §3.3） */
+export interface DecompositionChangeChild {
+  title: string;
+  context?: string;
+  suggested_status?: string;
+}
+
+export interface DecompositionChange {
+  parent_node_id: string;
+  add_children: DecompositionChangeChild[];
+}
+
 /** generated_from（51） */
 export interface DiffGeneratedFrom {
   organizer_run_id: string;
@@ -55,8 +67,14 @@ export interface DiffGrouping extends DiffBase {
   change: GroupingChange;
 }
 
-/** Diff（relation | grouping のユニオン） */
-export type Diff = DiffRelation | DiffGrouping;
+/** decomposition Diff（Phase 5-C） */
+export interface DiffDecomposition extends DiffBase {
+  type: "decomposition";
+  change: DecompositionChange;
+}
+
+/** Diff（relation | grouping | decomposition のユニオン） */
+export type Diff = DiffRelation | DiffGrouping | DiffDecomposition;
 
 /** Transform のコンテキスト（53） */
 export interface TransformContext {

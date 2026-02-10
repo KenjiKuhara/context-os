@@ -24,11 +24,11 @@ type RunResult = {
   errors: string[];
   warnings: string[];
   rendered?: string;
-  /** Phase 5-A/5-B: relation + grouping。VALID/NEEDS_REVIEW の Diff 一覧 */
+  /** Phase 5-A/5-B/5-C: relation + grouping + decomposition。VALID/NEEDS_REVIEW の Diff 一覧 */
   diffs?: OrganizerDiffItem[];
 };
 
-/** Phase 5-A/5-B: Organizer の 1 Diff（API の diffs[i] の形） */
+/** Phase 5-A/5-B/5-C: Organizer の 1 Diff（API の diffs[i] の形） */
 type OrganizerDiffItem =
   | {
       diff_id: string;
@@ -44,6 +44,18 @@ type OrganizerDiffItem =
       type: "grouping";
       target_node_id: string;
       change: { group_label: string; node_ids: string[] };
+      reason: string;
+      risk?: string | null;
+      validation?: { result: string; errors: string[]; warnings: string[] };
+    }
+  | {
+      diff_id: string;
+      type: "decomposition";
+      target_node_id: string;
+      change: {
+        parent_node_id: string;
+        add_children: Array<{ title: string; context?: string; suggested_status?: string }>;
+      };
       reason: string;
       risk?: string | null;
       validation?: { result: string; errors: string[]; warnings: string[] };
@@ -153,6 +165,11 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
   const [groupingApplyLoading, setGroupingApplyLoading] = useState(false);
   const [groupingApplyError, setGroupingApplyError] = useState<string | null>(null);
   const [groupingApplySuccessMessage, setGroupingApplySuccessMessage] = useState<string | null>(null);
+  /** Phase 5-C: decomposition Diff Apply 用（ref 分離） */
+  const decompositionApplyInFlightRef = useRef(false);
+  const [decompositionApplyLoading, setDecompositionApplyLoading] = useState(false);
+  const [decompositionApplyError, setDecompositionApplyError] = useState<string | null>(null);
+  const [decompositionApplySuccessMessage, setDecompositionApplySuccessMessage] = useState<string | null>(null);
 
   const allNodes = useMemo(() => (trays ? flattenTrays(trays) : []), [trays]);
   const dashboardPayload = useMemo(
@@ -459,6 +476,64 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
     [onRefreshDashboard]
   );
 
+  const applyDecompositionDiff = useCallback(
+    async (diff: OrganizerDiffItem) => {
+      if (decompositionApplyInFlightRef.current) return;
+      if (diff.type !== "decomposition" || !diff.change) return;
+      const { parent_node_id, add_children } = diff.change;
+      const msg = `親 Node ${parent_node_id.slice(0, 8)}… に子 Node を ${add_children.length} 件作成して紐づけます。よろしいですか？`;
+      decompositionApplyInFlightRef.current = true;
+      const ok = window.confirm(msg);
+      if (!ok) {
+        decompositionApplyInFlightRef.current = false;
+        return;
+      }
+      setDecompositionApplyLoading(true);
+      setDecompositionApplyError(null);
+      setDecompositionApplySuccessMessage(null);
+      try {
+        const confRes = await fetch("/api/confirmations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            node_id: parent_node_id,
+            ui_action: "organizer_decomposition_apply",
+            proposed_change: {
+              type: "decomposition",
+              diff_id: diff.diff_id,
+              parent_node_id,
+              add_children,
+            },
+          }),
+        });
+        const confJson = await confRes.json().catch(() => ({}));
+        if (!confRes.ok || !confJson.ok || !confJson.confirmation?.confirmation_id) {
+          throw new Error(confJson.error || "確認IDの発行に失敗しました");
+        }
+        const applyRes = await fetch("/api/diffs/decomposition/apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmation_id: confJson.confirmation.confirmation_id }),
+        });
+        const applyJson = await applyRes.json().catch(() => ({}));
+        if (!applyRes.ok || !applyJson.ok) {
+          throw new Error(applyJson.error || "反映に失敗しました");
+        }
+        if (onRefreshDashboard) await onRefreshDashboard();
+        const createdCount = Array.isArray(applyJson.created_children) ? applyJson.created_children.length : 0;
+        setDecompositionApplySuccessMessage(
+          `反映しました（親 ${parent_node_id.slice(0, 8)}… に子 ${createdCount} 件作成）`
+        );
+      } catch (e) {
+        setDecompositionApplyError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setDecompositionApplyLoading(false);
+        decompositionApplyInFlightRef.current = false;
+      }
+    },
+    [onRefreshDashboard]
+  );
+
   if (!trays) {
     return (
       <div
@@ -712,6 +787,90 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                   {groupingApplyError && (
                     <div style={{ marginTop: 8, fontSize: 13, color: "#c62828" }}>
                       {groupingApplyError}
+                    </div>
+                  )}
+                </div>
+              )}
+              {(organizerResult.diffs as OrganizerDiffItem[]).filter((d) => d.type === "decomposition").length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+                    適用可能な Diff（decomposition）
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {(organizerResult.diffs as OrganizerDiffItem[])
+                      .filter((d) => d.type === "decomposition")
+                      .map((diff) => (
+                        <div
+                          key={diff.diff_id}
+                          style={{
+                            padding: 12,
+                            border: "1px solid #ddd",
+                            borderRadius: 8,
+                            background: "#fafafa",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                            <span style={{ fontSize: 12, color: "#666" }}>
+                              親: {diff.change.parent_node_id.slice(0, 8)}…
+                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 700 }}>
+                              子 {diff.change.add_children.length} 件
+                            </span>
+                            {diff.validation?.result === "NEEDS_REVIEW" && (
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  padding: "2px 6px",
+                                  background: "#fff3e0",
+                                  color: "#e65100",
+                                  borderRadius: 4,
+                                }}
+                              >
+                                要確認
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 12, marginBottom: 4 }}>
+                            {diff.change.add_children.map((c, i) => (
+                              <span key={i} style={{ marginRight: 8 }}>
+                                • {c.title}
+                              </span>
+                            ))}
+                          </div>
+                          <div style={{ fontSize: 12, marginBottom: 8 }}>{diff.reason}</div>
+                          {diff.validation?.warnings?.length ? (
+                            <div style={{ fontSize: 11, color: "#e65100", marginBottom: 8 }}>
+                              {diff.validation.warnings.join("; ")}
+                            </div>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => applyDecompositionDiff(diff)}
+                            disabled={decompositionApplyLoading}
+                            style={{
+                              padding: "6px 12px",
+                              fontSize: 12,
+                              border: "1px solid #5567ff",
+                              borderRadius: 6,
+                              background: decompositionApplyLoading ? "#ccc" : "#5567ff",
+                              color: "white",
+                              fontWeight: 600,
+                              cursor: decompositionApplyLoading ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            {decompositionApplyLoading ? "適用中…" : "このDiffを反映する"}
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                  {decompositionApplySuccessMessage && (
+                    <div style={{ marginTop: 8, fontSize: 13, color: "#2e7d32" }}>
+                      {decompositionApplySuccessMessage}
+                    </div>
+                  )}
+                  {decompositionApplyError && (
+                    <div style={{ marginTop: 8, fontSize: 13, color: "#c62828" }}>
+                      {decompositionApplyError}
                     </div>
                   )}
                 </div>
