@@ -3,17 +3,50 @@
 /**
  * Phase6-A: ツリー表示リスト
  * buildTree で組み立てた TreeNode を開閉付きで表示。詳細パネル連携用に onSelectNode を呼ぶ。
+ * キーボード: → で展開、← で閉じる（選択中ノードにのみ反応、ツリー領域フォーカス時のみ）。
  */
 
+import { useMemo, useCallback, useState } from "react";
 import type { TreeNode } from "@/lib/dashboardTree";
 
 const INDENT_PX = 20;
 const GUIDE_COLOR = "rgba(0,0,0,0.08)";
 
+function walkTree(
+  roots: TreeNode[],
+  visit: (tn: TreeNode, parentId: string | null) => void,
+  parentId: string | null = null
+) {
+  for (const tn of roots) {
+    visit(tn, parentId);
+    walkTree(tn.children, visit, tn.id);
+  }
+}
+
+/** roots から childrenById と parentById を構築（キーボード開閉用） */
+function buildTreeMaps(roots: TreeNode[]): {
+  childrenById: Map<string, string[]>;
+  parentById: Map<string, string>;
+} {
+  const childrenById = new Map<string, string[]>();
+  const parentById = new Map<string, string>();
+  walkTree(roots, (tn, parentId) => {
+    if (parentId != null) parentById.set(tn.id, parentId);
+    if (tn.children.length > 0) {
+      childrenById.set(tn.id, tn.children.map((c) => c.id));
+    }
+  });
+  return { childrenById, parentById };
+}
+
 export interface TreeListProps {
   roots: TreeNode[];
   expandedSet: Set<string>;
   onToggleExpand: (nodeId: string) => void;
+  /** キーボード → 用: 指定ノードを展開する */
+  onExpand?: (nodeId: string) => void;
+  /** キーボード ← 用: 指定ノードを閉じる */
+  onCollapse?: (nodeId: string) => void;
   onSelectNode: (node: Record<string, unknown>) => void;
   selectedId: string | null;
   getNodeTitle: (node: Record<string, unknown>) => string;
@@ -172,6 +205,57 @@ function renderNode(
 }
 
 export function TreeList(props: TreeListProps) {
+  const { childrenById, parentById } = useMemo(
+    () => buildTreeMaps(props.roots),
+    [props.roots]
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const tagName = target.tagName?.toLowerCase();
+      if (
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select" ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      const { selectedId, expandedSet, onExpand, onCollapse } = props;
+      if (!selectedId) return;
+
+      if (e.key === "ArrowRight") {
+        const childIds = childrenById.get(selectedId);
+        if (
+          childIds &&
+          childIds.length > 0 &&
+          !expandedSet.has(selectedId) &&
+          onExpand
+        ) {
+          onExpand(selectedId);
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (e.key === "ArrowLeft") {
+        if (expandedSet.has(selectedId) && onCollapse) {
+          onCollapse(selectedId);
+          e.preventDefault();
+          return;
+        }
+        const parentId = parentById.get(selectedId);
+        if (parentId != null && onCollapse) {
+          onCollapse(parentId);
+          e.preventDefault();
+        }
+      }
+    },
+    [props, childrenById, parentById]
+  );
+
   if (props.roots.length === 0) {
     return (
       <div style={{ padding: 12, color: "#666" }}>
@@ -180,8 +264,24 @@ export function TreeList(props: TreeListProps) {
     );
   }
 
+  const [focused, setFocused] = useState(false);
+
   return (
-    <div>
+    <div
+      tabIndex={0}
+      role="tree"
+      aria-label="ノードツリー"
+      onKeyDown={handleKeyDown}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{
+        outline: "none",
+        borderRadius: 4,
+        boxShadow: focused
+          ? "inset 0 0 0 1px rgba(85, 103, 255, 0.35)"
+          : undefined,
+      }}
+    >
       {props.roots.map((root) => renderNode(root, props, 0))}
     </div>
   );

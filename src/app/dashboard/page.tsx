@@ -590,6 +590,16 @@ export default function DashboardPage() {
                   return next;
                 });
               }}
+              onExpand={(nodeId) => {
+                setExpandedSet((prev) => new Set([...prev, nodeId]));
+              }}
+              onCollapse={(nodeId) => {
+                setExpandedSet((prev) => {
+                  const next = new Set(prev);
+                  next.delete(nodeId);
+                  return next;
+                });
+              }}
               onSelectNode={(node) => setSelected(node as Node)}
               selectedId={selected?.id ?? null}
               getNodeTitle={(n) => getNodeTitle(n as Node)}
