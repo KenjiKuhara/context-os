@@ -33,6 +33,7 @@ export function renderOrganizerReport(report: OrganizerReport): string {
 
 export function renderAdvisorReport(report: AdvisorReport): string {
   const lines: string[] = [
+    `対象Node: ${report.targetNodeId}`,
     `# ${report.target_title} (${report.target_node_id})`,
     `状態: ${report.current_status}`,
     "",

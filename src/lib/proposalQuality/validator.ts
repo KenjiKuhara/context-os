@@ -155,7 +155,8 @@ export function validateAdvisorReport(
   }
 
   const r = report as Record<string, unknown>;
-  const targetNodeId = r.target_node_id;
+  const targetNodeIdField = r.targetNodeId;
+  const targetNodeIdLegacy = r.target_node_id;
   const targetTitle = r.target_title;
   const currentStatus = r.current_status;
   const options = r.options;
@@ -163,7 +164,10 @@ export function validateAdvisorReport(
   const summary = r.summary;
   const criteria = r.criteria;
 
-  if (targetNodeId === undefined || targetNodeId === null) errors.push("target_node_id is required");
+  if (targetNodeIdField === undefined || targetNodeIdField === null) errors.push("targetNodeId is required");
+  else if (typeof targetNodeIdField !== "string" || !targetNodeIdField.trim())
+    errors.push("targetNodeId must be a non-empty string");
+  if (targetNodeIdLegacy === undefined || targetNodeIdLegacy === null) errors.push("target_node_id is required");
   if (targetTitle === undefined || targetTitle === null) errors.push("target_title is required");
   if (currentStatus === undefined || currentStatus === null) errors.push("current_status is required");
   if (!Array.isArray(options)) errors.push("options is required (array)");
@@ -173,7 +177,9 @@ export function validateAdvisorReport(
   else if (!isNonEmptyString(summary)) errors.push("summary must be non-empty");
 
   const validSet = new Set(validNodeIds);
-  if (validNodeIds.length > 0 && typeof targetNodeId === "string" && targetNodeId && !validSet.has(targetNodeId))
+  if (validNodeIds.length > 0 && typeof targetNodeIdField === "string" && targetNodeIdField && !validSet.has(targetNodeIdField))
+    errors.push("targetNodeId is not in valid node list (嘘防止)");
+  if (validNodeIds.length > 0 && typeof targetNodeIdLegacy === "string" && targetNodeIdLegacy && !validSet.has(targetNodeIdLegacy))
     errors.push("target_node_id is not in valid node list");
 
   if (Array.isArray(options)) {

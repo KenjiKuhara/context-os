@@ -47,6 +47,7 @@ function parseAdvisorReport(raw: unknown): AdvisorReport | null {
   const r = raw as Record<string, unknown>;
   if (!Array.isArray(r.options)) return null;
   return {
+    targetNodeId: String(r.targetNodeId ?? r.target_node_id ?? ""),
     target_node_id: String(r.target_node_id ?? ""),
     target_title: String(r.target_title ?? ""),
     current_status: String(r.current_status ?? ""),
@@ -153,6 +154,7 @@ export async function runAdvisorPipeline(
         retryCount = attempt + 1;
         continue;
       }
+      lastReport.targetNodeId = focusNode.id;
       const result = validateAdvisorReport(lastReport, validNodeIds);
       lastErrors = result.errors;
       lastWarnings = result.warnings;

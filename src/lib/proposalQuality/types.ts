@@ -54,6 +54,8 @@ export interface AdvisorCriterion {
 }
 
 export interface AdvisorReport {
+  /** Apply 向けにサーバーが必ず設定する対象 Node ID（focusNodeId 指定時はその値、未指定時は dashboard から選んだ node.id） */
+  targetNodeId: string;
   target_node_id: string;
   target_title: string;
   current_status: string;

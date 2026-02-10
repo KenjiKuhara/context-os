@@ -106,6 +106,7 @@ export const ORGANIZER_INVALID_BAD_ID: OrganizerReport = {
 
 /** A1: NEEDS_DECISION の Node n1 → options 2+、各 option に 4 項目 */
 export const ADVISOR_A1_VALID: AdvisorReport = {
+  targetNodeId: "n1",
   target_node_id: "n1",
   target_title: "承認待ちの見積もり",
   current_status: "NEEDS_DECISION",
@@ -152,6 +153,7 @@ export const ADVISOR_A2_VALID: AdvisorReport = {
 
 /** A3: 下書き文案 n1 → options 2+（文案パターン）、description, risks */
 export const ADVISOR_A3_VALID: AdvisorReport = {
+  targetNodeId: "n1",
   target_node_id: "n1",
   target_title: "返信文",
   current_status: "IN_PROGRESS",
@@ -179,6 +181,7 @@ export const ADVISOR_A3_VALID: AdvisorReport = {
 
 /** A4: Node 0 件 → 検証では validNodeIds が空のとき target はチェックしない場合、options は 2 以上必須のまま。A4 は「エラーまたは summary のみ」なので、不正な report を送った場合は errors が出る想定。 */
 export const ADVISOR_A4_EDGE: AdvisorReport = {
+  targetNodeId: "",
   target_node_id: "",
   target_title: "",
   current_status: "",
