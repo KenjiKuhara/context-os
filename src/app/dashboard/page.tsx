@@ -21,6 +21,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { STATUS_LABELS } from "@/lib/stateMachine";
 import { ProposalPanel } from "@/components/ProposalPanel";
+import { buildTree } from "@/lib/dashboardTree";
+import { TreeList } from "@/components/TreeList";
 
 // ─── Types ──────────────────────────────────────────────────
 // Node attributes based on 04_Domain_Model.md §3
@@ -34,6 +36,9 @@ type Node = {
   temperature?: number | null;
   note?: string | null;      // 簡易メモ（domain 外だが DB 互換で残す）
   updated_at?: string | null;
+  parent_id?: string | null; // Phase6-A ツリー用
+  sibling_order?: number | null;
+  created_at?: string | null;
 };
 
 type Trays = {
@@ -181,6 +186,11 @@ export default function DashboardPage() {
   const [observerError, setObserverError] = useState<string | null>(null);
   const [observerWarningExpanded, setObserverWarningExpanded] = useState<number | null>(null);
 
+  // Phase6-A: ツリー表示用
+  const [nodeChildren, setNodeChildren] = useState<Array<{ parent_id: string; child_id: string; created_at?: string }>>([]);
+  const [viewMode, setViewMode] = useState<"flat" | "tree">("tree");
+  const [expandedSet, setExpandedSet] = useState<Set<string>>(new Set());
+
   // ─── Data fetch ─────────────────────────────────────────
 
   const refreshDashboard = useCallback(async () => {
@@ -188,6 +198,7 @@ export default function DashboardPage() {
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || "API error");
     setTrays(json.trays as Trays);
+    setNodeChildren(Array.isArray(json.node_children) ? json.node_children : []);
     return json.trays as Trays;
   }, []);
 
@@ -276,6 +287,15 @@ export default function DashboardPage() {
     }
     return trays[activeTrayKey];
   }, [trays, activeTrayKey]);
+
+  // Phase6-A: ツリー表示用ルート（node_children 優先・循環検知・深さ5まで）
+  const treeRoots = useMemo(() => {
+    if (viewMode !== "tree" || visibleNodes.length === 0) return [];
+    return buildTree(
+      visibleNodes as Array<Record<string, unknown> & { id: string; parent_id?: string | null }>,
+      nodeChildren
+    );
+  }, [viewMode, visibleNodes, nodeChildren]);
 
   const counts = useMemo(() => {
     if (!trays) {
@@ -513,15 +533,68 @@ export default function DashboardPage() {
               padding: 12,
               borderBottom: "1px solid #eee",
               fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 8,
             }}
           >
-            一覧：{TRAY_LABEL[activeTrayKey]}
+            <span>一覧：{TRAY_LABEL[activeTrayKey]}</span>
+            <span style={{ fontSize: 12, fontWeight: 500 }}>
+              <button
+                type="button"
+                onClick={() => setViewMode("flat")}
+                style={{
+                  padding: "4px 8px",
+                  marginRight: 4,
+                  border: viewMode === "flat" ? "2px solid #5567ff" : "1px solid #ddd",
+                  borderRadius: 6,
+                  background: viewMode === "flat" ? "#f5f7ff" : "white",
+                  cursor: "pointer",
+                  fontSize: 12,
+                }}
+              >
+                フラット
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("tree")}
+                style={{
+                  padding: "4px 8px",
+                  border: viewMode === "tree" ? "2px solid #5567ff" : "1px solid #ddd",
+                  borderRadius: 6,
+                  background: viewMode === "tree" ? "#f5f7ff" : "white",
+                  cursor: "pointer",
+                  fontSize: 12,
+                }}
+              >
+                ツリー
+              </button>
+            </span>
           </div>
 
           {visibleNodes.length === 0 ? (
             <div style={{ padding: 12, color: "#666" }}>
               対象のノードがありません
             </div>
+          ) : viewMode === "tree" ? (
+            <TreeList
+              roots={treeRoots}
+              expandedSet={expandedSet}
+              onToggleExpand={(nodeId) => {
+                setExpandedSet((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(nodeId)) next.delete(nodeId);
+                  else next.add(nodeId);
+                  return next;
+                });
+              }}
+              onSelectNode={(node) => setSelected(node as Node)}
+              selectedId={selected?.id ?? null}
+              getNodeTitle={(n) => getNodeTitle(n as Node)}
+              getNodeSubtext={(n) => getNodeSubtext(n as Node)}
+            />
           ) : (
             visibleNodes.map((n) => {
               const title = getNodeTitle(n);

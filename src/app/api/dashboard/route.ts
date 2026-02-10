@@ -2,6 +2,7 @@
  * GET /api/dashboard
  *
  * 「机の上」にあるアクティブ Node をトレー別に返す。
+ * Phase6-A: ツリー表示用に node_children（parent_id, child_id, created_at）を追加。
  *
  * Based on:
  *   09_API_Contract.md §9 — GET /dashboard/active
@@ -21,14 +22,30 @@ export async function GET() {
   try {
     // ACTIVE_STATUSES は stateMachine.ts で一元管理
     // DONE / CANCELLED / DORMANT を除いた12状態
-    const { data, error } = await supabaseAdmin
-      .from("nodes")
-      .select("*")
-      .in("status", [...ACTIVE_STATUSES])
-      .order("updated_at", { ascending: false })
-      .limit(50);
+    const [nodesRes, childrenRes] = await Promise.all([
+      supabaseAdmin
+        .from("nodes")
+        .select("*")
+        .in("status", [...ACTIVE_STATUSES])
+        .order("updated_at", { ascending: false })
+        .limit(50),
+      supabaseAdmin
+        .from("node_children")
+        .select("parent_id, child_id, created_at"),
+    ]);
 
+    const { data: nodeData, error } = nodesRes;
     if (error) throw error;
+
+    // node_children は存在しないテーブルの場合があるためエラーを無視（Phase5-C 未適用環境）
+    const nodeChildren =
+      childrenRes.error == null && Array.isArray(childrenRes.data)
+        ? childrenRes.data.map((r) => ({
+            parent_id: r.parent_id as string,
+            child_id: r.child_id as string,
+            created_at: r.created_at as string,
+          }))
+        : [];
 
     // トレー分け（status ベース）
     // 05_State_Machine.md のカテゴリに基づく
@@ -40,7 +57,7 @@ export async function GET() {
       other_active: [] as Record<string, unknown>[],
     };
 
-    for (const n of data ?? []) {
+    for (const n of nodeData ?? []) {
       switch (n.status) {
         case "IN_PROGRESS":
           trays.in_progress.push(n);
@@ -62,7 +79,11 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ ok: true, trays });
+    return NextResponse.json({
+      ok: true,
+      trays,
+      node_children: nodeChildren,
+    });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "unknown error";
     return NextResponse.json(
