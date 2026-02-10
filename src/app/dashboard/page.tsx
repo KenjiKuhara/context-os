@@ -325,9 +325,10 @@ export default function DashboardPage() {
     hasRestoredExpandedRef.current = true;
   }, [trays, viewMode, visibleNodes]);
 
-  // Phase6-B: 開閉状態の保存（tree モード時のみ・expandedSet 変更の都度）
+  // Phase6-B: 開閉状態の保存（tree モード時のみ・復元済み以降の変更の都度）
+  // 復元前に保存しない＝初回マウントで空の [] が localStorage を上書きするのを防ぐ
   useEffect(() => {
-    if (viewMode !== "tree") return;
+    if (viewMode !== "tree" || !hasRestoredExpandedRef.current) return;
     try {
       if (typeof localStorage === "undefined") return;
       localStorage.setItem(TREE_EXPANDED_STORAGE_KEY, JSON.stringify([...expandedSet]));
