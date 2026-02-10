@@ -47,22 +47,77 @@ export async function POST(req: NextRequest) {
       typeof body.ui_action === "string" ? body.ui_action.trim() : "";
     const proposedChange = body.proposed_change;
 
-    if (!nodeId) {
-      return NextResponse.json(
-        { ok: false, error: "node_id is required" },
-        { status: 400 }
-      );
-    }
     if (!uiAction) {
       return NextResponse.json(
         { ok: false, error: "ui_action is required" },
         { status: 400 }
       );
     }
+    if (!proposedChange || typeof proposedChange !== "object" || typeof proposedChange.type !== "string") {
+      return NextResponse.json(
+        { ok: false, error: "proposed_change is required with { type: string, ... }" },
+        { status: 400 }
+      );
+    }
+
+    const changeType = proposedChange.type as string;
+
+    if (changeType !== "relation" && !nodeId) {
+      return NextResponse.json(
+        { ok: false, error: "node_id is required for non-relation proposed_change" },
+        { status: 400 }
+      );
+    }
+
+    if (changeType === "relation") {
+      // Phase 5-A: relation Diff 用
+      const diffId = typeof proposedChange.diff_id === "string" ? proposedChange.diff_id.trim() : "";
+      const fromNodeId = typeof proposedChange.from_node_id === "string" ? proposedChange.from_node_id.trim() : "";
+      const toNodeId = typeof proposedChange.to_node_id === "string" ? proposedChange.to_node_id.trim() : "";
+      const relationType = typeof proposedChange.relation_type === "string" ? proposedChange.relation_type.trim() : "";
+      if (!diffId || !fromNodeId || !toNodeId || !relationType) {
+        return NextResponse.json(
+          { ok: false, error: "proposed_change (type=relation) requires diff_id, from_node_id, to_node_id, relation_type" },
+          { status: 400 }
+        );
+      }
+      const { data: fromNode } = await supabaseAdmin.from("nodes").select("id").eq("id", fromNodeId).single();
+      const { data: toNode } = await supabaseAdmin.from("nodes").select("id").eq("id", toNodeId).single();
+      if (!fromNode || !toNode) {
+        return NextResponse.json(
+          { ok: false, error: "from_node_id or to_node_id not found in nodes" },
+          { status: 404 }
+        );
+      }
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + EXPIRY_HOURS * 60 * 60 * 1000);
+      const confirmationId = randomUUID();
+      const record = {
+        confirmation_id: confirmationId,
+        node_id: fromNodeId,
+        confirmed_by: "human",
+        confirmed_at: now.toISOString(),
+        ui_action: uiAction,
+        proposed_change: {
+          type: "relation",
+          diff_id: diffId,
+          from_node_id: fromNodeId,
+          to_node_id: toNodeId,
+          relation_type: relationType,
+        },
+        consumed: false,
+        consumed_at: null,
+        expires_at: expiresAt.toISOString(),
+      };
+      const { error: insErr } = await supabaseAdmin.from("confirmation_events").insert(record);
+      if (insErr) {
+        return NextResponse.json({ ok: false, error: insErr.message }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true, confirmation: record });
+    }
+
+    // status_change（既存）
     if (
-      !proposedChange ||
-      typeof proposedChange !== "object" ||
-      typeof proposedChange.type !== "string" ||
       typeof proposedChange.from !== "string" ||
       typeof proposedChange.to !== "string"
     ) {
@@ -70,13 +125,12 @@ export async function POST(req: NextRequest) {
         {
           ok: false,
           error:
-            "proposed_change is required with { type: string, from: string, to: string }",
+            "proposed_change (status_change) requires { type, from: string, to: string }",
         },
         { status: 400 }
       );
     }
 
-    // ── Node の存在確認 ──
     const { data: node, error: nodeErr } = await supabaseAdmin
       .from("nodes")
       .select("id, status")
@@ -90,7 +144,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // proposed_change.from が Node の現在 status と一致するか確認
     if (proposedChange.from !== node.status) {
       return NextResponse.json(
         {
@@ -101,7 +154,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Confirmation を生成 ──
     const now = new Date();
     const expiresAt = new Date(now.getTime() + EXPIRY_HOURS * 60 * 60 * 1000);
 

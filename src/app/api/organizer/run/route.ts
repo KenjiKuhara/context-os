@@ -2,16 +2,21 @@
  * POST /api/organizer/run
  *
  * Phase 4: Organizer 提案生成 API。
- * 入力: { dashboard, focusNodeId?, userIntent?, constraints? }
- * validNodeIds は dashboard から抽出。LLM → validator → 最大2回再生成 → ok 時のみ rendered を返す。
+ * Phase 5-A: ok 時は diffs（relation のみ、VALID/NEEDS_REVIEW）をレスポンスに追加。
  *
- * Response: { ok, report, errors, warnings, rendered? }
+ * Response: { ok, report, errors, warnings, rendered?, diffs? }
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { runOrganizerPipeline } from "@/lib/proposalQuality/runPipeline";
 import { createServerLogContext } from "@/lib/proposalQuality/runPipelineLog";
-import type { RunInputDashboard } from "@/lib/proposalQuality/dashboard";
+import { extractValidNodeIds, type RunInputDashboard } from "@/lib/proposalQuality/dashboard";
+import { transformOrganizerReportToDiffs } from "@/lib/phase5Diff/transform";
+import { validateDiff } from "@/lib/phase5Diff/validator";
+import type { Diff, DiffValidationOutput } from "@/lib/phase5Diff/types";
+import type { OrganizerReport } from "@/lib/proposalQuality/types";
+
+export type OrganizerDiffItem = Diff & { validation?: DiffValidationOutput };
 
 function isDashboardLike(body: unknown): body is { dashboard: RunInputDashboard } {
   return (
@@ -56,6 +61,7 @@ export async function POST(req: NextRequest) {
       errors: string[];
       warnings: string[];
       rendered?: string;
+      diffs?: OrganizerDiffItem[];
     } = {
       ok: result.ok,
       report: result.report,
@@ -63,6 +69,23 @@ export async function POST(req: NextRequest) {
       warnings: result.warnings,
     };
     if (result.ok && result.rendered) payload.rendered = result.rendered;
+
+    if (result.ok && result.report) {
+      const validNodeIds = extractValidNodeIds(dashboard);
+      const runId = `organizer-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const { diffs: rawDiffs, warnings: transformWarnings } = transformOrganizerReportToDiffs(
+        result.report as OrganizerReport,
+        { organizer_run_id: runId, attempt_id: result.retryCount ?? 0, validNodeIds }
+      );
+      const diffs: OrganizerDiffItem[] = [];
+      for (const d of rawDiffs) {
+        const validation = validateDiff(d, { validNodeIds });
+        if (validation.result !== "INVALID") {
+          diffs.push({ ...d, validation });
+        }
+      }
+      payload.diffs = diffs;
+    }
 
     return NextResponse.json(payload);
   } catch (e: unknown) {
