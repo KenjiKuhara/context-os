@@ -206,10 +206,26 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error || "apply failed");
-      if (onRefreshDashboard) await onRefreshDashboard();
       const fromLabel = (STATUS_LABELS as Record<string, string>)[from] ?? from;
       const toLabel = (STATUS_LABELS as Record<string, string>)[json.to_status ?? to] ?? to;
-      setApplySuccessMessage(`適用しました（${fromLabel}→${toLabel}）`);
+      try {
+        const newTrays = onRefreshDashboard ? await onRefreshDashboard() : null;
+        if (newTrays && typeof newTrays === "object" && "in_progress" in newTrays) {
+          const flat = flattenTrays(newTrays as Trays);
+          const updatedNode = flat.find((n) => n.id === targetNodeId);
+          const latestStatus = updatedNode?.status ?? to;
+          const latestLabel = (STATUS_LABELS as Record<string, string>)[latestStatus] ?? latestStatus;
+          setApplySuccessMessage(
+            `適用しました（${fromLabel}→${toLabel}）。現在: ${latestStatus}（${latestLabel}）`
+          );
+        } else {
+          setApplySuccessMessage(`適用しました（${fromLabel}→${toLabel}）`);
+        }
+      } catch (_) {
+        setApplySuccessMessage(
+          "適用は成功しましたが、画面更新に失敗しました。再読み込みしてください"
+        );
+      }
     } catch (e) {
       setApplyError(e instanceof Error ? e.message : String(e));
     } finally {
