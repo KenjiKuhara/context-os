@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
+import { STATUS_LABELS, getValidTransitions, isValidStatus, type Status } from "@/lib/status";
 
 // GET /api/dashboard の trays と同じ形
 type Trays = {
@@ -36,8 +37,9 @@ type AdvisorOption = {
   suggested_status?: string;
 };
 
-/** Advisor 成功時の report の形 */
+/** Advisor 成功時の report の形（Apply 向け targetNodeId をサーバが必ず設定） */
 type AdvisorReport = {
+  targetNodeId: string;
   target_node_id: string;
   target_title: string;
   current_status: string;
@@ -57,6 +59,8 @@ const TAB_LABEL: Record<Tab, string> = {
 export interface ProposalPanelProps {
   /** GET /api/dashboard の trays。null のときはパネルは「データなし」表示 */
   trays: Trays | null;
+  /** Apply 成功時にダッシュボードを再取得するコールバック */
+  onRefreshDashboard?: () => Promise<unknown>;
 }
 
 function flattenTrays(trays: Trays): Array<{ id: string; title?: string | null; status?: string }> {
@@ -69,7 +73,7 @@ function flattenTrays(trays: Trays): Array<{ id: string; title?: string | null; 
   ].filter((n) => n?.id);
 }
 
-export function ProposalPanel({ trays }: ProposalPanelProps) {
+export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("organizer");
   const [organizerLoading, setOrganizerLoading] = useState(false);
   const [advisorLoading, setAdvisorLoading] = useState(false);
@@ -80,6 +84,12 @@ export function ProposalPanel({ trays }: ProposalPanelProps) {
   const [warningsExpanded, setWarningsExpanded] = useState<"organizer" | "advisor" | null>(null);
   /** Advisor で「この案で進める」を押したときの選択中案（迷子防止のため下部に固定表示） */
   const [selectedAdvisorOption, setSelectedAdvisorOption] = useState<AdvisorOption | null>(null);
+  /** Apply（ステータス変更）用 */
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  const [applyErrorExpanded, setApplyErrorExpanded] = useState(false);
+  const [applySuccessMessage, setApplySuccessMessage] = useState<string | null>(null);
+  const [applyToStatus, setApplyToStatus] = useState<string>("");
 
   const allNodes = useMemo(() => (trays ? flattenTrays(trays) : []), [trays]);
   const dashboardPayload = useMemo(
@@ -142,6 +152,64 @@ export function ProposalPanel({ trays }: ProposalPanelProps) {
       setAdvisorLoading(false);
     }
   }, [dashboardPayload, advisorLoading, focusNodeId, userIntent]);
+
+  const advisorReport = advisorResult?.ok && advisorResult.report
+    ? (advisorResult.report as AdvisorReport)
+    : null;
+  const applyTargetNode = useMemo(() => {
+    if (!trays || !advisorReport?.targetNodeId) return null;
+    return allNodes.find((n) => n.id === advisorReport.targetNodeId) ?? null;
+  }, [trays, advisorReport?.targetNodeId, allNodes]);
+
+  const applyStatus = useCallback(async () => {
+    if (!applyTargetNode || !advisorReport || applyLoading) return;
+    const from = applyTargetNode.status ?? "";
+    const validNext = isValidStatus(from) ? getValidTransitions(from) : [];
+    const to = applyToStatus.trim() || validNext[0];
+    if (!to) return;
+    const targetNodeId = advisorReport.targetNodeId;
+    const ok = window.confirm(
+      `Node ${targetNodeId} のステータスを ${from} → ${to} に変更します。よろしいですか？`
+    );
+    if (!ok) return;
+    setApplyLoading(true);
+    setApplyError(null);
+    setApplySuccessMessage(null);
+    try {
+      const confRes = await fetch("/api/confirmations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: targetNodeId,
+          ui_action: "advisor_apply",
+          proposed_change: { type: "status_change", from, to },
+        }),
+      });
+      const confJson = await confRes.json();
+      if (!confJson.ok || !confJson.confirmation?.confirmation_id) {
+        throw new Error(confJson.error || "confirmation failed");
+      }
+      const res = await fetch(`/api/nodes/${targetNodeId}/estimate-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirm_status: to,
+          source: "human_ui",
+          confirmation_id: confJson.confirmation.confirmation_id,
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "apply failed");
+      if (onRefreshDashboard) await onRefreshDashboard();
+      const fromLabel = (STATUS_LABELS as Record<string, string>)[from] ?? from;
+      const toLabel = (STATUS_LABELS as Record<string, string>)[json.to_status ?? to] ?? to;
+      setApplySuccessMessage(`適用しました（${fromLabel}→${toLabel}）`);
+    } catch (e) {
+      setApplyError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setApplyLoading(false);
+    }
+  }, [advisorReport, applyTargetNode, applyToStatus, applyLoading, onRefreshDashboard]);
 
   if (!trays) {
     return (
@@ -313,7 +381,7 @@ export function ProposalPanel({ trays }: ProposalPanelProps) {
               onSelectOption={setSelectedAdvisorOption}
             />
           )}
-          {/* 選択中の案（迷子防止・下部固定表示） */}
+          {/* 選択中の案（迷子防止・下部固定表示）＋ Apply UI */}
           {activeTab === "advisor" && selectedAdvisorOption && (
             <div
               style={{
@@ -336,6 +404,107 @@ export function ProposalPanel({ trays }: ProposalPanelProps) {
                 <div style={{ marginTop: 4 }}><b>判断基準:</b> {selectedAdvisorOption.criteria_note}</div>
                 <div style={{ marginTop: 4 }}><b>リスク:</b> {selectedAdvisorOption.risks.join("; ")}</div>
               </div>
+              {advisorReport && (
+                <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid #a5d6a7" }}>
+                  <div style={{ fontSize: 12, color: "#1b5e20", marginBottom: 8 }}>Apply（ステータス変更）</div>
+                  {!applyTargetNode ? (
+                    <div style={{ fontSize: 13, color: "#c62828" }}>対象Nodeが見つかりません</div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 13, marginBottom: 6 }}>
+                        現在のステータス: <b>{applyTargetNode.status ?? "—"}</b>
+                        {(STATUS_LABELS as Record<string, string>)[applyTargetNode.status ?? ""] && (
+                          <span style={{ color: "#666", marginLeft: 4 }}>
+                            （{(STATUS_LABELS as Record<string, string>)[applyTargetNode.status ?? ""]}）
+                          </span>
+                        )}
+                      </div>
+                      {isValidStatus(applyTargetNode.status) ? (
+                        <>
+                          <label style={{ display: "block", fontSize: 12, marginBottom: 4 }}>変更先</label>
+                          <select
+                            value={applyToStatus || (getValidTransitions(applyTargetNode.status as Status)[0] ?? "")}
+                            onChange={(e) => setApplyToStatus(e.target.value)}
+                            style={{
+                              padding: "6px 10px",
+                              borderRadius: 6,
+                              border: "1px solid #2e7d32",
+                              marginBottom: 8,
+                              minWidth: 200,
+                              fontSize: 13,
+                            }}
+                          >
+                            {getValidTransitions(applyTargetNode.status as Status).map((s) => (
+                              <option key={s} value={s}>
+                                {s}（{(STATUS_LABELS as Record<string, string>)[s] ?? s}）
+                              </option>
+                            ))}
+                          </select>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <button
+                              type="button"
+                              onClick={applyStatus}
+                              disabled={applyLoading || !(applyToStatus || getValidTransitions(applyTargetNode.status as Status)[0])}
+                              style={{
+                                padding: "8px 16px",
+                                borderRadius: 8,
+                                border: "1px solid #1b5e20",
+                                background: applyLoading ? "#ccc" : "#2e7d32",
+                                color: "white",
+                                fontWeight: 700,
+                                fontSize: 13,
+                                cursor: applyLoading ? "not-allowed" : "pointer",
+                              }}
+                            >
+                              {applyLoading ? "適用中…" : "Apply"}
+                            </button>
+                            {applySuccessMessage && (
+                              <span style={{ fontSize: 13, color: "#1b5e20" }}>{applySuccessMessage}</span>
+                            )}
+                          </div>
+                          {applyError && (
+                            <div style={{ marginTop: 8 }}>
+                              <button
+                                type="button"
+                                onClick={() => setApplyErrorExpanded(!applyErrorExpanded)}
+                                style={{
+                                  fontSize: 12,
+                                  padding: "4px 8px",
+                                  border: "1px solid #c62828",
+                                  borderRadius: 6,
+                                  background: "#ffebee",
+                                  color: "#c62828",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {applyErrorExpanded ? "閉じる" : "エラー詳細"}
+                              </button>
+                              {applyErrorExpanded && (
+                                <pre
+                                  style={{
+                                    marginTop: 6,
+                                    padding: 8,
+                                    background: "#fff",
+                                    border: "1px solid #ffcdd2",
+                                    borderRadius: 6,
+                                    fontSize: 12,
+                                    overflow: "auto",
+                                    whiteSpace: "pre-wrap",
+                                  }}
+                                >
+                                  {applyError}
+                                </pre>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ fontSize: 13, color: "#666" }}>現在のステータスが不明なため Apply できません</div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => setSelectedAdvisorOption(null)}

@@ -1227,6 +1227,7 @@ export default function DashboardPage() {
       {!loading && (
         <ProposalPanel
           trays={trays ?? null}
+          onRefreshDashboard={refreshDashboard}
         />
       )}
     </div>
