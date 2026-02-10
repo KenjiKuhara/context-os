@@ -20,6 +20,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { STATUS_LABELS } from "@/lib/stateMachine";
+import { ProposalPanel } from "@/components/ProposalPanel";
 
 // ─── Types ──────────────────────────────────────────────────
 // Node attributes based on 04_Domain_Model.md §3
@@ -1220,6 +1221,13 @@ export default function DashboardPage() {
             );
           })()}
         </div>
+      )}
+
+      {/* ─── 提案パネル（Phase 4）──────────────────────────────── */}
+      {!loading && (
+        <ProposalPanel
+          trays={trays ?? null}
+        />
       )}
     </div>
   );
