@@ -274,6 +274,7 @@ export function TreeList(props: TreeListProps) {
         expandedSet,
         onExpand,
         onCollapse,
+        onCollapseIds,
         onSelectNode,
       } = props;
       if (!selectedId) return;
