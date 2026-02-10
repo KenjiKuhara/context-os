@@ -2,7 +2,7 @@
  * POST /api/organizer/run
  *
  * Phase 4: Organizer 提案生成 API。
- * Phase 5-A: ok 時は diffs（relation のみ、VALID/NEEDS_REVIEW）をレスポンスに追加。
+ * Phase 5-A/5-B: ok 時は diffs（relation + grouping、VALID/NEEDS_REVIEW）をレスポンスに追加。
  *
  * Response: { ok, report, errors, warnings, rendered?, diffs? }
  */

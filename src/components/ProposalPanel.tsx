@@ -24,20 +24,30 @@ type RunResult = {
   errors: string[];
   warnings: string[];
   rendered?: string;
-  /** Phase 5-A: relation のみ。VALID/NEEDS_REVIEW の Diff 一覧 */
+  /** Phase 5-A/5-B: relation + grouping。VALID/NEEDS_REVIEW の Diff 一覧 */
   diffs?: OrganizerDiffItem[];
 };
 
-/** Phase 5-A: Organizer の 1 Diff（API の diffs[i] の形） */
-type OrganizerDiffItem = {
-  diff_id: string;
-  type: "relation";
-  target_node_id: string;
-  change: { action: string; from_node_id: string; to_node_id: string; relation_type: string };
-  reason: string;
-  risk?: string | null;
-  validation?: { result: string; errors: string[]; warnings: string[] };
-};
+/** Phase 5-A/5-B: Organizer の 1 Diff（API の diffs[i] の形） */
+type OrganizerDiffItem =
+  | {
+      diff_id: string;
+      type: "relation";
+      target_node_id: string;
+      change: { action: string; from_node_id: string; to_node_id: string; relation_type: string };
+      reason: string;
+      risk?: string | null;
+      validation?: { result: string; errors: string[]; warnings: string[] };
+    }
+  | {
+      diff_id: string;
+      type: "grouping";
+      target_node_id: string;
+      change: { group_label: string; node_ids: string[] };
+      reason: string;
+      risk?: string | null;
+      validation?: { result: string; errors: string[]; warnings: string[] };
+    };
 
 /** Advisor の 1 案（API の report.options の要素） */
 type AdvisorOption = {
@@ -138,6 +148,11 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
   const [relationApplyLoading, setRelationApplyLoading] = useState(false);
   const [relationApplyError, setRelationApplyError] = useState<string | null>(null);
   const [relationApplySuccessMessage, setRelationApplySuccessMessage] = useState<string | null>(null);
+  /** Phase 5-B: grouping Diff Apply 用（ref 分離） */
+  const groupingApplyInFlightRef = useRef(false);
+  const [groupingApplyLoading, setGroupingApplyLoading] = useState(false);
+  const [groupingApplyError, setGroupingApplyError] = useState<string | null>(null);
+  const [groupingApplySuccessMessage, setGroupingApplySuccessMessage] = useState<string | null>(null);
 
   const allNodes = useMemo(() => (trays ? flattenTrays(trays) : []), [trays]);
   const dashboardPayload = useMemo(
@@ -390,6 +405,60 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
     [onRefreshDashboard]
   );
 
+  const applyGroupingDiff = useCallback(
+    async (diff: OrganizerDiffItem) => {
+      if (groupingApplyInFlightRef.current) return;
+      if (diff.type !== "grouping" || !diff.change) return;
+      const { group_label, node_ids } = diff.change;
+      const msg = `「${group_label}」で ${node_ids.length} 件の Node をグループ化します。よろしいですか？`;
+      groupingApplyInFlightRef.current = true;
+      const ok = window.confirm(msg);
+      if (!ok) {
+        groupingApplyInFlightRef.current = false;
+        return;
+      }
+      setGroupingApplyLoading(true);
+      setGroupingApplyError(null);
+      setGroupingApplySuccessMessage(null);
+      try {
+        const confRes = await fetch("/api/confirmations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ui_action: "organizer_grouping_apply",
+            proposed_change: {
+              type: "grouping",
+              diff_id: diff.diff_id,
+              group_label,
+              node_ids,
+            },
+          }),
+        });
+        const confJson = await confRes.json().catch(() => ({}));
+        if (!confRes.ok || !confJson.ok || !confJson.confirmation?.confirmation_id) {
+          throw new Error(confJson.error || "確認IDの発行に失敗しました");
+        }
+        const applyRes = await fetch("/api/diffs/grouping/apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmation_id: confJson.confirmation.confirmation_id }),
+        });
+        const applyJson = await applyRes.json().catch(() => ({}));
+        if (!applyRes.ok || !applyJson.ok) {
+          throw new Error(applyJson.error || "反映に失敗しました");
+        }
+        if (onRefreshDashboard) await onRefreshDashboard();
+        setGroupingApplySuccessMessage(`反映しました（${group_label} / ${node_ids.length} 件）`);
+      } catch (e) {
+        setGroupingApplyError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setGroupingApplyLoading(false);
+        groupingApplyInFlightRef.current = false;
+      }
+    },
+    [onRefreshDashboard]
+  );
+
   if (!trays) {
     return (
       <div
@@ -498,77 +567,156 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
             />
           )}
           {organizerResult?.ok && (organizerResult.diffs?.length ?? 0) > 0 && (
-            <div style={{ marginTop: 16 }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-                適用可能な Diff（relation）
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {(organizerResult.diffs as OrganizerDiffItem[]).map((diff) => (
-                  <div
-                    key={diff.diff_id}
-                    style={{
-                      padding: 12,
-                      border: "1px solid #ddd",
-                      borderRadius: 8,
-                      background: "#fafafa",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, color: "#666" }}>
-                        {diff.change.from_node_id} → {diff.change.to_node_id}
-                      </span>
-                      <span style={{ fontSize: 12, fontWeight: 700 }}>{diff.change.relation_type}</span>
-                      {diff.validation?.result === "NEEDS_REVIEW" && (
-                        <span
+            <>
+              {(organizerResult.diffs as OrganizerDiffItem[]).filter((d) => d.type === "relation").length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+                    適用可能な Diff（relation）
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {(organizerResult.diffs as OrganizerDiffItem[])
+                      .filter((d) => d.type === "relation")
+                      .map((diff) => (
+                        <div
+                          key={diff.diff_id}
                           style={{
-                            fontSize: 11,
-                            padding: "2px 6px",
-                            background: "#fff3e0",
-                            color: "#e65100",
-                            borderRadius: 4,
+                            padding: 12,
+                            border: "1px solid #ddd",
+                            borderRadius: 8,
+                            background: "#fafafa",
                           }}
                         >
-                          要確認
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 12, marginBottom: 8 }}>{diff.reason}</div>
-                    {diff.validation?.warnings?.length ? (
-                      <div style={{ fontSize: 11, color: "#e65100", marginBottom: 8 }}>
-                        {diff.validation.warnings.join("; ")}
-                      </div>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => applyRelationDiff(diff)}
-                      disabled={relationApplyLoading}
-                      style={{
-                        padding: "6px 12px",
-                        fontSize: 12,
-                        border: "1px solid #5567ff",
-                        borderRadius: 6,
-                        background: relationApplyLoading ? "#ccc" : "#5567ff",
-                        color: "white",
-                        fontWeight: 600,
-                        cursor: relationApplyLoading ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {relationApplyLoading ? "適用中…" : "このDiffを反映する"}
-                    </button>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                            <span style={{ fontSize: 12, color: "#666" }}>
+                              {diff.change.from_node_id} → {diff.change.to_node_id}
+                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 700 }}>{diff.change.relation_type}</span>
+                            {diff.validation?.result === "NEEDS_REVIEW" && (
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  padding: "2px 6px",
+                                  background: "#fff3e0",
+                                  color: "#e65100",
+                                  borderRadius: 4,
+                                }}
+                              >
+                                要確認
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 12, marginBottom: 8 }}>{diff.reason}</div>
+                          {diff.validation?.warnings?.length ? (
+                            <div style={{ fontSize: 11, color: "#e65100", marginBottom: 8 }}>
+                              {diff.validation.warnings.join("; ")}
+                            </div>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => applyRelationDiff(diff)}
+                            disabled={relationApplyLoading}
+                            style={{
+                              padding: "6px 12px",
+                              fontSize: 12,
+                              border: "1px solid #5567ff",
+                              borderRadius: 6,
+                              background: relationApplyLoading ? "#ccc" : "#5567ff",
+                              color: "white",
+                              fontWeight: 600,
+                              cursor: relationApplyLoading ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            {relationApplyLoading ? "適用中…" : "このDiffを反映する"}
+                          </button>
+                        </div>
+                      ))}
                   </div>
-                ))}
-              </div>
-              {relationApplySuccessMessage && (
-                <div style={{ marginTop: 8, fontSize: 13, color: "#2e7d32" }}>
-                  {relationApplySuccessMessage}
+                  {relationApplySuccessMessage && (
+                    <div style={{ marginTop: 8, fontSize: 13, color: "#2e7d32" }}>
+                      {relationApplySuccessMessage}
+                    </div>
+                  )}
+                  {relationApplyError && (
+                    <div style={{ marginTop: 8, fontSize: 13, color: "#c62828" }}>
+                      {relationApplyError}
+                    </div>
+                  )}
                 </div>
               )}
-              {relationApplyError && (
-                <div style={{ marginTop: 8, fontSize: 13, color: "#c62828" }}>
-                  {relationApplyError}
+              {(organizerResult.diffs as OrganizerDiffItem[]).filter((d) => d.type === "grouping").length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+                    適用可能な Diff（grouping）
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {(organizerResult.diffs as OrganizerDiffItem[])
+                      .filter((d) => d.type === "grouping")
+                      .map((diff) => (
+                        <div
+                          key={diff.diff_id}
+                          style={{
+                            padding: 12,
+                            border: "1px solid #ddd",
+                            borderRadius: 8,
+                            background: "#fafafa",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700 }}>{diff.change.group_label}</span>
+                            <span style={{ fontSize: 12, color: "#666" }}>{diff.change.node_ids.length} 件</span>
+                            {diff.validation?.result === "NEEDS_REVIEW" && (
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  padding: "2px 6px",
+                                  background: "#fff3e0",
+                                  color: "#e65100",
+                                  borderRadius: 4,
+                                }}
+                              >
+                                要確認
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 12, marginBottom: 8 }}>{diff.reason}</div>
+                          {diff.validation?.warnings?.length ? (
+                            <div style={{ fontSize: 11, color: "#e65100", marginBottom: 8 }}>
+                              {diff.validation.warnings.join("; ")}
+                            </div>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => applyGroupingDiff(diff)}
+                            disabled={groupingApplyLoading}
+                            style={{
+                              padding: "6px 12px",
+                              fontSize: 12,
+                              border: "1px solid #5567ff",
+                              borderRadius: 6,
+                              background: groupingApplyLoading ? "#ccc" : "#5567ff",
+                              color: "white",
+                              fontWeight: 600,
+                              cursor: groupingApplyLoading ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            {groupingApplyLoading ? "適用中…" : "このDiffを反映する"}
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                  {groupingApplySuccessMessage && (
+                    <div style={{ marginTop: 8, fontSize: 13, color: "#2e7d32" }}>
+                      {groupingApplySuccessMessage}
+                    </div>
+                  )}
+                  {groupingApplyError && (
+                    <div style={{ marginTop: 8, fontSize: 13, color: "#c62828" }}>
+                      {groupingApplyError}
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
+            </>
           )}
         </div>
       )}

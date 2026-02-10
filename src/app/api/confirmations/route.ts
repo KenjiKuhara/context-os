@@ -62,11 +62,60 @@ export async function POST(req: NextRequest) {
 
     const changeType = proposedChange.type as string;
 
-    if (changeType !== "relation" && !nodeId) {
+    if (changeType !== "relation" && changeType !== "grouping" && !nodeId) {
       return NextResponse.json(
-        { ok: false, error: "node_id is required for non-relation proposed_change" },
+        { ok: false, error: "node_id is required for non-relation, non-grouping proposed_change" },
         { status: 400 }
       );
+    }
+
+    if (changeType === "grouping") {
+      // Phase 5-B: grouping Diff 用
+      const diffId = typeof proposedChange.diff_id === "string" ? proposedChange.diff_id.trim() : "";
+      const groupLabel = typeof proposedChange.group_label === "string" ? proposedChange.group_label.trim() : "";
+      const rawNodeIds = Array.isArray(proposedChange.node_ids) ? proposedChange.node_ids : [];
+      const nodeIds = rawNodeIds
+        .filter((id): id is string => typeof id === "string" && id.trim() !== "")
+        .map((id) => id.trim());
+      if (!diffId || !groupLabel || nodeIds.length < 2) {
+        return NextResponse.json(
+          { ok: false, error: "proposed_change (type=grouping) requires diff_id, group_label, node_ids (array, 2+ items)" },
+          { status: 400 }
+        );
+      }
+      for (const nid of nodeIds) {
+        const { data: node } = await supabaseAdmin.from("nodes").select("id").eq("id", nid).single();
+        if (!node) {
+          return NextResponse.json(
+            { ok: false, error: `node_id not found in nodes: ${nid}` },
+            { status: 404 }
+          );
+        }
+      }
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + EXPIRY_HOURS * 60 * 60 * 1000);
+      const confirmationId = randomUUID();
+      const record = {
+        confirmation_id: confirmationId,
+        node_id: nodeIds[0],
+        confirmed_by: "human",
+        confirmed_at: now.toISOString(),
+        ui_action: uiAction,
+        proposed_change: {
+          type: "grouping",
+          diff_id: diffId,
+          group_label: groupLabel,
+          node_ids: nodeIds,
+        },
+        consumed: false,
+        consumed_at: null,
+        expires_at: expiresAt.toISOString(),
+      };
+      const { error: insErr } = await supabaseAdmin.from("confirmation_events").insert(record);
+      if (insErr) {
+        return NextResponse.json({ ok: false, error: insErr.message }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true, confirmation: record });
     }
 
     if (changeType === "relation") {

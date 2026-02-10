@@ -81,13 +81,28 @@ Phase5-A MVP（**relation Diff のみ**）の実装内容を「実装後の事�
 
 ## 5. 手動 E2E 手順（最小チェックリスト）
 
+### MVP で期待する refresh の定義
+
+Apply 成功後の「refresh」について、MVP では以下を満たせばよいとする。
+
+- **dashboard を再取得すること**  
+  Apply 成功時に `onRefreshDashboard()` が呼ばれ、dashboard 用の API が再実行されてデータが再取得されること。
+- **relations の存在が API レベルで確認できれば OK とすること**  
+  追加した relation が DB に存在し、それを返す API（例: dashboard や relations を返すエンドポイント）で取得できることを確認できれば、E2E の「反映確認」としては十分とする。
+- **UI 上で線や表示が変わらなくても MVP では不問とすること**  
+  グラフの線・一覧の関係表示など、UI 上で relation が視覚的に描画・表示されていなくても、MVP の完了条件とはしない。それらは今後の拡張とする。
+
+---
+
+### チェックリスト
+
 - [ ] ダッシュボードに Node が 2 つ以上ある状態で、Organizer タブで「提案を生成」を実行する。
 - [ ] Organizer が relation_proposals を 1 件以上返す場合、run のレスポンスに `diffs` が含まれ、Organizer タブに「適用可能な Diff（relation）」ブロックが表示される。
 - [ ] 各 Diff カードに from→to・relation_type・reason が表示される。NEEDS_REVIEW の場合は「要確認」バッジと warnings が表示される。
 - [ ] 1 件の Diff で「このDiffを反映する」をクリックし、確認ダイアログで OK する。
 - [ ] 適用中はボタンが「適用中…」等になり、二重クリックできない。
-- [ ] 成功すると「反映しました」等のメッセージが出て、ダッシュボードが再取得される。
-- [ ] 反映結果として、該当の relation が一覧や関係表示に現れることを確認する。
+- [ ] 成功すると「反映しました」等のメッセージが出て、**dashboard が再取得される**（上記「MVP で期待する refresh の定義」に従う）。
+- [ ] 反映結果として、**該当の relation が API レベルで確認できること**（例: relations を返す API や dashboard に relations が含まれる場合、その応答に追加した 1 件が含まれる）。UI 上で線や表示が変わらなくても MVP では不問。
 - [ ] 同じ Diff を再度適用しようとした場合（または既に同じ from/to/relation_type が DB にある場合）、apply が 409 となり、エラーメッセージで「relation already exists」等が確認できる。
 
 ---

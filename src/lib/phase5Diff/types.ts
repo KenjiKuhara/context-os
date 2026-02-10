@@ -20,6 +20,12 @@ export interface RelationChange {
   relation_type: string;
 }
 
+/** grouping 用 change（51 §3.2） */
+export interface GroupingChange {
+  group_label: string;
+  node_ids: string[];
+}
+
 /** generated_from（51） */
 export interface DiffGeneratedFrom {
   organizer_run_id: string;
@@ -27,17 +33,30 @@ export interface DiffGeneratedFrom {
   source_proposal?: string;
 }
 
-/** Diff（MVP では relation のみ。51 の共通 + relation change） */
-export interface Diff {
+/** Diff 共通フィールド */
+interface DiffBase {
   diff_id: string;
-  type: "relation";
   target_node_id: string;
-  change: RelationChange;
   reason: string;
   risk?: string | null;
   generated_from: DiffGeneratedFrom;
   created_at?: string;
 }
+
+/** relation Diff（Phase 5-A） */
+export interface DiffRelation extends DiffBase {
+  type: "relation";
+  change: RelationChange;
+}
+
+/** grouping Diff（Phase 5-B） */
+export interface DiffGrouping extends DiffBase {
+  type: "grouping";
+  change: GroupingChange;
+}
+
+/** Diff（relation | grouping のユニオン） */
+export type Diff = DiffRelation | DiffGrouping;
 
 /** Transform のコンテキスト（53） */
 export interface TransformContext {

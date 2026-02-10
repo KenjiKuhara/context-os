@@ -1,6 +1,6 @@
 /**
- * Phase 5-A: transformOrganizerReportToDiffs の単体テスト（53 準拠）
- * MVP: relation_proposals のみ変換。
+ * Phase 5-A/5-B: transformOrganizerReportToDiffs の単体テスト（53 準拠）
+ * relation と grouping を変換。
  */
 
 import { describe, it, expect } from "vitest";
@@ -121,5 +121,108 @@ describe("transformOrganizerReportToDiffs", () => {
     });
     expect(out.diffs).toHaveLength(0);
     expect(out.warnings.some((w) => w.includes("reason"))).toBe(true);
+  });
+
+  it("grouping 1 件を正しく Diff に変換する", () => {
+    const report: OrganizerReport = {
+      decomposition_proposals: [],
+      grouping_proposals: [
+        {
+          group_label: "同じプロジェクト",
+          reason: "3 件とも同じプロジェクトのタスクに見えるため。",
+          node_ids: ["node-a", "node-b", "node-c"],
+        },
+      ],
+      relation_proposals: [],
+      summary: "要約",
+    };
+    const out = transformOrganizerReportToDiffs(report, {
+      organizer_run_id: "run-1",
+      attempt_id: 0,
+      validNodeIds,
+    });
+    expect(out.diffs).toHaveLength(1);
+    expect(out.diffs[0].type).toBe("grouping");
+    expect(out.diffs[0].target_node_id).toBe("node-a");
+    expect(out.diffs[0].change.group_label).toBe("同じプロジェクト");
+    expect(out.diffs[0].change.node_ids).toEqual(["node-a", "node-b", "node-c"]);
+    expect(out.diffs[0].reason).toBe("3 件とも同じプロジェクトのタスクに見えるため。");
+    expect(out.diffs[0].diff_id).toBeTruthy();
+    expect(out.diffs[0].generated_from.organizer_run_id).toBe("run-1");
+  });
+
+  it("grouping の node_ids が 1 件のみのときはスキップ", () => {
+    const report: OrganizerReport = {
+      decomposition_proposals: [],
+      grouping_proposals: [
+        { group_label: "X", reason: "理由", node_ids: ["node-a"] },
+      ],
+      relation_proposals: [],
+      summary: "要約",
+    };
+    const out = transformOrganizerReportToDiffs(report, {
+      organizer_run_id: "run-1",
+      validNodeIds,
+    });
+    expect(out.diffs).toHaveLength(0);
+    expect(out.warnings.some((w) => w.includes("node_ids") && w.includes("2"))).toBe(true);
+  });
+
+  it("grouping の reason が空のときはスキップ", () => {
+    const report: OrganizerReport = {
+      decomposition_proposals: [],
+      grouping_proposals: [
+        { group_label: "X", reason: "", node_ids: ["node-a", "node-b"] },
+      ],
+      relation_proposals: [],
+      summary: "要約",
+    };
+    const out = transformOrganizerReportToDiffs(report, {
+      organizer_run_id: "run-1",
+      validNodeIds,
+    });
+    expect(out.diffs).toHaveLength(0);
+    expect(out.warnings.some((w) => w.includes("reason"))).toBe(true);
+  });
+
+  it("grouping の node_ids の一部が validNodeIds に無いときはスキップ", () => {
+    const report: OrganizerReport = {
+      decomposition_proposals: [],
+      grouping_proposals: [
+        { group_label: "X", reason: "理由", node_ids: ["node-a", "node-x"] },
+      ],
+      relation_proposals: [],
+      summary: "要約",
+    };
+    const out = transformOrganizerReportToDiffs(report, {
+      organizer_run_id: "run-1",
+      validNodeIds,
+    });
+    expect(out.diffs).toHaveLength(0);
+    expect(out.warnings.some((w) => w.includes("validNodeIds") || w.includes("skipped"))).toBe(true);
+  });
+
+  it("relation と grouping が両方ある report では両方の Diff が含まれる", () => {
+    const report: OrganizerReport = {
+      decomposition_proposals: [],
+      grouping_proposals: [
+        { group_label: "チームA", reason: "まとめる", node_ids: ["node-a", "node-b"] },
+      ],
+      relation_proposals: [
+        { from_node_id: "node-a", to_node_id: "node-b", relation_type: "related", reason: "関連" },
+      ],
+      summary: "要約",
+    };
+    const out = transformOrganizerReportToDiffs(report, {
+      organizer_run_id: "run-1",
+      validNodeIds,
+    });
+    expect(out.diffs).toHaveLength(2);
+    const relationDiffs = out.diffs.filter((d) => d.type === "relation");
+    const groupingDiffs = out.diffs.filter((d) => d.type === "grouping");
+    expect(relationDiffs).toHaveLength(1);
+    expect(groupingDiffs).toHaveLength(1);
+    expect(relationDiffs[0].change.relation_type).toBe("related");
+    expect(groupingDiffs[0].change.group_label).toBe("チームA");
   });
 });

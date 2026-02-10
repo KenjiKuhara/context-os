@@ -1,6 +1,6 @@
 /**
- * Phase 5-A: validateDiff の単体テスト（52 準拠）
- * MVP: type === "relation" のみ。
+ * Phase 5-A/5-B: validateDiff の単体テスト（52 準拠）
+ * relation と grouping を検証。
  */
 
 import { describe, it, expect } from "vitest";
@@ -90,9 +90,71 @@ describe("validateDiff", () => {
     expect(out.errors.length).toBeGreaterThan(0);
   });
 
-  it("type が relation でないなら INVALID", () => {
+  it("type が relation でも grouping でもないなら INVALID", () => {
     const out = validateDiff({ ...validRelationDiff, type: "decomposition" }, { validNodeIds });
     expect(out.result).toBe("INVALID");
-    expect(out.errors.some((e) => e.includes("relation"))).toBe(true);
+    expect(out.errors.some((e) => e.includes("relation") || e.includes("grouping"))).toBe(true);
+  });
+
+  const validGroupingDiff = {
+    diff_id: "550e8400-e29b-41d4-a716-446655440002",
+    type: "grouping",
+    target_node_id: "node-a",
+    change: {
+      group_label: "同じプロジェクト",
+      node_ids: ["node-a", "node-b", "node-c"],
+    },
+    reason: "3 件とも同じプロジェクトのタスクに見えるため。",
+    generated_from: { organizer_run_id: "run-1", attempt_id: 0 },
+  };
+
+  it("正常な grouping Diff は VALID", () => {
+    const out = validateDiff(validGroupingDiff, { validNodeIds });
+    expect(out.result).toBe("VALID");
+    expect(out.errors).toHaveLength(0);
+  });
+
+  it("grouping で node_ids が 1 件のみなら INVALID", () => {
+    const diff = {
+      ...validGroupingDiff,
+      change: { ...validGroupingDiff.change, node_ids: ["node-a"] },
+    };
+    const out = validateDiff(diff, { validNodeIds });
+    expect(out.result).toBe("INVALID");
+    expect(out.errors.some((e) => e.includes("node_ids") && e.includes("2"))).toBe(true);
+  });
+
+  it("grouping で node_ids のいずれかが validNodeIds に無いなら INVALID", () => {
+    const diff = {
+      ...validGroupingDiff,
+      change: { ...validGroupingDiff.change, node_ids: ["node-a", "node-x"] },
+    };
+    const out = validateDiff(diff, { validNodeIds });
+    expect(out.result).toBe("INVALID");
+    expect(out.errors.some((e) => e.includes("validNodeIds"))).toBe(true);
+  });
+
+  it("grouping で reason が空なら INVALID", () => {
+    const diff = { ...validGroupingDiff, reason: "" };
+    const out = validateDiff(diff, { validNodeIds });
+    expect(out.result).toBe("INVALID");
+    expect(out.errors.some((e) => e.includes("reason"))).toBe(true);
+  });
+
+  it("grouping で group_label が空なら INVALID", () => {
+    const diff = {
+      ...validGroupingDiff,
+      change: { ...validGroupingDiff.change, group_label: "" },
+    };
+    const out = validateDiff(diff, { validNodeIds });
+    expect(out.result).toBe("INVALID");
+    expect(out.errors.some((e) => e.includes("group_label"))).toBe(true);
+  });
+
+  it("grouping で target_node_id が validNodeIds に無いなら INVALID", () => {
+    const diff = { ...validGroupingDiff, target_node_id: "node-x" };
+    const out = validateDiff(diff, { validNodeIds });
+    expect(out.result).toBe("INVALID");
+    expect(out.errors.some((e) => e.includes("target_node_id"))).toBe(true);
   });
 });

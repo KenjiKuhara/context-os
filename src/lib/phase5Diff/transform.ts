@@ -1,6 +1,6 @@
 /**
- * Phase 5-A: OrganizerReport → Diff[] 変換（53 準拠）
- * MVP では relation_proposals のみを Diff に変換する。
+ * Phase 5-A/5-B: OrganizerReport → Diff[] 変換（53 準拠）
+ * relation_proposals と grouping_proposals を Diff に変換する。
  */
 
 import type { OrganizerReport } from "@/lib/proposalQuality/types";
@@ -13,7 +13,7 @@ export interface TransformOutput {
 
 /**
  * OrganizerReport から Diff の配列を生成する。
- * MVP: relation_proposals のみ変換。decomposition / grouping は含めない。
+ * relation_proposals → relation Diff、grouping_proposals → grouping Diff。
  */
 export function transformOrganizerReportToDiffs(
   report: OrganizerReport,
@@ -26,10 +26,8 @@ export function transformOrganizerReportToDiffs(
   const runId = context.organizer_run_id;
   const attemptId = context.attempt_id ?? 0;
 
-  if (!report.relation_proposals || !Array.isArray(report.relation_proposals)) {
-    return { diffs, warnings };
-  }
-
+  // ── relation_proposals（Phase 5-A）──
+  if (report.relation_proposals && Array.isArray(report.relation_proposals)) {
   for (let i = 0; i < report.relation_proposals.length; i++) {
     const proposal = report.relation_proposals[i];
     if (!proposal || typeof proposal !== "object") {
@@ -81,6 +79,65 @@ export function transformOrganizerReportToDiffs(
       },
       created_at,
     });
+  }
+  }
+
+  // ── grouping_proposals（Phase 5-B）──
+  if (report.grouping_proposals && Array.isArray(report.grouping_proposals)) {
+    for (let i = 0; i < report.grouping_proposals.length; i++) {
+      const proposal = report.grouping_proposals[i];
+      if (!proposal || typeof proposal !== "object") {
+        warnings.push(`grouping_proposals[${i}] is invalid; skipped`);
+        continue;
+      }
+
+      const groupLabel = typeof proposal.group_label === "string" ? proposal.group_label.trim() : "";
+      const reason = typeof proposal.reason === "string" ? proposal.reason.trim() : "";
+      const rawNodeIds = Array.isArray(proposal.node_ids) ? proposal.node_ids : [];
+
+      if (!groupLabel) {
+        warnings.push(`grouping_proposals[${i}]: group_label is empty; skipped`);
+        continue;
+      }
+      if (!reason) {
+        warnings.push(`grouping_proposals[${i}]: reason is empty; skipped`);
+        continue;
+      }
+      if (rawNodeIds.length < 2) {
+        warnings.push(`grouping_proposals[${i}]: node_ids must have at least 2 items; skipped`);
+        continue;
+      }
+
+      const nodeIds = rawNodeIds
+        .filter((id): id is string => typeof id === "string" && id.trim() !== "")
+        .map((id) => id.trim());
+      const allValid = nodeIds.length >= 2 && nodeIds.every((id) => validSet.has(id));
+      if (!allValid || nodeIds.length < 2) {
+        warnings.push(`grouping_proposals[${i}]: node_ids must have at least 2 and all in validNodeIds; skipped`);
+        continue;
+      }
+
+      const diff_id = crypto.randomUUID();
+      const created_at = new Date().toISOString();
+
+      diffs.push({
+        diff_id,
+        type: "grouping",
+        target_node_id: nodeIds[0],
+        change: {
+          group_label: groupLabel,
+          node_ids: [...nodeIds],
+        },
+        reason,
+        risk: null,
+        generated_from: {
+          organizer_run_id: runId,
+          attempt_id: attemptId,
+          source_proposal: `grouping_proposals[${i}]`,
+        },
+        created_at,
+      });
+    }
   }
 
   return { diffs, warnings };
