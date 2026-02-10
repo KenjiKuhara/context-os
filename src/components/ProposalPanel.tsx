@@ -25,6 +25,28 @@ type RunResult = {
   rendered?: string;
 };
 
+/** Advisor の 1 案（API の report.options の要素） */
+type AdvisorOption = {
+  label: string;
+  description?: string;
+  next_action: string;
+  necessary_info: string;
+  criteria_note: string;
+  risks: string[];
+  suggested_status?: string;
+};
+
+/** Advisor 成功時の report の形 */
+type AdvisorReport = {
+  target_node_id: string;
+  target_title: string;
+  current_status: string;
+  options: AdvisorOption[];
+  criteria?: { name: string; description: string }[];
+  next_decision: string;
+  summary: string;
+};
+
 type Tab = "organizer" | "advisor";
 
 const TAB_LABEL: Record<Tab, string> = {
@@ -56,6 +78,8 @@ export function ProposalPanel({ trays }: ProposalPanelProps) {
   const [userIntent, setUserIntent] = useState("");
   const [focusNodeId, setFocusNodeId] = useState<string>("");
   const [warningsExpanded, setWarningsExpanded] = useState<"organizer" | "advisor" | null>(null);
+  /** Advisor で「この案で進める」を押したときの選択中案（迷子防止のため下部に固定表示） */
+  const [selectedAdvisorOption, setSelectedAdvisorOption] = useState<AdvisorOption | null>(null);
 
   const allNodes = useMemo(() => (trays ? flattenTrays(trays) : []), [trays]);
   const dashboardPayload = useMemo(
@@ -94,6 +118,7 @@ export function ProposalPanel({ trays }: ProposalPanelProps) {
     if (!dashboardPayload || advisorLoading) return;
     setAdvisorLoading(true);
     setAdvisorResult(null);
+    setSelectedAdvisorOption(null);
     try {
       const res = await fetch("/api/advisor/run", {
         method: "POST",
@@ -278,13 +303,55 @@ export function ProposalPanel({ trays }: ProposalPanelProps) {
             )}
           </div>
           {advisorResult && (
-            <ResultBlock
+            <AdvisorResultBlock
               result={advisorResult}
               warningsExpanded={warningsExpanded === "advisor"}
               onToggleWarnings={() =>
                 setWarningsExpanded(warningsExpanded === "advisor" ? null : "advisor")
               }
+              selectedOption={selectedAdvisorOption}
+              onSelectOption={setSelectedAdvisorOption}
             />
+          )}
+          {/* 選択中の案（迷子防止・下部固定表示） */}
+          {activeTab === "advisor" && selectedAdvisorOption && (
+            <div
+              style={{
+                marginTop: 24,
+                padding: 16,
+                border: "2px solid #2e7d32",
+                borderRadius: 10,
+                background: "#e8f5e9",
+                position: "sticky",
+                bottom: 0,
+              }}
+            >
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#1b5e20", marginBottom: 10 }}>
+                選択中の案
+              </div>
+              <div style={{ fontSize: 13 }}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>{selectedAdvisorOption.label}</div>
+                <div><b>次の一手:</b> {selectedAdvisorOption.next_action}</div>
+                <div style={{ marginTop: 4 }}><b>必要情報:</b> {selectedAdvisorOption.necessary_info}</div>
+                <div style={{ marginTop: 4 }}><b>判断基準:</b> {selectedAdvisorOption.criteria_note}</div>
+                <div style={{ marginTop: 4 }}><b>リスク:</b> {selectedAdvisorOption.risks.join("; ")}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedAdvisorOption(null)}
+                style={{
+                  marginTop: 12,
+                  padding: "6px 12px",
+                  fontSize: 12,
+                  border: "1px solid #2e7d32",
+                  borderRadius: 6,
+                  background: "white",
+                  cursor: "pointer",
+                }}
+              >
+                選択を解除
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -373,6 +440,152 @@ function ResultBlock({
           ))}
         </ul>
       </div>
+    </div>
+  );
+}
+
+/** Advisor 用: ok なら report.options をカード表示し、「この案で進める」で選択可能にする */
+function AdvisorResultBlock({
+  result,
+  warningsExpanded,
+  onToggleWarnings,
+  selectedOption,
+  onSelectOption,
+}: {
+  result: RunResult;
+  warningsExpanded: boolean;
+  onToggleWarnings: () => void;
+  selectedOption: AdvisorOption | null;
+  onSelectOption: (opt: AdvisorOption | null) => void;
+}) {
+  if (!result.ok) {
+    return (
+      <div style={{ marginTop: 12 }}>
+        <div
+          style={{
+            padding: 12,
+            border: "1px solid #e57373",
+            borderRadius: 8,
+            background: "#ffebee",
+            fontSize: 13,
+          }}
+        >
+          <div style={{ fontWeight: 700, color: "#c62828", marginBottom: 8 }}>
+            検証エラー（不足している項目）
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 20 }}>
+            {result.errors.map((e, i) => (
+              <li key={i}>{e}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    );
+  }
+
+  const report = result.report as AdvisorReport | undefined;
+  const options = report?.options && Array.isArray(report.options) ? report.options : [];
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      {report && (
+        <>
+          <div
+            style={{
+              padding: 10,
+              background: "#f8f9fa",
+              borderRadius: 8,
+              marginBottom: 12,
+              fontSize: 13,
+            }}
+          >
+            <div>{report.summary}</div>
+            <div style={{ marginTop: 6, fontWeight: 700 }}>まず決めること: {report.next_decision}</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {options.map((opt, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: 14,
+                  border: "1px solid #ddd",
+                  borderRadius: 10,
+                  background: "white",
+                }}
+              >
+                <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>{opt.label}</div>
+                <div style={{ fontSize: 13, marginBottom: 4 }}>
+                  <b>次の一手:</b> {opt.next_action}
+                </div>
+                <div style={{ fontSize: 13, marginBottom: 4 }}>
+                  <b>必要情報:</b> {opt.necessary_info}
+                </div>
+                <div style={{ fontSize: 13, marginBottom: 4 }}>
+                  <b>判断基準:</b> {opt.criteria_note}
+                </div>
+                <div style={{ fontSize: 13, marginBottom: 10 }}>
+                  <b>リスク:</b> {opt.risks.join("; ")}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onSelectOption(opt)}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: "1px solid #2e7d32",
+                    background: "#2e7d32",
+                    color: "white",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                >
+                  この案で進める
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {!report && result.rendered != null && (
+        <div
+          style={{
+            padding: 12,
+            background: "#f8f9fa",
+            borderRadius: 8,
+            border: "1px solid #eee",
+            whiteSpace: "pre-wrap",
+            fontSize: 13,
+          }}
+        >
+          {result.rendered}
+        </div>
+      )}
+      {result.warnings.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <button
+            type="button"
+            onClick={onToggleWarnings}
+            style={{
+              fontSize: 12,
+              padding: "4px 10px",
+              border: "1px solid #b8860b",
+              borderRadius: 6,
+              background: "#fffde7",
+              cursor: "pointer",
+            }}
+          >
+            ⚠ 警告 {result.warnings.length} 件 {warningsExpanded ? "（閉じる）" : "（開く）"}
+          </button>
+          {warningsExpanded && (
+            <ul style={{ marginTop: 6, paddingLeft: 20, fontSize: 12, color: "#666" }}>
+              {result.warnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
