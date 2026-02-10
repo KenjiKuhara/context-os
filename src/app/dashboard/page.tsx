@@ -18,7 +18,7 @@
  *   AI/App が推定した候補を「確認」するだけ。
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATUS_LABELS } from "@/lib/stateMachine";
 import { ProposalPanel } from "@/components/ProposalPanel";
 import { buildTree } from "@/lib/dashboardTree";
@@ -64,6 +64,9 @@ type EstimatePreview = {
 // ─── Labels ─────────────────────────────────────────────────
 // STATUS_LABELS は stateMachine.ts から import（05_State_Machine.md §6 SSOT 原則）
 // トレーラベルはダッシュボード固有（09_API_Contract.md §9 トレー分類根拠）
+
+/** Phase6-B: ツリー開閉状態の永続化（72 準拠） */
+const TREE_EXPANDED_STORAGE_KEY = "kuharaos.tree.expanded.v1";
 
 const TRAY_LABEL: Record<keyof Trays | "all", string> = {
   all: "全て（机の上）",
@@ -190,6 +193,7 @@ export default function DashboardPage() {
   const [nodeChildren, setNodeChildren] = useState<Array<{ parent_id: string; child_id: string; created_at?: string }>>([]);
   const [viewMode, setViewMode] = useState<"flat" | "tree">("tree");
   const [expandedSet, setExpandedSet] = useState<Set<string>>(new Set());
+  const hasRestoredExpandedRef = useRef(false);
 
   // ─── Data fetch ─────────────────────────────────────────
 
@@ -296,6 +300,41 @@ export default function DashboardPage() {
       nodeChildren
     );
   }, [viewMode, visibleNodes, nodeChildren]);
+
+  // Phase6-B: 開閉状態の復元（tree モード時のみ・初回のみ）
+  useEffect(() => {
+    if (!trays || viewMode !== "tree" || hasRestoredExpandedRef.current) return;
+    const validIds = new Set(visibleNodes.map((n) => n.id));
+    try {
+      if (typeof localStorage === "undefined") return;
+      const raw = localStorage.getItem(TREE_EXPANDED_STORAGE_KEY);
+      if (!raw) {
+        hasRestoredExpandedRef.current = true;
+        return;
+      }
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) {
+        hasRestoredExpandedRef.current = true;
+        return;
+      }
+      const filtered = parsed.filter((id): id is string => typeof id === "string" && validIds.has(id));
+      setExpandedSet(new Set(filtered));
+    } catch {
+      // fail silently
+    }
+    hasRestoredExpandedRef.current = true;
+  }, [trays, viewMode, visibleNodes]);
+
+  // Phase6-B: 開閉状態の保存（tree モード時のみ・expandedSet 変更の都度）
+  useEffect(() => {
+    if (viewMode !== "tree") return;
+    try {
+      if (typeof localStorage === "undefined") return;
+      localStorage.setItem(TREE_EXPANDED_STORAGE_KEY, JSON.stringify([...expandedSet]));
+    } catch {
+      // fail silently
+    }
+  }, [viewMode, expandedSet]);
 
   const counts = useMemo(() => {
     if (!trays) {
