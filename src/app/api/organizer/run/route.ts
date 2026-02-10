@@ -39,9 +39,10 @@ export async function POST(req: NextRequest) {
     }
 
     const dashboard = body.dashboard as RunInputDashboard;
-    const focusNodeId = body.focusNodeId ?? null;
-    const userIntent = body.userIntent ?? null;
-    const constraints = body.constraints ?? null;
+    const b = body as { dashboard: RunInputDashboard; focusNodeId?: string; userIntent?: string; constraints?: string };
+    const focusNodeId = b.focusNodeId ?? null;
+    const userIntent = b.userIntent ?? null;
+    const constraints = b.constraints ?? null;
 
     const log = createServerLogContext();
     const result = await runOrganizerPipeline(
