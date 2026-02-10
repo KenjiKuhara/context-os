@@ -75,8 +75,8 @@ export async function POST(req: NextRequest) {
       const groupLabel = typeof proposedChange.group_label === "string" ? proposedChange.group_label.trim() : "";
       const rawNodeIds = Array.isArray(proposedChange.node_ids) ? proposedChange.node_ids : [];
       const nodeIds = rawNodeIds
-        .filter((id): id is string => typeof id === "string" && id.trim() !== "")
-        .map((id) => id.trim());
+        .filter((id: unknown): id is string => typeof id === "string" && id.trim() !== "")
+        .map((id: string) => id.trim());
       if (!diffId || !groupLabel || nodeIds.length < 2) {
         return NextResponse.json(
           { ok: false, error: "proposed_change (type=grouping) requires diff_id, group_label, node_ids (array, 2+ items)" },

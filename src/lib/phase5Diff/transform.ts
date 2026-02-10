@@ -109,8 +109,8 @@ export function transformOrganizerReportToDiffs(
       }
 
       const nodeIds = rawNodeIds
-        .filter((id): id is string => typeof id === "string" && id.trim() !== "")
-        .map((id) => id.trim());
+        .filter((id: unknown): id is string => typeof id === "string" && id.trim() !== "")
+        .map((id: string) => id.trim());
       const allValid = nodeIds.length >= 2 && nodeIds.every((id) => validSet.has(id));
       if (!allValid || nodeIds.length < 2) {
         warnings.push(`grouping_proposals[${i}]: node_ids must have at least 2 and all in validNodeIds; skipped`);
