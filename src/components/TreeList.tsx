@@ -60,6 +60,24 @@ function buildVisibleIds(
   return out;
 }
 
+/** rootId の配下の全子孫 ID を DFS で収集（ArrowLeft でサブツリー閉じる用） */
+function collectDescendantIds(
+  rootId: string,
+  treeNodeById: Map<string, TreeNode>
+): string[] {
+  const out: string[] = [];
+  const root = treeNodeById.get(rootId);
+  if (!root) return out;
+  function walk(tn: TreeNode) {
+    for (const c of tn.children) {
+      out.push(c.id);
+      walk(c);
+    }
+  }
+  walk(root);
+  return out;
+}
+
 export interface TreeListProps {
   roots: TreeNode[];
   expandedSet: Set<string>;
@@ -68,6 +86,8 @@ export interface TreeListProps {
   onExpand?: (nodeId: string) => void;
   /** キーボード ← 用: 指定ノードを閉じる */
   onCollapse?: (nodeId: string) => void;
+  /** キーボード ← 用: 複数 ID をまとめて閉じる（サブツリー閉じ） */
+  onCollapseIds?: (ids: string[]) => void;
   onSelectNode: (node: Record<string, unknown>) => void;
   selectedId: string | null;
   getNodeTitle: (node: Record<string, unknown>) => string;
@@ -275,13 +295,29 @@ export function TreeList(props: TreeListProps) {
 
       if (e.key === "ArrowLeft") {
         const parentId = parentById.get(selectedId);
+        const current = treeNodeById.get(selectedId);
+        const hasChildren = (current?.children.length ?? 0) > 0;
+
         if (parentId != null && expandedSet.has(parentId)) {
+          // CHILD selected: collapse parent, select parent
           if (onCollapse) onCollapse(parentId);
           const parentNode = treeNodeById.get(parentId);
           if (parentNode) onSelectNode(parentNode.node);
           e.preventDefault();
+          return;
         }
-        return;
+
+        if (hasChildren) {
+          // PARENT selected: collapse self and all descendants, keep selection
+          const descendantIds = collectDescendantIds(selectedId, treeNodeById);
+          const toCollapse = [selectedId, ...descendantIds];
+          if (onCollapseIds) {
+            onCollapseIds(toCollapse);
+          } else if (onCollapse) {
+            toCollapse.forEach((id) => onCollapse(id));
+          }
+          e.preventDefault();
+        }
       }
 
       if (e.key === "ArrowDown") {
