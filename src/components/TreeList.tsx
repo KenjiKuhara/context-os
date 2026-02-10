@@ -23,20 +23,18 @@ function walkTree(
   }
 }
 
-/** roots から childrenById と parentById を構築（キーボード開閉用） */
+/** roots から parentById と treeNodeById を構築（キーボードナビ用・表示順がソース） */
 function buildTreeMaps(roots: TreeNode[]): {
-  childrenById: Map<string, string[]>;
   parentById: Map<string, string>;
+  treeNodeById: Map<string, TreeNode>;
 } {
-  const childrenById = new Map<string, string[]>();
   const parentById = new Map<string, string>();
+  const treeNodeById = new Map<string, TreeNode>();
   walkTree(roots, (tn, parentId) => {
     if (parentId != null) parentById.set(tn.id, parentId);
-    if (tn.children.length > 0) {
-      childrenById.set(tn.id, tn.children.map((c) => c.id));
-    }
+    treeNodeById.set(tn.id, tn);
   });
-  return { childrenById, parentById };
+  return { parentById, treeNodeById };
 }
 
 export interface TreeListProps {
@@ -205,7 +203,7 @@ function renderNode(
 }
 
 export function TreeList(props: TreeListProps) {
-  const { childrenById, parentById } = useMemo(
+  const { parentById, treeNodeById } = useMemo(
     () => buildTreeMaps(props.roots),
     [props.roots]
   );
@@ -223,37 +221,41 @@ export function TreeList(props: TreeListProps) {
         return;
       }
 
-      const { selectedId, expandedSet, onExpand, onCollapse } = props;
+      const {
+        selectedId,
+        expandedSet,
+        onExpand,
+        onCollapse,
+        onSelectNode,
+      } = props;
       if (!selectedId) return;
 
       if (e.key === "ArrowRight") {
-        const childIds = childrenById.get(selectedId);
-        if (
-          childIds &&
-          childIds.length > 0 &&
-          !expandedSet.has(selectedId) &&
-          onExpand
-        ) {
-          onExpand(selectedId);
+        const current = treeNodeById.get(selectedId);
+        if (current && current.children.length > 0) {
+          if (!expandedSet.has(selectedId) && onExpand) {
+            onExpand(selectedId);
+          }
+          const firstChild = current.children[0];
+          if (firstChild && !firstChild.cycleDetected) {
+            onSelectNode(firstChild.node);
+          }
           e.preventDefault();
         }
         return;
       }
 
       if (e.key === "ArrowLeft") {
-        if (expandedSet.has(selectedId) && onCollapse) {
-          onCollapse(selectedId);
-          e.preventDefault();
-          return;
-        }
         const parentId = parentById.get(selectedId);
-        if (parentId != null && onCollapse) {
-          onCollapse(parentId);
+        if (parentId != null && expandedSet.has(parentId)) {
+          if (onCollapse) onCollapse(parentId);
+          const parentNode = treeNodeById.get(parentId);
+          if (parentNode) onSelectNode(parentNode.node);
           e.preventDefault();
         }
       }
     },
-    [props, childrenById, parentById]
+    [props, parentById, treeNodeById]
   );
 
   if (props.roots.length === 0) {
