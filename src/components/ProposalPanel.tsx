@@ -193,16 +193,18 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
     [trays]
   );
 
-  /** Phase7-A: Organizer タブ表示時に履歴を取得 */
-  useEffect(() => {
-    if (activeTab !== "organizer") return;
-    setHistoryLoading(true);
-    setHistoryError(null);
+  /** Phase7-A: 履歴を再取得。silent 時は loading 表示しない（Apply 成功後の更新用） */
+  const fetchHistory = useCallback((silent?: boolean) => {
+    if (!silent) {
+      setHistoryLoading(true);
+      setHistoryError(null);
+    }
     fetch("/api/confirmations/history?limit=50")
       .then((res) => res.json())
       .then((data: { ok?: boolean; items?: ConfirmationHistoryItem[] }) => {
         if (data.ok && Array.isArray(data.items)) {
           setHistoryItems(data.items);
+          if (!silent) setHistoryError(null);
         } else {
           setHistoryItems([]);
           setHistoryError("履歴の取得に失敗しました");
@@ -213,8 +215,16 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         setHistoryItems([]);
         setHistoryError("履歴の取得に失敗しました");
       })
-      .finally(() => setHistoryLoading(false));
-  }, [activeTab]);
+      .finally(() => {
+        if (!silent) setHistoryLoading(false);
+      });
+  }, []);
+
+  /** Phase7-A: Organizer タブ表示時に履歴を取得 */
+  useEffect(() => {
+    if (activeTab !== "organizer") return;
+    fetchHistory();
+  }, [activeTab, fetchHistory]);
 
   const runOrganizer = useCallback(async () => {
     if (!dashboardPayload || organizerLoading) return;
@@ -451,6 +461,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         setRelationApplySuccessMessage(
           `反映しました（${from_node_id} → ${to_node_id} / ${relation_type}）`
         );
+        fetchHistory(true);
       } catch (e) {
         setRelationApplyError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -458,7 +469,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         relationApplyInFlightRef.current = false;
       }
     },
-    [onRefreshDashboard]
+    [onRefreshDashboard, fetchHistory]
   );
 
   const applyGroupingDiff = useCallback(
@@ -505,6 +516,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         }
         if (onRefreshDashboard) await onRefreshDashboard();
         setGroupingApplySuccessMessage(`反映しました（${group_label} / ${node_ids.length} 件）`);
+        fetchHistory(true);
       } catch (e) {
         setGroupingApplyError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -512,7 +524,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         groupingApplyInFlightRef.current = false;
       }
     },
-    [onRefreshDashboard]
+    [onRefreshDashboard, fetchHistory]
   );
 
   const applyDecompositionDiff = useCallback(
@@ -563,6 +575,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         setDecompositionApplySuccessMessage(
           `反映しました（親 ${parent_node_id.slice(0, 8)}… に子 ${createdCount} 件作成）`
         );
+        fetchHistory(true);
       } catch (e) {
         setDecompositionApplyError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -570,7 +583,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         decompositionApplyInFlightRef.current = false;
       }
     },
-    [onRefreshDashboard]
+    [onRefreshDashboard, fetchHistory]
   );
 
   if (!trays) {
