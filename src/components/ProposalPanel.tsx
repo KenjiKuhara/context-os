@@ -110,9 +110,12 @@ function historyItemToOrganizerDiff(item: ConfirmationHistoryItem): OrganizerDif
   }
   if (type === "decomposition") {
     const parent_node_id = typeof pc?.parent_node_id === "string" ? pc.parent_node_id : "";
-    const add_children = Array.isArray(pc?.add_children)
+    const rawChildren = Array.isArray(pc?.add_children)
       ? (pc.add_children as Array<{ title?: string; context?: string; suggested_status?: string }>)
       : [];
+    const add_children: Array<{ title: string; context?: string; suggested_status?: string }> = rawChildren.map(
+      (c) => ({ title: typeof c?.title === "string" ? c.title : "", context: c?.context, suggested_status: c?.suggested_status })
+    );
     if (!parent_node_id || add_children.length === 0) return null;
     return {
       diff_id: diffId,
