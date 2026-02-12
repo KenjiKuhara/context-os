@@ -71,6 +71,11 @@ type ConfirmationHistoryItem = {
   ui_action: string;
 };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isValidUuid(s: string): boolean {
+  return UUID_REGEX.test(s.trim());
+}
+
 /** Advisor の 1 案（API の report.options の要素） */
 type AdvisorOption = {
   label: string;
@@ -186,6 +191,10 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [selectedHistoryConfirmationId, setSelectedHistoryConfirmationId] = useState<string | null>(null);
+  /** Phase7-B: 履歴フィルタ */
+  const [filterType, setFilterType] = useState<string>("");
+  const [nodeIdFilter, setNodeIdFilter] = useState<string>("");
+  const [nodeIdFilterError, setNodeIdFilterError] = useState<string | null>(null);
 
   const allNodes = useMemo(() => (trays ? flattenTrays(trays) : []), [trays]);
   const dashboardPayload = useMemo(
@@ -193,13 +202,24 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
     [trays]
   );
 
-  /** Phase7-A: 履歴を再取得。silent 時は loading 表示しない（Apply 成功後の更新用） */
-  const fetchHistory = useCallback((silent?: boolean) => {
+  /** Phase7-A/7-B: 履歴を再取得。silent 時は loading 表示しない。overrides 指定時はその値でクエリを組み立て（クリア時用）。 */
+  const fetchHistory = useCallback((silent?: boolean, overrides?: { filterType?: string; nodeIdFilter?: string }) => {
     if (!silent) {
       setHistoryLoading(true);
       setHistoryError(null);
     }
-    fetch("/api/confirmations/history?limit=50")
+    const typeVal = overrides?.filterType !== undefined ? overrides.filterType : filterType;
+    const nodeVal = overrides?.nodeIdFilter !== undefined ? overrides.nodeIdFilter : nodeIdFilter;
+    const params = new URLSearchParams({ limit: "50" });
+    if (typeVal && (typeVal === "relation" || typeVal === "grouping" || typeVal === "decomposition")) {
+      params.set("type", typeVal);
+    }
+    const nodeIdTrimmed = String(nodeVal ?? "").trim();
+    if (nodeIdTrimmed && isValidUuid(nodeIdTrimmed)) {
+      params.set("node_id", nodeIdTrimmed);
+    }
+    const url = `/api/confirmations/history?${params.toString()}`;
+    fetch(url)
       .then((res) => res.json())
       .then((data: { ok?: boolean; items?: ConfirmationHistoryItem[] }) => {
         if (data.ok && Array.isArray(data.items)) {
@@ -218,7 +238,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
       .finally(() => {
         if (!silent) setHistoryLoading(false);
       });
-  }, []);
+  }, [filterType, nodeIdFilter]);
 
   /** Phase7-A: Organizer タブ表示時に履歴を取得 */
   useEffect(() => {
@@ -930,10 +950,69 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
             </>
           )}
 
-          {/* Phase7-A: 適用済み Diff 履歴 */}
+          {/* Phase7-A/7-B: 適用済み Diff 履歴 */}
           <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #ddd" }}>
             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
               適用済み Diff 履歴
+            </div>
+            {/* Phase7-B: フィルタ UI */}
+            <div style={{ marginBottom: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <label style={{ fontSize: 12, color: "#666" }}>
+                種別:
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  style={{ marginLeft: 4, padding: "4px 8px", borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                >
+                  <option value="">すべて</option>
+                  <option value="relation">関連</option>
+                  <option value="grouping">グループ化</option>
+                  <option value="decomposition">分解</option>
+                </select>
+              </label>
+              <label style={{ fontSize: 12, color: "#666" }}>
+                node_id:
+                <input
+                  type="text"
+                  value={nodeIdFilter}
+                  onChange={(e) => {
+                    setNodeIdFilter(e.target.value);
+                    setNodeIdFilterError(null);
+                  }}
+                  placeholder="node_id（任意）"
+                  style={{ marginLeft: 4, padding: "4px 8px", width: 220, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const trimmed = nodeIdFilter.trim();
+                  if (trimmed && !isValidUuid(trimmed)) {
+                    setNodeIdFilterError("UUID形式ではありません");
+                    return;
+                  }
+                  setNodeIdFilterError(null);
+                  fetchHistory();
+                }}
+                style={{ padding: "4px 12px", fontSize: 12, borderRadius: 4, border: "1px solid #5567ff", background: "#5567ff", color: "white", cursor: "pointer" }}
+              >
+                絞り込む
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterType("");
+                  setNodeIdFilter("");
+                  setNodeIdFilterError(null);
+                  fetchHistory(undefined, { filterType: "", nodeIdFilter: "" });
+                }}
+                style={{ padding: "4px 12px", fontSize: 12, borderRadius: 4, border: "1px solid #999", background: "#fff", color: "#333", cursor: "pointer" }}
+              >
+                クリア
+              </button>
+              {nodeIdFilterError && (
+                <span style={{ fontSize: 11, color: "#c62828" }}>{nodeIdFilterError}</span>
+              )}
             </div>
             {historyLoading && (
               <div style={{ fontSize: 13, color: "#666" }}>読み込み中…</div>
@@ -943,7 +1022,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
             )}
             {!historyLoading && !historyError && historyItems.length === 0 && (
               <div style={{ fontSize: 13, color: "#666" }}>
-                Apply 済みの Diff はまだありません
+                {filterType || nodeIdFilter.trim() ? "該当する履歴がありません" : "Apply 済みの Diff はまだありません"}
               </div>
             )}
             {!historyLoading && !historyError && historyItems.length > 0 && (
