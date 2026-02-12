@@ -257,6 +257,12 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
   /** Phase8-A: 履歴から再表示した Apply 候補 1 件 */
   const [restoredDiff, setRestoredDiff] = useState<OrganizerDiffItem | null>(null);
 
+  /** Phase8-B: Apply 時の理由（任意）。Organizer 用と復元用 */
+  const [relationApplyReason, setRelationApplyReason] = useState("");
+  const [groupingApplyReason, setGroupingApplyReason] = useState("");
+  const [decompositionApplyReason, setDecompositionApplyReason] = useState("");
+  const [restoredApplyReason, setRestoredApplyReason] = useState("");
+
   const allNodes = useMemo(() => (trays ? flattenTrays(trays) : []), [trays]);
   const dashboardPayload = useMemo(
     () => (trays ? { trays } : null),
@@ -495,7 +501,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
   }, [advisorReport, applyTargetNode, applyToStatus, onRefreshDashboard]);
 
   const applyRelationDiff = useCallback(
-    async (diff: OrganizerDiffItem) => {
+    async (diff: OrganizerDiffItem, reasonOverride?: string) => {
       if (relationApplyInFlightRef.current) return;
       if (diff.type !== "relation" || !diff.change) return;
       const { from_node_id, to_node_id, relation_type } = diff.change;
@@ -506,6 +512,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         relationApplyInFlightRef.current = false;
         return;
       }
+      const reasonValue = reasonOverride !== undefined ? reasonOverride : relationApplyReason;
       setRelationApplyLoading(true);
       setRelationApplyError(null);
       setRelationApplySuccessMessage(null);
@@ -516,6 +523,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
           body: JSON.stringify({
             node_id: from_node_id,
             ui_action: "organizer_relation_apply",
+            reason: reasonValue ?? "",
             proposed_change: {
               type: "relation",
               diff_id: diff.diff_id,
@@ -551,11 +559,11 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         relationApplyInFlightRef.current = false;
       }
     },
-    [onRefreshDashboard, fetchHistory]
+    [onRefreshDashboard, fetchHistory, relationApplyReason]
   );
 
   const applyGroupingDiff = useCallback(
-    async (diff: OrganizerDiffItem) => {
+    async (diff: OrganizerDiffItem, reasonOverride?: string) => {
       if (groupingApplyInFlightRef.current) return;
       if (diff.type !== "grouping" || !diff.change) return;
       const { group_label, node_ids } = diff.change;
@@ -566,6 +574,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         groupingApplyInFlightRef.current = false;
         return;
       }
+      const reasonValue = reasonOverride !== undefined ? reasonOverride : groupingApplyReason;
       setGroupingApplyLoading(true);
       setGroupingApplyError(null);
       setGroupingApplySuccessMessage(null);
@@ -575,6 +584,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ui_action: "organizer_grouping_apply",
+            reason: reasonValue ?? "",
             proposed_change: {
               type: "grouping",
               diff_id: diff.diff_id,
@@ -607,11 +617,11 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         groupingApplyInFlightRef.current = false;
       }
     },
-    [onRefreshDashboard, fetchHistory]
+    [onRefreshDashboard, fetchHistory, groupingApplyReason]
   );
 
   const applyDecompositionDiff = useCallback(
-    async (diff: OrganizerDiffItem) => {
+    async (diff: OrganizerDiffItem, reasonOverride?: string) => {
       if (decompositionApplyInFlightRef.current) return;
       if (diff.type !== "decomposition" || !diff.change) return;
       const { parent_node_id, add_children } = diff.change;
@@ -622,6 +632,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         decompositionApplyInFlightRef.current = false;
         return;
       }
+      const reasonValue = reasonOverride !== undefined ? reasonOverride : decompositionApplyReason;
       setDecompositionApplyLoading(true);
       setDecompositionApplyError(null);
       setDecompositionApplySuccessMessage(null);
@@ -632,6 +643,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
           body: JSON.stringify({
             node_id: parent_node_id,
             ui_action: "organizer_decomposition_apply",
+            reason: reasonValue ?? "",
             proposed_change: {
               type: "decomposition",
               diff_id: diff.diff_id,
@@ -667,7 +679,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         decompositionApplyInFlightRef.current = false;
       }
     },
-    [onRefreshDashboard, fetchHistory]
+    [onRefreshDashboard, fetchHistory, decompositionApplyReason]
   );
 
   if (!trays) {
@@ -800,10 +812,20 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                       <span style={{ fontSize: 12, fontWeight: 700 }}>{restoredDiff.change.relation_type}</span>
                     </div>
                     <div style={{ fontSize: 12, marginBottom: 8 }}>{restoredDiff.reason}</div>
+                    <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 6 }}>
+                      理由（任意）:
+                      <input
+                        type="text"
+                        value={restoredApplyReason}
+                        onChange={(e) => setRestoredApplyReason(e.target.value)}
+                        placeholder="適用の理由を入力"
+                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                      />
+                    </label>
                     <div style={{ display: "flex", gap: 8 }}>
                       <button
                         type="button"
-                        onClick={() => applyRelationDiff(restoredDiff)}
+                        onClick={() => applyRelationDiff(restoredDiff, restoredApplyReason)}
                         disabled={relationApplyLoading}
                         style={{
                           padding: "6px 12px",
@@ -850,10 +872,20 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                       <span style={{ fontSize: 12, color: "#666" }}>{restoredDiff.change.node_ids.length} 件</span>
                     </div>
                     <div style={{ fontSize: 12, marginBottom: 8 }}>{restoredDiff.reason}</div>
+                    <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 6 }}>
+                      理由（任意）:
+                      <input
+                        type="text"
+                        value={restoredApplyReason}
+                        onChange={(e) => setRestoredApplyReason(e.target.value)}
+                        placeholder="適用の理由を入力"
+                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                      />
+                    </label>
                     <div style={{ display: "flex", gap: 8 }}>
                       <button
                         type="button"
-                        onClick={() => applyGroupingDiff(restoredDiff)}
+                        onClick={() => applyGroupingDiff(restoredDiff, restoredApplyReason)}
                         disabled={groupingApplyLoading}
                         style={{
                           padding: "6px 12px",
@@ -911,10 +943,20 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                       ))}
                     </div>
                     <div style={{ fontSize: 12, marginBottom: 8 }}>{restoredDiff.reason}</div>
+                    <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 6 }}>
+                      理由（任意）:
+                      <input
+                        type="text"
+                        value={restoredApplyReason}
+                        onChange={(e) => setRestoredApplyReason(e.target.value)}
+                        placeholder="適用の理由を入力"
+                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                      />
+                    </label>
                     <div style={{ display: "flex", gap: 8 }}>
                       <button
                         type="button"
-                        onClick={() => applyDecompositionDiff(restoredDiff)}
+                        onClick={() => applyDecompositionDiff(restoredDiff, restoredApplyReason)}
                         disabled={decompositionApplyLoading}
                         style={{
                           padding: "6px 12px",
@@ -995,6 +1037,16 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                               {diff.validation.warnings.join("; ")}
                             </div>
                           ) : null}
+                          <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 6 }}>
+                            理由（任意）:
+                            <input
+                              type="text"
+                              value={relationApplyReason}
+                              onChange={(e) => setRelationApplyReason(e.target.value)}
+                              placeholder="適用の理由を入力"
+                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                            />
+                          </label>
                           <button
                             type="button"
                             onClick={() => applyRelationDiff(diff)}
@@ -1068,6 +1120,16 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                               {diff.validation.warnings.join("; ")}
                             </div>
                           ) : null}
+                          <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 6 }}>
+                            理由（任意）:
+                            <input
+                              type="text"
+                              value={groupingApplyReason}
+                              onChange={(e) => setGroupingApplyReason(e.target.value)}
+                              placeholder="適用の理由を入力"
+                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                            />
+                          </label>
                           <button
                             type="button"
                             onClick={() => applyGroupingDiff(diff)}
@@ -1152,6 +1214,16 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                               {diff.validation.warnings.join("; ")}
                             </div>
                           ) : null}
+                          <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 6 }}>
+                            理由（任意）:
+                            <input
+                              type="text"
+                              value={decompositionApplyReason}
+                              onChange={(e) => setDecompositionApplyReason(e.target.value)}
+                              placeholder="適用の理由を入力"
+                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                            />
+                          </label>
                           <button
                             type="button"
                             onClick={() => applyDecompositionDiff(diff)}
@@ -1366,6 +1438,13 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                               <div>diff_id: {String(pc?.diff_id ?? "—")}</div>
                             </>
                           )}
+                          {(type === "relation" || type === "grouping" || type === "decomposition") &&
+                            pc?.reason != null &&
+                            String(pc.reason).trim() !== "" && (
+                              <div style={{ marginTop: 6 }}>
+                                理由: {String(pc.reason)}
+                              </div>
+                            )}
                           {(type === "relation" || type === "grouping" || type === "decomposition") && (
                             <div style={{ marginTop: 8 }}>
                               <button

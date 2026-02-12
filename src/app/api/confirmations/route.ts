@@ -61,6 +61,8 @@ export async function POST(req: NextRequest) {
     }
 
     const changeType = proposedChange.type as string;
+    /** Phase8-B: 任意の理由。relation / grouping / decomposition の proposed_change に含める */
+    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
 
     if (changeType !== "relation" && changeType !== "grouping" && changeType !== "decomposition" && !nodeId) {
       return NextResponse.json(
@@ -142,6 +144,7 @@ export async function POST(req: NextRequest) {
           diff_id: diffId,
           parent_node_id: parentNodeId,
           add_children,
+          reason,
         },
         consumed: false,
         consumed_at: null,
@@ -191,6 +194,7 @@ export async function POST(req: NextRequest) {
           diff_id: diffId,
           group_label: groupLabel,
           node_ids: nodeIds,
+          reason,
         },
         consumed: false,
         consumed_at: null,
@@ -238,6 +242,7 @@ export async function POST(req: NextRequest) {
           from_node_id: fromNodeId,
           to_node_id: toNodeId,
           relation_type: relationType,
+          reason,
         },
         consumed: false,
         consumed_at: null,
