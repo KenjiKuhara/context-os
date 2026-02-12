@@ -6,7 +6,7 @@
  * 41_phase4_quality_pipeline.md §7、POST /api/organizer/run, /api/advisor/run を使用。
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATUS_LABELS, getValidTransitions, isValidStatus, type Status } from "@/lib/status";
 
 // GET /api/dashboard の trays と同じ形
@@ -60,6 +60,16 @@ type OrganizerDiffItem =
       risk?: string | null;
       validation?: { result: string; errors: string[]; warnings: string[] };
     };
+
+/** Phase7-A: GET /api/confirmations/history の 1 件 */
+type ConfirmationHistoryItem = {
+  confirmation_id: string;
+  node_id: string;
+  confirmed_at: string;
+  consumed_at: string | null;
+  proposed_change: Record<string, unknown>;
+  ui_action: string;
+};
 
 /** Advisor の 1 案（API の report.options の要素） */
 type AdvisorOption = {
@@ -171,11 +181,40 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
   const [decompositionApplyError, setDecompositionApplyError] = useState<string | null>(null);
   const [decompositionApplySuccessMessage, setDecompositionApplySuccessMessage] = useState<string | null>(null);
 
+  /** Phase7-A: 適用済み Diff 履歴 */
+  const [historyItems, setHistoryItems] = useState<ConfirmationHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [selectedHistoryConfirmationId, setSelectedHistoryConfirmationId] = useState<string | null>(null);
+
   const allNodes = useMemo(() => (trays ? flattenTrays(trays) : []), [trays]);
   const dashboardPayload = useMemo(
     () => (trays ? { trays } : null),
     [trays]
   );
+
+  /** Phase7-A: Organizer タブ表示時に履歴を取得 */
+  useEffect(() => {
+    if (activeTab !== "organizer") return;
+    setHistoryLoading(true);
+    setHistoryError(null);
+    fetch("/api/confirmations/history?limit=50")
+      .then((res) => res.json())
+      .then((data: { ok?: boolean; items?: ConfirmationHistoryItem[] }) => {
+        if (data.ok && Array.isArray(data.items)) {
+          setHistoryItems(data.items);
+        } else {
+          setHistoryItems([]);
+          setHistoryError("履歴の取得に失敗しました");
+        }
+      })
+      .catch((err) => {
+        console.error("history fetch error", err);
+        setHistoryItems([]);
+        setHistoryError("履歴の取得に失敗しました");
+      })
+      .finally(() => setHistoryLoading(false));
+  }, [activeTab]);
 
   const runOrganizer = useCallback(async () => {
     if (!dashboardPayload || organizerLoading) return;
@@ -877,6 +916,135 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
               )}
             </>
           )}
+
+          {/* Phase7-A: 適用済み Diff 履歴 */}
+          <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #ddd" }}>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+              適用済み Diff 履歴
+            </div>
+            {historyLoading && (
+              <div style={{ fontSize: 13, color: "#666" }}>読み込み中…</div>
+            )}
+            {!historyLoading && historyError && (
+              <div style={{ fontSize: 13, color: "#c62828" }}>{historyError}</div>
+            )}
+            {!historyLoading && !historyError && historyItems.length === 0 && (
+              <div style={{ fontSize: 13, color: "#666" }}>
+                Apply 済みの Diff はまだありません
+              </div>
+            )}
+            {!historyLoading && !historyError && historyItems.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {historyItems.map((item) => {
+                  const pc = item.proposed_change;
+                  const type = typeof pc?.type === "string" ? pc.type : "";
+                  const dateStr = item.consumed_at || item.confirmed_at || "";
+                  const typeLabel =
+                    type === "relation"
+                      ? "関係追加"
+                      : type === "grouping"
+                        ? "グループ化"
+                        : type === "decomposition"
+                          ? "分解"
+                          : type || "—";
+                  let summary = "—";
+                  if (type === "relation" && pc?.from_node_id != null && pc?.to_node_id != null) {
+                    summary = `${String(pc.from_node_id).slice(0, 8)}… → ${String(pc.to_node_id).slice(0, 8)}… ${String(pc.relation_type ?? "")}`;
+                  } else if (type === "grouping" && pc?.group_label != null) {
+                    const n = Array.isArray(pc.node_ids) ? pc.node_ids.length : 0;
+                    summary = `${String(pc.group_label)}（${n}件）`;
+                  } else if (type === "decomposition" && pc?.parent_node_id != null) {
+                    const children = Array.isArray(pc.add_children) ? pc.add_children.length : 0;
+                    summary = `親 ${String(pc.parent_node_id).slice(0, 8)}… に子 ${children}件`;
+                  }
+                  const isSelected = selectedHistoryConfirmationId === item.confirmation_id;
+                  return (
+                    <div
+                      key={item.confirmation_id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() =>
+                        setSelectedHistoryConfirmationId(
+                          isSelected ? null : item.confirmation_id
+                        )
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedHistoryConfirmationId(
+                            isSelected ? null : item.confirmation_id
+                          );
+                        }
+                      }}
+                      style={{
+                        padding: 10,
+                        border: `1px solid ${isSelected ? "#5567ff" : "#ddd"}`,
+                        borderRadius: 6,
+                        background: isSelected ? "#e8eaf6" : "#fafafa",
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                    >
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
+                        <span style={{ color: "#666" }}>{dateStr.slice(0, 19).replace("T", " ")}</span>
+                        <span style={{ fontWeight: 700 }}>{typeLabel}</span>
+                        <span>{summary}</span>
+                      </div>
+                      {isSelected && (
+                        <div
+                          style={{
+                            marginTop: 8,
+                            padding: 8,
+                            background: "#fff",
+                            borderRadius: 4,
+                            border: "1px solid #ddd",
+                            fontSize: 11,
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-all",
+                          }}
+                        >
+                          {type === "relation" && (
+                            <>
+                              from_node_id: {String(pc?.from_node_id ?? "—")}
+                              {"\n"}
+                              to_node_id: {String(pc?.to_node_id ?? "—")}
+                              {"\n"}
+                              relation_type: {String(pc?.relation_type ?? "—")}
+                              {"\n"}
+                              diff_id: {String(pc?.diff_id ?? "—")}
+                            </>
+                          )}
+                          {type === "grouping" && (
+                            <>
+                              group_label: {String(pc?.group_label ?? "—")}
+                              {"\n"}
+                              node_ids: {Array.isArray(pc?.node_ids) ? pc.node_ids.join(", ") : "—"}
+                              {"\n"}
+                              diff_id: {String(pc?.diff_id ?? "—")}
+                            </>
+                          )}
+                          {type === "decomposition" && (
+                            <>
+                              <div>parent_node_id: {String(pc?.parent_node_id ?? "—")}</div>
+                              <div>
+                                add_children (title):
+                                {Array.isArray(pc?.add_children)
+                                  ? pc.add_children.map((c: { title?: string }, i: number) => (
+                                      <span key={i}> {String(c?.title ?? "—")}; </span>
+                                    ))
+                                  : " —"}
+                              </div>
+                              <div>diff_id: {String(pc?.diff_id ?? "—")}</div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
