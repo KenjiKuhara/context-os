@@ -71,6 +71,61 @@ type ConfirmationHistoryItem = {
   ui_action: string;
 };
 
+/** Phase8-A: 履歴 1 件を OrganizerDiffItem に変換（再表示用）。type が relation/grouping/decomposition 以外は null */
+function historyItemToOrganizerDiff(item: ConfirmationHistoryItem): OrganizerDiffItem | null {
+  const pc = item.proposed_change;
+  const type = typeof pc?.type === "string" ? pc.type : "";
+  const diffId =
+    typeof pc?.diff_id === "string" && pc.diff_id.trim()
+      ? (pc.diff_id as string)
+      : `restored-${item.confirmation_id}`;
+  if (type === "relation") {
+    const from_node_id = typeof pc?.from_node_id === "string" ? pc.from_node_id : "";
+    const to_node_id = typeof pc?.to_node_id === "string" ? pc.to_node_id : "";
+    const relation_type = typeof pc?.relation_type === "string" ? pc.relation_type : "";
+    if (!from_node_id || !to_node_id || !relation_type) return null;
+    return {
+      diff_id: diffId,
+      type: "relation",
+      target_node_id: item.node_id,
+      change: { action: "add", from_node_id, to_node_id, relation_type },
+      reason: "（履歴から再表示）",
+      risk: null,
+    };
+  }
+  if (type === "grouping") {
+    const group_label = typeof pc?.group_label === "string" ? pc.group_label : "";
+    const node_ids = Array.isArray(pc?.node_ids)
+      ? (pc.node_ids as unknown[]).map((id) => (typeof id === "string" ? id : "")).filter(Boolean)
+      : [];
+    if (!group_label || node_ids.length < 2) return null;
+    return {
+      diff_id: diffId,
+      type: "grouping",
+      target_node_id: item.node_id,
+      change: { group_label, node_ids },
+      reason: "（履歴から再表示）",
+      risk: null,
+    };
+  }
+  if (type === "decomposition") {
+    const parent_node_id = typeof pc?.parent_node_id === "string" ? pc.parent_node_id : "";
+    const add_children = Array.isArray(pc?.add_children)
+      ? (pc.add_children as Array<{ title?: string; context?: string; suggested_status?: string }>)
+      : [];
+    if (!parent_node_id || add_children.length === 0) return null;
+    return {
+      diff_id: diffId,
+      type: "decomposition",
+      target_node_id: item.node_id,
+      change: { parent_node_id, add_children },
+      reason: "（履歴から再表示）",
+      risk: null,
+    };
+  }
+  return null;
+}
+
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isValidUuid(s: string): boolean {
   return UUID_REGEX.test(s.trim());
@@ -195,6 +250,9 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
   const [filterType, setFilterType] = useState<string>("");
   const [nodeIdFilter, setNodeIdFilter] = useState<string>("");
   const [nodeIdFilterError, setNodeIdFilterError] = useState<string | null>(null);
+
+  /** Phase8-A: 履歴から再表示した Apply 候補 1 件 */
+  const [restoredDiff, setRestoredDiff] = useState<OrganizerDiffItem | null>(null);
 
   const allNodes = useMemo(() => (trays ? flattenTrays(trays) : []), [trays]);
   const dashboardPayload = useMemo(
@@ -481,6 +539,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         setRelationApplySuccessMessage(
           `反映しました（${from_node_id} → ${to_node_id} / ${relation_type}）`
         );
+        setRestoredDiff(null);
         fetchHistory(true);
       } catch (e) {
         setRelationApplyError(e instanceof Error ? e.message : String(e));
@@ -536,6 +595,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         }
         if (onRefreshDashboard) await onRefreshDashboard();
         setGroupingApplySuccessMessage(`反映しました（${group_label} / ${node_ids.length} 件）`);
+        setRestoredDiff(null);
         fetchHistory(true);
       } catch (e) {
         setGroupingApplyError(e instanceof Error ? e.message : String(e));
@@ -595,6 +655,7 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
         setDecompositionApplySuccessMessage(
           `反映しました（親 ${parent_node_id.slice(0, 8)}… に子 ${createdCount} 件作成）`
         );
+        setRestoredDiff(null);
         fetchHistory(true);
       } catch (e) {
         setDecompositionApplyError(e instanceof Error ? e.message : String(e));
@@ -712,6 +773,179 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                 setWarningsExpanded(warningsExpanded === "organizer" ? null : "organizer")
               }
             />
+          )}
+          {/* Phase8-A: 履歴から再表示した Apply 候補 1 件 */}
+          {restoredDiff && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+                復元した Apply 候補（{restoredDiff.type === "relation" ? "relation" : restoredDiff.type === "grouping" ? "grouping" : "decomposition"}）
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {restoredDiff.type === "relation" && (
+                  <div
+                    style={{
+                      padding: 12,
+                      border: "1px solid #ddd",
+                      borderRadius: 8,
+                      background: "#fafafa",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, color: "#666" }}>
+                        {restoredDiff.change.from_node_id} → {restoredDiff.change.to_node_id}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 700 }}>{restoredDiff.change.relation_type}</span>
+                    </div>
+                    <div style={{ fontSize: 12, marginBottom: 8 }}>{restoredDiff.reason}</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => applyRelationDiff(restoredDiff)}
+                        disabled={relationApplyLoading}
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: 12,
+                          border: "1px solid #5567ff",
+                          borderRadius: 6,
+                          background: relationApplyLoading ? "#ccc" : "#5567ff",
+                          color: "white",
+                          fontWeight: 600,
+                          cursor: relationApplyLoading ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {relationApplyLoading ? "適用中…" : "このDiffを反映する"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRestoredDiff(null)}
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: 12,
+                          border: "1px solid #999",
+                          borderRadius: 6,
+                          background: "#fff",
+                          color: "#333",
+                          cursor: "pointer",
+                        }}
+                      >
+                        クリア
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {restoredDiff.type === "grouping" && (
+                  <div
+                    style={{
+                      padding: 12,
+                      border: "1px solid #ddd",
+                      borderRadius: 8,
+                      background: "#fafafa",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700 }}>{restoredDiff.change.group_label}</span>
+                      <span style={{ fontSize: 12, color: "#666" }}>{restoredDiff.change.node_ids.length} 件</span>
+                    </div>
+                    <div style={{ fontSize: 12, marginBottom: 8 }}>{restoredDiff.reason}</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => applyGroupingDiff(restoredDiff)}
+                        disabled={groupingApplyLoading}
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: 12,
+                          border: "1px solid #5567ff",
+                          borderRadius: 6,
+                          background: groupingApplyLoading ? "#ccc" : "#5567ff",
+                          color: "white",
+                          fontWeight: 600,
+                          cursor: groupingApplyLoading ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {groupingApplyLoading ? "適用中…" : "このDiffを反映する"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRestoredDiff(null)}
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: 12,
+                          border: "1px solid #999",
+                          borderRadius: 6,
+                          background: "#fff",
+                          color: "#333",
+                          cursor: "pointer",
+                        }}
+                      >
+                        クリア
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {restoredDiff.type === "decomposition" && (
+                  <div
+                    style={{
+                      padding: 12,
+                      border: "1px solid #ddd",
+                      borderRadius: 8,
+                      background: "#fafafa",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, color: "#666" }}>
+                        親: {restoredDiff.change.parent_node_id.slice(0, 8)}…
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 700 }}>
+                        子 {restoredDiff.change.add_children.length} 件
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, marginBottom: 4 }}>
+                      {restoredDiff.change.add_children.map((c, i) => (
+                        <span key={i} style={{ marginRight: 8 }}>
+                          • {c.title}
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 12, marginBottom: 8 }}>{restoredDiff.reason}</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => applyDecompositionDiff(restoredDiff)}
+                        disabled={decompositionApplyLoading}
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: 12,
+                          border: "1px solid #5567ff",
+                          borderRadius: 6,
+                          background: decompositionApplyLoading ? "#ccc" : "#5567ff",
+                          color: "white",
+                          fontWeight: 600,
+                          cursor: decompositionApplyLoading ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {decompositionApplyLoading ? "適用中…" : "このDiffを反映する"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRestoredDiff(null)}
+                        style={{
+                          padding: "6px 12px",
+                          fontSize: 12,
+                          border: "1px solid #999",
+                          borderRadius: 6,
+                          background: "#fff",
+                          color: "#333",
+                          cursor: "pointer",
+                        }}
+                      >
+                        クリア
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
           {organizerResult?.ok && (organizerResult.diffs?.length ?? 0) > 0 && (
             <>
@@ -1128,6 +1362,29 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                               </div>
                               <div>diff_id: {String(pc?.diff_id ?? "—")}</div>
                             </>
+                          )}
+                          {(type === "relation" || type === "grouping" || type === "decomposition") && (
+                            <div style={{ marginTop: 8 }}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const converted = historyItemToOrganizerDiff(item);
+                                  if (converted) setRestoredDiff(converted);
+                                }}
+                                style={{
+                                  padding: "6px 12px",
+                                  fontSize: 12,
+                                  border: "1px solid #5567ff",
+                                  borderRadius: 6,
+                                  background: "#5567ff",
+                                  color: "white",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                この変更内容をApply候補として再表示する
+                              </button>
+                            </div>
                           )}
                         </div>
                       )}
