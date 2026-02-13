@@ -11,7 +11,7 @@
 | **Phase11-E** | **CLOSED（DONE）** | 112, 113 | 実装変更なし、手動E2E結果でクローズ。再出現制御（同 kind 抑制・状態改善で lastHandled 削除・localStorage 異常時も落ちない）を 111 の DoD #1〜#5 および影響なし確認で検証済み。 |
 | **Phase11-B** | **CLOSED（DONE）** | 108, 115, 116 | 表示文言全面見直し。Block A/B/C 実装完了。最終横断チェック（116）合格。クローズ根拠: 116 + 115 + 108。 |
 | **Phase12-Dark** | **CLOSED（DONE）** | 117, 118, 119 | ダークモード導入。採用案 C: prefers-color-scheme + 手動切替。MVP は /dashboard のみ。Block A〜B（118）完了後、Block C 最終確認（119）で C1〜C5 すべて ✅、MVP 合格。クローズ根拠: 119 + 118 + 117。 |
-| **Phase13-UX評価** | **IN_PROGRESS** | 120 | ダークモード導入後の UX・判断速度・疲労軽減の実証。 |
+| **Phase13-UX評価** | **IN_PROGRESS（実施フェーズ）** | 120 | ダークモード導入後の UX・判断速度・疲労軽減の実証。120 に Exit Criteria（§8）・検証記入欄（§4〜§6）・判定フロー（§9）を整備済み。20 分以上使用で検証実施し、Exit Criteria 満足で DONE／未達で Phase14 等を起票。 |
 
 ---
 
