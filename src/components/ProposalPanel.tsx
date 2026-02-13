@@ -761,6 +761,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
               borderRadius: 8,
               border: activeTab === tab ? "2px solid var(--border-focus)" : "1px solid var(--border-default)",
               background: activeTab === tab ? "var(--bg-selected)" : "var(--bg-card)",
+              color: "var(--text-primary)",
               fontWeight: 700,
               cursor: "pointer",
             }}
@@ -787,6 +788,8 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
             borderRadius: 6,
             border: "1px solid var(--border-default)",
             fontSize: 13,
+            background: "var(--bg-card)",
+            color: "var(--text-primary)",
           }}
         />
       </div>
@@ -886,7 +889,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           border: "1px solid var(--border-muted)",
                           borderRadius: 6,
                           background: "var(--bg-card)",
-                          color: "#333",
+                          color: "var(--text-primary)",
                           cursor: "pointer",
                         }}
                       >
@@ -946,7 +949,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           border: "1px solid var(--border-muted)",
                           borderRadius: 6,
                           background: "var(--bg-card)",
-                          color: "#333",
+                          color: "var(--text-primary)",
                           cursor: "pointer",
                         }}
                       >
@@ -1014,7 +1017,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           border: "1px solid var(--border-muted)",
                           borderRadius: 6,
                           background: "var(--bg-card)",
-                          color: "#333",
+                          color: "var(--text-primary)",
                           cursor: "pointer",
                         }}
                       >
