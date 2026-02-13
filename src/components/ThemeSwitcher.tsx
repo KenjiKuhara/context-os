@@ -33,9 +33,11 @@ function getStoredTheme(): ThemeStored {
 export function ThemeSwitcher() {
   const [selected, setSelected] = useState<ThemeStored>("system");
 
-  // マウント時に localStorage から読み、選択状態を初期化
+  // マウント時に localStorage から読み、選択状態を初期化し、data-theme を再適用（ハイドレーションで消えた場合の復元）
   useEffect(() => {
-    setSelected(getStoredTheme());
+    const stored = getStoredTheme();
+    setSelected(stored);
+    applyResolvedTheme(resolveTheme(stored));
   }, []);
 
   // "system" 選択時のみ OS テーマ変更に追従
