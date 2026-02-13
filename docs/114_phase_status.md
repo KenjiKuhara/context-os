@@ -10,11 +10,21 @@
 |-------|------|----------|------|
 | **Phase11-E** | **CLOSED（DONE）** | 112, 113 | 実装変更なし、手動E2E結果でクローズ。再出現制御（同 kind 抑制・状態改善で lastHandled 削除・localStorage 異常時も落ちない）を 111 の DoD #1〜#5 および影響なし確認で検証済み。 |
 | **Phase11-B** | **CLOSED（DONE）** | 108, 115, 116 | 表示文言全面見直し。Block A/B/C 実装完了。最終横断チェック（116）合格。クローズ根拠: 116 + 115 + 108。 |
-| **Phase12-Dark** | **IN_PROGRESS** | 117 | ダークモード導入。採用案 C: prefers-color-scheme + 手動切替（ライト/ダーク/システム）。MVP は /dashboard のみ。実装管理: 118。 |
+| **Phase12-Dark** | **CLOSED（DONE）** | 117, 118, 119 | ダークモード導入。採用案 C: prefers-color-scheme + 手動切替。MVP は /dashboard のみ。Block A〜B（118）完了後、Block C 最終確認（119）で C1〜C5 すべて ✅、MVP 合格。クローズ根拠: 119 + 118 + 117。 |
+| **Phase13-UX評価** | **IN_PROGRESS** | 120 | ダークモード導入後の UX・判断速度・疲労軽減の実証。 |
 
 ---
 
-## 2. クローズ根拠（Phase11-B）
+## 2. クローズ根拠（Phase12-Dark）
+
+- docs/119_phase12_dark_final_check_result.md にて Block C（最終確認）を実施済み
+- C1（3 モード切替）・C2（選択保持）・C3（コントラスト）・C4（状態色）・C5（回帰なし）すべて ✅
+- MVP 合格とし、Phase12-Dark を CLOSED（DONE）とした
+- クローズ根拠ドキュメント: **119（最終確認結果）+ 118（実装タスク・契約・Block ゲート報告）+ 117（設計）**
+
+---
+
+## 3. クローズ根拠（Phase11-B）
 
 - docs/116_phase11_b_final_check_result.md にて最終横断チェック（115 §8）を実施済み
 - (1) 全画面スキャン: 開発者語残存 1 件（TreeList aria-label）を修正のち合格
@@ -24,7 +34,7 @@
 
 ---
 
-## 3. クローズ根拠（Phase11-E）
+## 4. クローズ根拠（Phase11-E）
 
 - docs/112_phase11_e_sage_reappear_e2e_result.md にて手動 E2E 実施済み
 - DoD #1〜#5 すべて ✅
@@ -34,7 +44,7 @@
 
 ---
 
-## 4. 次フェーズ候補・確認・リスク（Phase11-E クローズ時点）
+## 5. 次フェーズ候補・確認・リスク（Phase11-E クローズ時点）
 
 ### 3.1 クローズ確定の要約（1段落）
 
@@ -77,7 +87,7 @@ Phase11-E（大賢者助言の再出現制御）は、滞留検知のロジッ�
 
 ---
 
-## 5. 戦略判断（Phase11-E クローズ後・優先順位確定）
+## 6. 戦略判断（Phase11-E クローズ後・優先順位確定）
 
 ### 4.1 優先度再評価表（スコア付き）
 
@@ -141,7 +151,7 @@ Phase11-E（大賢者助言の再出現制御）は、滞留検知のロジッ�
 
 ---
 
-## 6. 参照ドキュメント
+## 7. 参照ドキュメント
 
 | 番号 | ファイル名 |
 |------|------------|
@@ -157,6 +167,20 @@ Phase11-E（大賢者助言の再出現制御）は、滞留検知のロジッ�
 | 116 | 116_phase11_b_final_check_result.md |
 | 117 | 117_dark_mode_design.md |
 | 118 | 118_dark_mode_impl_tasks.md |
+| 119 | 119_phase12_dark_final_check_result.md |
+| 120 | 120_phase13_dark_ux_validation.md |
+
+---
+
+## 8. 次フェーズ候補（Phase12-Dark クローズ時点）
+
+Phase12-Dark は /dashboard のみを MVP とした。未対応の拡張は次フェーズ候補として残す。
+
+| 候補 | 内容 |
+|------|------|
+| **全ページ展開** | 他ルート（/ 等）へテーマ切替を展開。localStorage は既に共有のため、layout と各ページのトークン適用が主な作業。 |
+| **high-contrast テーマ** | 117・118 で data-theme 拡張可能と設計済み。必要に応じて theme-tokens.css に `html[data-theme="high-contrast"]` を追加。 |
+| **キー操作・アクセシビリティ** | テーマ切替のキーボード操作や prefers-reduced-motion 等の配慮は本 MVP では未実施。 |
 
 ---
 

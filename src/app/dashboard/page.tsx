@@ -950,6 +950,7 @@ export default function DashboardPage() {
                   border: viewMode === "flat" ? "2px solid var(--border-focus)" : "1px solid var(--border-default)",
                   borderRadius: 6,
                   background: viewMode === "flat" ? "var(--bg-selected)" : "var(--bg-card)",
+                  color: "var(--text-primary)",
                   cursor: "pointer",
                   fontSize: 12,
                 }}
@@ -964,6 +965,7 @@ export default function DashboardPage() {
                   border: viewMode === "tree" ? "2px solid var(--border-focus)" : "1px solid var(--border-default)",
                   borderRadius: 6,
                   background: viewMode === "tree" ? "var(--bg-selected)" : "var(--bg-card)",
+                  color: "var(--text-primary)",
                   cursor: "pointer",
                   fontSize: 12,
                 }}
@@ -1193,6 +1195,8 @@ export default function DashboardPage() {
                     borderRadius: 8,
                     border: "1px solid var(--border-muted)",
                     boxSizing: "border-box",
+                    background: "var(--bg-card)",
+                    color: "var(--text-primary)",
                   }}
                   disabled={
                     estimatePhase === "loading" ||
@@ -1215,6 +1219,7 @@ export default function DashboardPage() {
                     fontWeight: 700,
                     background:
                       estimatePhase === "loading" ? "var(--bg-disabled)" : "var(--bg-card)",
+                    color: "var(--text-primary)",
                     cursor:
                       !intentDraft.trim() || estimatePhase !== "idle"
                         ? "not-allowed"
@@ -1287,6 +1292,7 @@ export default function DashboardPage() {
                             borderRadius: 8,
                             border: "1px solid var(--border-muted)",
                             background: "var(--bg-card)",
+                            color: "var(--text-primary)",
                             fontWeight: 700,
                             cursor: "pointer",
                           }}
@@ -1336,6 +1342,7 @@ export default function DashboardPage() {
                               borderRadius: 6,
                               border: "1px solid var(--border-default)",
                               background: "var(--bg-card)",
+                              color: "var(--text-primary)",
                               fontSize: 12,
                               cursor: "pointer",
                             }}
@@ -1404,6 +1411,7 @@ export default function DashboardPage() {
                                 borderRadius: 6,
                                 border: "1px solid var(--border-default)",
                                 background: "var(--bg-card)",
+                                color: "var(--text-primary)",
                                 fontSize: 12,
                                 cursor: "pointer",
                               }}

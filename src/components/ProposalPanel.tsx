@@ -856,7 +856,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         value={restoredApplyReason}
                         onChange={(e) => setRestoredApplyReason(e.target.value)}
                         placeholder="適用の理由を入力"
-                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
+                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12, background: "var(--bg-card)", color: "var(--text-primary)" }}
                       />
                     </label>
                     <div style={{ display: "flex", gap: 8 }}>
@@ -916,7 +916,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         value={restoredApplyReason}
                         onChange={(e) => setRestoredApplyReason(e.target.value)}
                         placeholder="適用の理由を入力"
-                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
+                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12, background: "var(--bg-card)", color: "var(--text-primary)" }}
                       />
                     </label>
                     <div style={{ display: "flex", gap: 8 }}>
@@ -984,7 +984,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         value={restoredApplyReason}
                         onChange={(e) => setRestoredApplyReason(e.target.value)}
                         placeholder="適用の理由を入力"
-                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
+                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12, background: "var(--bg-card)", color: "var(--text-primary)" }}
                       />
                     </label>
                     <div style={{ display: "flex", gap: 8 }}>
@@ -1078,7 +1078,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                               value={relationApplyReason}
                               onChange={(e) => setRelationApplyReason(e.target.value)}
                               placeholder="適用の理由を入力"
-                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
+                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12, background: "var(--bg-card)", color: "var(--text-primary)" }}
                             />
                           </label>
                           <button
@@ -1161,7 +1161,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                               value={groupingApplyReason}
                               onChange={(e) => setGroupingApplyReason(e.target.value)}
                               placeholder="適用の理由を入力"
-                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
+                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12, background: "var(--bg-card)", color: "var(--text-primary)" }}
                             />
                           </label>
                           <button
@@ -1252,7 +1252,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                               value={decompositionApplyReason}
                               onChange={(e) => setDecompositionApplyReason(e.target.value)}
                               placeholder="適用の理由を入力"
-                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
+                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12, background: "var(--bg-card)", color: "var(--text-primary)" }}
                             />
                           </label>
                           <button
@@ -1297,12 +1297,12 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
             </div>
             {/* Phase7-B: フィルタ UI */}
             <div style={{ marginBottom: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              <label style={{ fontSize: 12, color: "#666" }}>
+              <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>
                 種別:
                 <select
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
-                  style={{ marginLeft: 4, padding: "4px 8px", borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
+                  style={{ marginLeft: 4, padding: "4px 8px", borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12, background: "var(--bg-card)", color: "var(--text-primary)" }}
                 >
                   <option value="">すべて</option>
                   <option value="relation">関連</option>
@@ -1310,7 +1310,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                   <option value="decomposition">分解</option>
                 </select>
               </label>
-              <label style={{ fontSize: 12, color: "#666" }}>
+              <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>
                 対象のタスク:
                 <input
                   type="text"
@@ -1320,7 +1320,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                     setNodeIdFilterError(null);
                   }}
                   placeholder="タスクのID（任意）"
-                  style={{ marginLeft: 4, padding: "4px 8px", width: 220, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
+                  style={{ marginLeft: 4, padding: "4px 8px", width: 220, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12, background: "var(--bg-card)", color: "var(--text-primary)" }}
                 />
               </label>
               <button
@@ -1534,6 +1534,8 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                 border: "1px solid var(--border-default)",
                 marginBottom: 8,
                 minWidth: 200,
+                background: "var(--bg-card)",
+                color: "var(--text-primary)",
               }}
             >
               <option value="">— 未指定 —</option>
@@ -1627,6 +1629,8 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                               fontSize: 13,
                               opacity: applyLoading ? 0.7 : 1,
                               cursor: applyLoading ? "not-allowed" : "pointer",
+                              background: "var(--bg-card)",
+                              color: "var(--text-primary)",
                             }}
                           >
                             {getValidTransitions(applyTargetNode.status as Status).map((s) => (
