@@ -191,11 +191,16 @@ const TAB_LABEL: Record<Tab, string> = {
   advisor: "Advisor",
 };
 
+/** Phase9-A: 履歴 1 件クリック時にツリー連動用に渡す payload */
+export type HistoryItemSelectPayload = { primaryNodeId: string; nodeIds: string[] };
+
 export interface ProposalPanelProps {
   /** GET /api/dashboard の trays。null のときはパネルは「データなし」表示 */
   trays: Trays | null;
   /** Apply 成功時にダッシュボードを再取得するコールバック */
   onRefreshDashboard?: () => Promise<unknown>;
+  /** Phase9-A: 履歴 1 件クリック時に該当 node_id を親に通知（ツリー展開・ハイライト・詳細表示用） */
+  onHistoryItemSelect?: (payload: HistoryItemSelectPayload) => void;
 }
 
 function flattenTrays(trays: Trays): Array<{ id: string; title?: string | null; status?: string }> {
@@ -208,7 +213,33 @@ function flattenTrays(trays: Trays): Array<{ id: string; title?: string | null; 
   ].filter((n) => n?.id);
 }
 
-export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps) {
+/** Phase9-A: 履歴 1 件から primaryNodeId と nodeIds を導出（relation/grouping/decomposition のみ。status_change は null） */
+function getHistoryItemNodeIds(item: ConfirmationHistoryItem): HistoryItemSelectPayload | null {
+  const pc = item.proposed_change;
+  const type = typeof pc?.type === "string" ? pc.type : "";
+  if (type === "relation") {
+    const from = typeof pc?.from_node_id === "string" ? pc.from_node_id : "";
+    const to = typeof pc?.to_node_id === "string" ? pc.to_node_id : "";
+    if (!from && !to) return null;
+    const nodeIds = [from, to].filter(Boolean);
+    return { primaryNodeId: from || to, nodeIds };
+  }
+  if (type === "grouping") {
+    const node_ids = Array.isArray(pc?.node_ids)
+      ? (pc.node_ids as unknown[]).map((id) => (typeof id === "string" ? id : "")).filter(Boolean)
+      : [];
+    if (node_ids.length === 0) return null;
+    return { primaryNodeId: node_ids[0], nodeIds: [...node_ids] };
+  }
+  if (type === "decomposition") {
+    const parent = typeof pc?.parent_node_id === "string" ? pc.parent_node_id : "";
+    if (!parent) return null;
+    return { primaryNodeId: parent, nodeIds: [parent] };
+  }
+  return null;
+}
+
+export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }: ProposalPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("organizer");
   const [organizerLoading, setOrganizerLoading] = useState(false);
   const [advisorLoading, setAdvisorLoading] = useState(false);
@@ -1364,17 +1395,25 @@ export function ProposalPanel({ trays, onRefreshDashboard }: ProposalPanelProps)
                       key={item.confirmation_id}
                       role="button"
                       tabIndex={0}
-                      onClick={() =>
-                        setSelectedHistoryConfirmationId(
-                          isSelected ? null : item.confirmation_id
-                        )
-                      }
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedHistoryConfirmationId(null);
+                        } else {
+                          setSelectedHistoryConfirmationId(item.confirmation_id);
+                          const payload = getHistoryItemNodeIds(item);
+                          if (payload) onHistoryItemSelect?.(payload);
+                        }
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          setSelectedHistoryConfirmationId(
-                            isSelected ? null : item.confirmation_id
-                          );
+                          if (isSelected) {
+                            setSelectedHistoryConfirmationId(null);
+                          } else {
+                            setSelectedHistoryConfirmationId(item.confirmation_id);
+                            const payload = getHistoryItemNodeIds(item);
+                            if (payload) onHistoryItemSelect?.(payload);
+                          }
                         }
                       }}
                       style={{

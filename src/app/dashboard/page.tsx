@@ -21,8 +21,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATUS_LABELS } from "@/lib/stateMachine";
 import { ProposalPanel } from "@/components/ProposalPanel";
-import { buildTree } from "@/lib/dashboardTree";
+import { buildTree, type TreeNode } from "@/lib/dashboardTree";
 import { TreeList } from "@/components/TreeList";
+import type { HistoryItemSelectPayload } from "@/components/ProposalPanel";
 
 // ─── Types ──────────────────────────────────────────────────
 // Node attributes based on 04_Domain_Model.md §3
@@ -67,6 +68,32 @@ type EstimatePreview = {
 
 /** Phase6-B: ツリー開閉状態の永続化（72 準拠） */
 const TREE_EXPANDED_STORAGE_KEY = "kuharaos.tree.expanded.v1";
+
+/** Phase9-A: treeRoots から ノード→親 マップを構築 */
+function buildParentById(roots: TreeNode[]): Map<string, string> {
+  const m = new Map<string, string>();
+  function walk(nodes: TreeNode[], parentId: string | null) {
+    for (const tn of nodes) {
+      if (parentId != null) m.set(tn.id, parentId);
+      walk(tn.children, tn.id);
+    }
+  }
+  walk(roots, null);
+  return m;
+}
+
+/** Phase9-A: 指定ノードの祖先 ID をルート方向に並べた配列（展開用） */
+function getAncestorIds(nodeId: string, parentById: Map<string, string>): string[] {
+  const out: string[] = [];
+  let current: string | undefined = nodeId;
+  while (current) {
+    const parent = parentById.get(current);
+    if (!parent) break;
+    out.push(parent);
+    current = parent;
+  }
+  return out;
+}
 
 const TRAY_LABEL: Record<keyof Trays | "all", string> = {
   all: "全て（机の上）",
@@ -194,6 +221,8 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<"flat" | "tree">("tree");
   const [expandedSet, setExpandedSet] = useState<Set<string>>(new Set());
   const hasRestoredExpandedRef = useRef(false);
+  /** Phase9-A: 履歴クリック連動でハイライトするノード ID の集合 */
+  const [highlightNodeIds, setHighlightNodeIds] = useState<Set<string> | null>(null);
 
   // ─── Data fetch ─────────────────────────────────────────
 
@@ -300,6 +329,28 @@ export default function DashboardPage() {
       nodeChildren
     );
   }, [viewMode, visibleNodes, nodeChildren]);
+
+  /** Phase9-A: treeRoots から ノード→親 マップ（履歴クリック時の展開用） */
+  const parentById = useMemo(() => buildParentById(treeRoots), [treeRoots]);
+
+  /** Phase9-A: 履歴 1 件クリック時のツリー連動（展開・ハイライト・詳細表示） */
+  const handleHistoryItemSelect = useCallback(
+    (payload: HistoryItemSelectPayload) => {
+      setHighlightNodeIds(new Set(payload.nodeIds));
+      if (viewMode === "tree" && treeRoots.length > 0) {
+        setExpandedSet((prev) => {
+          const next = new Set(prev);
+          for (const nid of payload.nodeIds) {
+            for (const aid of getAncestorIds(nid, parentById)) next.add(aid);
+          }
+          return next;
+        });
+      }
+      const primaryNode = visibleNodes.find((n) => n.id === payload.primaryNodeId);
+      if (primaryNode) setSelected(primaryNode);
+    },
+    [viewMode, treeRoots.length, parentById, visibleNodes]
+  );
 
   // Phase6-B: 開閉状態の復元（tree モード時のみ・初回のみ）
   useEffect(() => {
@@ -647,25 +698,33 @@ export default function DashboardPage() {
                   return next;
                 });
               }}
-              onSelectNode={(node) => setSelected(node as Node)}
+              onSelectNode={(node) => {
+                setHighlightNodeIds(null);
+                setSelected(node as Node);
+              }}
               selectedId={selected?.id ?? null}
               getNodeTitle={(n) => getNodeTitle(n as Node)}
               getNodeSubtext={(n) => getNodeSubtext(n as Node)}
+              highlightIds={highlightNodeIds}
             />
           ) : (
             visibleNodes.map((n) => {
               const title = getNodeTitle(n);
               const subtext = getNodeSubtext(n);
               const isSelected = selected?.id === n.id;
+              const isHighlighted = highlightNodeIds?.has(n.id) ?? false;
               return (
                 <div
                   key={n.id}
-                  onClick={() => setSelected(n)}
+                  onClick={() => {
+                    setHighlightNodeIds(null);
+                    setSelected(n);
+                  }}
                   style={{
                     padding: 12,
                     borderTop: "1px solid #eee",
                     cursor: "pointer",
-                    background: isSelected ? "#f5f7ff" : "white",
+                    background: isHighlighted ? "#fff8e1" : isSelected ? "#f5f7ff" : "white",
                     display: "flex",
                     justifyContent: "space-between",
                     gap: 12,
@@ -1358,6 +1417,7 @@ export default function DashboardPage() {
         <ProposalPanel
           trays={trays ?? null}
           onRefreshDashboard={refreshDashboard}
+          onHistoryItemSelect={handleHistoryItemSelect}
         />
       )}
     </div>

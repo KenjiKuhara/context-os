@@ -92,6 +92,8 @@ export interface TreeListProps {
   selectedId: string | null;
   getNodeTitle: (node: Record<string, unknown>) => string;
   getNodeSubtext: (node: Record<string, unknown>) => string;
+  /** Phase9-A: 履歴クリック連動でハイライトするノード ID の集合 */
+  highlightIds?: Set<string> | null;
 }
 
 function TreeRow({
@@ -103,6 +105,7 @@ function TreeRow({
   onToggle,
   onSelect,
   isSelected,
+  isHighlighted,
   getTitle,
   getSubtext,
 }: {
@@ -114,10 +117,12 @@ function TreeRow({
   onToggle: () => void;
   onSelect: () => void;
   isSelected: boolean;
+  isHighlighted: boolean;
   getTitle: (n: Record<string, unknown>) => string;
   getSubtext: (n: Record<string, unknown>) => string;
 }) {
   const nodeId = node.id as string;
+  const bg = isHighlighted ? "#fff8e1" : isSelected ? "#f5f7ff" : "white";
   return (
     <div
       style={{
@@ -129,7 +134,7 @@ function TreeRow({
         paddingTop: 8,
         paddingBottom: 8,
         borderTop: "1px solid #eee",
-        background: isSelected ? "#f5f7ff" : "white",
+        background: bg,
         cursor: "pointer",
         borderLeft: depth > 0 ? `2px solid ${GUIDE_COLOR}` : undefined,
         marginLeft: depth > 0 ? 0 : undefined,
@@ -205,6 +210,7 @@ function renderNode(
   const hasChildren = tn.children.length > 0;
   const isExpanded = props.expandedSet.has(id);
 
+  const isHighlighted = (props.highlightIds?.has(id)) ?? false;
   return (
     <div key={id}>
       <TreeRow
@@ -216,6 +222,7 @@ function renderNode(
         onToggle={() => props.onToggleExpand(id)}
         onSelect={() => props.onSelectNode(tn.node)}
         isSelected={props.selectedId === id}
+        isHighlighted={isHighlighted}
         getTitle={props.getNodeTitle}
         getSubtext={props.getNodeSubtext}
       />
