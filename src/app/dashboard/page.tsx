@@ -119,6 +119,37 @@ function getNodeSubtext(n: Node): string {
   return n.context ?? n.note ?? "";
 }
 
+/** Phase10-A: 履歴 1 件の種別ラベル（102 設計 §4） */
+function getRelatedHistoryTypeLabel(pc: Record<string, unknown>): string {
+  const t = typeof pc?.type === "string" ? pc.type : "";
+  if (t === "relation") return "関係追加";
+  if (t === "grouping") return "グループ化";
+  if (t === "decomposition") return "分解";
+  return t || "—";
+}
+
+/** Phase10-A: 履歴 1 件の要約 1 行（102 設計 §4） */
+function getRelatedHistorySummary(pc: Record<string, unknown>): string {
+  const type = typeof pc?.type === "string" ? pc.type : "";
+  if (type === "relation") {
+    const from = String(pc?.from_node_id ?? "").slice(0, 8);
+    const to = String(pc?.to_node_id ?? "").slice(0, 8);
+    const rel = String(pc?.relation_type ?? "");
+    return `${from}… → ${to}… ${rel}`.trim();
+  }
+  if (type === "grouping") {
+    const label = String(pc?.group_label ?? "");
+    const n = Array.isArray(pc?.node_ids) ? (pc.node_ids as unknown[]).length : 0;
+    return `${label}（${n}件）`;
+  }
+  if (type === "decomposition") {
+    const parent = String(pc?.parent_node_id ?? "").slice(0, 8);
+    const n = Array.isArray(pc?.add_children) ? (pc.add_children as unknown[]).length : 0;
+    return `親 ${parent}… に子 ${n}件`;
+  }
+  return "—";
+}
+
 function findNodeInTrays(trays: Trays, id: string): Node | null {
   const all = [
     ...trays.in_progress,
@@ -224,6 +255,18 @@ export default function DashboardPage() {
   /** Phase9-A: 履歴クリック連動でハイライトするノード ID の集合 */
   const [highlightNodeIds, setHighlightNodeIds] = useState<Set<string> | null>(null);
 
+  /** Phase10-A: ノード詳細に関連する直近履歴 1 件 */
+  const [relatedRecentHistory, setRelatedRecentHistory] = useState<{
+    confirmation_id: string;
+    node_id: string;
+    confirmed_at: string;
+    consumed_at: string | null;
+    proposed_change: Record<string, unknown>;
+    ui_action?: string;
+  } | null>(null);
+  const [relatedRecentHistoryLoading, setRelatedRecentHistoryLoading] = useState(false);
+  const [relatedRecentHistoryError, setRelatedRecentHistoryError] = useState<string | null>(null);
+
   // ─── Data fetch ─────────────────────────────────────────
 
   const refreshDashboard = useCallback(async () => {
@@ -304,6 +347,59 @@ export default function DashboardPage() {
     setShowCandidates(false);
     setResultMessage(null);
   }, [selected]);
+
+  // Phase10-A: 選択ノードに関連する直近履歴 1 件を取得
+  useEffect(() => {
+    const nodeId = selected?.id;
+    if (!nodeId) {
+      setRelatedRecentHistory(null);
+      setRelatedRecentHistoryLoading(false);
+      setRelatedRecentHistoryError(null);
+      return;
+    }
+    let cancelled = false;
+    setRelatedRecentHistoryLoading(true);
+    setRelatedRecentHistoryError(null);
+    setRelatedRecentHistory(null);
+    const url = `/api/confirmations/history?node_id=${encodeURIComponent(nodeId)}&limit=1`;
+    fetch(url, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data: { ok?: boolean; error?: string; items?: unknown[] }) => {
+        if (cancelled) return;
+        setRelatedRecentHistoryLoading(false);
+        if (!data.ok) {
+          setRelatedRecentHistoryError(data.error ?? "取得できませんでした");
+          setRelatedRecentHistory(null);
+          return;
+        }
+        const items = Array.isArray(data.items) ? data.items : [];
+        const first = items[0];
+        if (first && typeof first === "object" && first !== null && "confirmation_id" in first) {
+          setRelatedRecentHistory(first as {
+            confirmation_id: string;
+            node_id: string;
+            confirmed_at: string;
+            consumed_at: string | null;
+            proposed_change: Record<string, unknown>;
+            ui_action?: string;
+          });
+          setRelatedRecentHistoryError(null);
+        } else {
+          setRelatedRecentHistory(null);
+          setRelatedRecentHistoryError(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRelatedRecentHistoryLoading(false);
+          setRelatedRecentHistoryError("取得できませんでした");
+          setRelatedRecentHistory(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.id]);
 
   // ─── Computed ───────────────────────────────────────────
 
@@ -801,6 +897,45 @@ export default function DashboardPage() {
                 <div style={{ marginTop: 4 }} suppressHydrationWarning>
                   <b>更新：</b> {selected.updated_at ?? "（不明）"}
                 </div>
+              </div>
+
+              {/* Phase10-A: 関連する直近履歴 1 件（102 設計） */}
+              <div
+                style={{
+                  marginTop: 12,
+                  paddingTop: 12,
+                  borderTop: "1px solid #eee",
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                  関連する直近履歴
+                </div>
+                {relatedRecentHistoryLoading && (
+                  <div style={{ color: "#666" }}>取得中…</div>
+                )}
+                {!relatedRecentHistoryLoading && relatedRecentHistoryError && (
+                  <div style={{ color: "#c62828" }}>{relatedRecentHistoryError}</div>
+                )}
+                {!relatedRecentHistoryLoading && !relatedRecentHistoryError && relatedRecentHistory == null && (
+                  <div style={{ color: "#666" }}>該当する履歴はありません</div>
+                )}
+                {!relatedRecentHistoryLoading && !relatedRecentHistoryError && relatedRecentHistory && (() => {
+                  const pc = relatedRecentHistory.proposed_change ?? {};
+                  const dateStr = (relatedRecentHistory.consumed_at || relatedRecentHistory.confirmed_at || "").slice(0, 19).replace("T", " ");
+                  const typeLabel = getRelatedHistoryTypeLabel(pc);
+                  const summary = getRelatedHistorySummary(pc);
+                  const reason = pc.reason != null && String(pc.reason).trim() !== "" ? String(pc.reason) : null;
+                  return (
+                    <div style={{ color: "#333" }}>
+                      <div><b>{typeLabel}</b> {dateStr}</div>
+                      <div style={{ marginTop: 4 }}>{summary}</div>
+                      {reason != null && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: "#555" }}>理由: {reason}</div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Result message (after apply) */}
