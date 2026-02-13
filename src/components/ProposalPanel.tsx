@@ -417,8 +417,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
     if (!to) return;
     applyInFlightRef.current = true;
     const targetNodeId = advisorReport.targetNodeId;
+    const fromLabel = (STATUS_LABELS as Record<string, string>)[from] ?? from;
+    const toLabel = (STATUS_LABELS as Record<string, string>)[to] ?? to;
     const ok = window.confirm(
-      `Node ${targetNodeId} のステータスを ${from} → ${to} に変更します。よろしいですか？`
+      `このタスクの状態を ${fromLabel} → ${toLabel} に変更します。よろしいですか？`
     );
     if (!ok) {
       applyInFlightRef.current = false;
@@ -515,10 +517,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
           const latestStatus = updatedNode?.status ?? to;
           const latestLabel = (STATUS_LABELS as Record<string, string>)[latestStatus] ?? latestStatus;
           setApplySuccessMessage(
-            `適用しました（${fromLabel}→${toLabel}）。現在: ${latestStatus}（${latestLabel}）`
+            `反映しました（${fromLabel} → ${toLabel}）。現在: ${latestLabel}`
           );
         } else {
-          setApplySuccessMessage(`適用しました（${fromLabel}→${toLabel}）`);
+          setApplySuccessMessage(`反映しました（${fromLabel} → ${toLabel}）`);
         }
       } catch (_) {
         setApplySuccessMessage(
@@ -536,7 +538,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
       if (relationApplyInFlightRef.current) return;
       if (diff.type !== "relation" || !diff.change) return;
       const { from_node_id, to_node_id, relation_type } = diff.change;
-      const msg = `Node ${from_node_id} と ${to_node_id} の間に ${relation_type} を 1 本追加します。よろしいですか？`;
+      const fromShort = from_node_id.slice(0, 8);
+      const toShort = to_node_id.slice(0, 8);
+      const msg = `タスク「${fromShort}…」と「${toShort}…」の間に ${relation_type} を 1 本追加します。よろしいですか？`;
       relationApplyInFlightRef.current = true;
       const ok = window.confirm(msg);
       if (!ok) {
@@ -579,7 +583,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
         }
         if (onRefreshDashboard) await onRefreshDashboard();
         setRelationApplySuccessMessage(
-          `反映しました（${from_node_id} → ${to_node_id} / ${relation_type}）`
+          `反映しました（タスク識別子 … → タスク識別子 … / ${relation_type}）`
         );
         setRestoredDiff(null);
         fetchHistory(true);
@@ -598,7 +602,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
       if (groupingApplyInFlightRef.current) return;
       if (diff.type !== "grouping" || !diff.change) return;
       const { group_label, node_ids } = diff.change;
-      const msg = `「${group_label}」で ${node_ids.length} 件の Node をグループ化します。よろしいですか？`;
+      const msg = `「${group_label}」で ${node_ids.length} 件のタスクをグループ化します。よろしいですか？`;
       groupingApplyInFlightRef.current = true;
       const ok = window.confirm(msg);
       if (!ok) {
@@ -638,7 +642,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
           throw new Error(applyJson.error || "反映に失敗しました");
         }
         if (onRefreshDashboard) await onRefreshDashboard();
-        setGroupingApplySuccessMessage(`反映しました（${group_label} / ${node_ids.length} 件）`);
+        setGroupingApplySuccessMessage(`反映しました（${group_label}（${node_ids.length} 件））`);
         setRestoredDiff(null);
         fetchHistory(true);
       } catch (e) {
@@ -656,7 +660,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
       if (decompositionApplyInFlightRef.current) return;
       if (diff.type !== "decomposition" || !diff.change) return;
       const { parent_node_id, add_children } = diff.change;
-      const msg = `親 Node ${parent_node_id.slice(0, 8)}… に子 Node を ${add_children.length} 件作成して紐づけます。よろしいですか？`;
+      const msg = `親タスクに、子タスクを ${add_children.length} 件追加して紐づけます。よろしいですか？`;
       decompositionApplyInFlightRef.current = true;
       const ok = window.confirm(msg);
       if (!ok) {
@@ -699,7 +703,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
         if (onRefreshDashboard) await onRefreshDashboard();
         const createdCount = Array.isArray(applyJson.created_children) ? applyJson.created_children.length : 0;
         setDecompositionApplySuccessMessage(
-          `反映しました（親 ${parent_node_id.slice(0, 8)}… に子 ${createdCount} 件作成）`
+          `反映しました（親タスクに子タスク ${createdCount} 件を追加）`
         );
         setRestoredDiff(null);
         fetchHistory(true);
@@ -772,7 +776,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
         <textarea
           value={userIntent}
           onChange={(e) => setUserIntent(e.target.value)}
-          placeholder="例: 大きなタスクを分解して / この Node の選択肢が知りたい"
+          placeholder="例: 大きなタスクを分解して / このタスクの選択肢が知りたい"
           rows={2}
           style={{
             width: "100%",
@@ -824,7 +828,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
           {restoredDiff && (
             <div style={{ marginTop: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-                再表示した変更案（{restoredDiff.type === "relation" ? "relation" : restoredDiff.type === "grouping" ? "grouping" : "decomposition"}）
+                再表示した変更案（{restoredDiff.type === "relation" ? "関係の追加" : restoredDiff.type === "grouping" ? "グループ化" : "分解"}）
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {restoredDiff.type === "relation" && (
@@ -838,7 +842,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
                       <span style={{ fontSize: 12, color: "#666" }}>
-                        {restoredDiff.change.from_node_id} → {restoredDiff.change.to_node_id}
+                        タスク {restoredDiff.change.from_node_id.slice(0, 8)}… → タスク {restoredDiff.change.to_node_id.slice(0, 8)}…
                       </span>
                       <span style={{ fontSize: 12, fontWeight: 700 }}>{restoredDiff.change.relation_type}</span>
                     </div>
@@ -900,7 +904,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
                       <span style={{ fontSize: 12, fontWeight: 700 }}>{restoredDiff.change.group_label}</span>
-                      <span style={{ fontSize: 12, color: "#666" }}>{restoredDiff.change.node_ids.length} 件</span>
+                      <span style={{ fontSize: 12, color: "#666" }}>（{restoredDiff.change.node_ids.length} 件）</span>
                     </div>
                     <div style={{ fontSize: 12, marginBottom: 8 }}>{restoredDiff.reason}</div>
                     <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 6 }}>
@@ -960,10 +964,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
                       <span style={{ fontSize: 12, color: "#666" }}>
-                        親: {restoredDiff.change.parent_node_id.slice(0, 8)}…
-                      </span>
-                      <span style={{ fontSize: 12, fontWeight: 700 }}>
-                        子 {restoredDiff.change.add_children.length} 件
+                        親タスクに子タスク {restoredDiff.change.add_children.length} 件を追加
                       </span>
                     </div>
                     <div style={{ fontSize: 12, marginBottom: 4 }}>
@@ -1028,7 +1029,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
               {(organizerResult.diffs as OrganizerDiffItem[]).filter((d) => d.type === "relation").length > 0 && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-                    反映できる変更案（relation）
+                    反映できる変更案（関係の追加）
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {(organizerResult.diffs as OrganizerDiffItem[])
@@ -1045,7 +1046,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         >
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
                             <span style={{ fontSize: 12, color: "#666" }}>
-                              {diff.change.from_node_id} → {diff.change.to_node_id}
+                              タスク {diff.change.from_node_id.slice(0, 8)}… → タスク {diff.change.to_node_id.slice(0, 8)}…
                             </span>
                             <span style={{ fontSize: 12, fontWeight: 700 }}>{diff.change.relation_type}</span>
                             {diff.validation?.result === "NEEDS_REVIEW" && (
@@ -1113,7 +1114,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
               {(organizerResult.diffs as OrganizerDiffItem[]).filter((d) => d.type === "grouping").length > 0 && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-                    反映できる変更案（grouping）
+                    反映できる変更案（グループ化）
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {(organizerResult.diffs as OrganizerDiffItem[])
@@ -1130,7 +1131,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         >
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
                             <span style={{ fontSize: 12, fontWeight: 700 }}>{diff.change.group_label}</span>
-                            <span style={{ fontSize: 12, color: "#666" }}>{diff.change.node_ids.length} 件</span>
+                            <span style={{ fontSize: 12, color: "#666" }}>（{diff.change.node_ids.length} 件）</span>
                             {diff.validation?.result === "NEEDS_REVIEW" && (
                               <span
                                 style={{
@@ -1196,7 +1197,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
               {(organizerResult.diffs as OrganizerDiffItem[]).filter((d) => d.type === "decomposition").length > 0 && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-                    反映できる変更案（decomposition）
+                    反映できる変更案（分解）
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {(organizerResult.diffs as OrganizerDiffItem[])
@@ -1213,10 +1214,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         >
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
                             <span style={{ fontSize: 12, color: "#666" }}>
-                              親: {diff.change.parent_node_id.slice(0, 8)}…
-                            </span>
-                            <span style={{ fontSize: 12, fontWeight: 700 }}>
-                              子 {diff.change.add_children.length} 件
+                              親タスクに子タスク {diff.change.add_children.length} 件を追加
                             </span>
                             {diff.validation?.result === "NEEDS_REVIEW" && (
                               <span
@@ -1311,7 +1309,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                 </select>
               </label>
               <label style={{ fontSize: 12, color: "#666" }}>
-                node_id:
+                対象のタスク:
                 <input
                   type="text"
                   value={nodeIdFilter}
@@ -1319,7 +1317,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                     setNodeIdFilter(e.target.value);
                     setNodeIdFilterError(null);
                   }}
-                  placeholder="node_id（任意）"
+                  placeholder="タスクのID（任意）"
                   style={{ marginLeft: 4, padding: "4px 8px", width: 220, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
                 />
               </label>
@@ -1328,7 +1326,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                 onClick={() => {
                   const trimmed = nodeIdFilter.trim();
                   if (trimmed && !isValidUuid(trimmed)) {
-                    setNodeIdFilterError("UUID形式ではありません");
+                    setNodeIdFilterError("タスクのIDの形式が正しくありません");
                     return;
                   }
                   setNodeIdFilterError(null);
@@ -1381,13 +1379,13 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           : type || "—";
                   let summary = "—";
                   if (type === "relation" && pc?.from_node_id != null && pc?.to_node_id != null) {
-                    summary = `${String(pc.from_node_id).slice(0, 8)}… → ${String(pc.to_node_id).slice(0, 8)}… ${String(pc.relation_type ?? "")}`;
+                    summary = `タスク ${String(pc.from_node_id).slice(0, 8)}… → タスク ${String(pc.to_node_id).slice(0, 8)}… ${String(pc.relation_type ?? "")}`;
                   } else if (type === "grouping" && pc?.group_label != null) {
                     const n = Array.isArray(pc.node_ids) ? pc.node_ids.length : 0;
                     summary = `${String(pc.group_label)}（${n}件）`;
                   } else if (type === "decomposition" && pc?.parent_node_id != null) {
                     const children = Array.isArray(pc.add_children) ? pc.add_children.length : 0;
-                    summary = `親 ${String(pc.parent_node_id).slice(0, 8)}… に子 ${children}件`;
+                    summary = `親タスクに子 ${children} 件を追加`;
                   }
                   const isSelected = selectedHistoryConfirmationId === item.confirmation_id;
                   return (
@@ -1445,36 +1443,36 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         >
                           {type === "relation" && (
                             <>
-                              from_node_id: {String(pc?.from_node_id ?? "—")}
+                              元のタスク: {String(pc?.from_node_id ?? "—")}
                               {"\n"}
-                              to_node_id: {String(pc?.to_node_id ?? "—")}
+                              先のタスク: {String(pc?.to_node_id ?? "—")}
                               {"\n"}
-                              relation_type: {String(pc?.relation_type ?? "—")}
+                              関係の種類: {String(pc?.relation_type ?? "—")}
                               {"\n"}
-                              diff_id: {String(pc?.diff_id ?? "—")}
+                              変更ID: {String(pc?.diff_id ?? "—")}
                             </>
                           )}
                           {type === "grouping" && (
                             <>
-                              group_label: {String(pc?.group_label ?? "—")}
+                              グループ名: {String(pc?.group_label ?? "—")}
                               {"\n"}
-                              node_ids: {Array.isArray(pc?.node_ids) ? pc.node_ids.join(", ") : "—"}
+                              タスク一覧: {Array.isArray(pc?.node_ids) ? pc.node_ids.join(", ") : "—"}
                               {"\n"}
-                              diff_id: {String(pc?.diff_id ?? "—")}
+                              変更ID: {String(pc?.diff_id ?? "—")}
                             </>
                           )}
                           {type === "decomposition" && (
                             <>
-                              <div>parent_node_id: {String(pc?.parent_node_id ?? "—")}</div>
+                              <div>親タスク: {String(pc?.parent_node_id ?? "—")}</div>
                               <div>
-                                add_children (title):
+                                追加する子（タイトル）:
                                 {Array.isArray(pc?.add_children)
                                   ? pc.add_children.map((c: { title?: string }, i: number) => (
                                       <span key={i}> {String(c?.title ?? "—")}; </span>
                                     ))
                                   : " —"}
                               </div>
-                              <div>diff_id: {String(pc?.diff_id ?? "—")}</div>
+                              <div>変更ID: {String(pc?.diff_id ?? "—")}</div>
                             </>
                           )}
                           {(type === "relation" || type === "grouping" || type === "decomposition") &&
@@ -1523,7 +1521,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
         <div>
           <div style={{ marginBottom: 8 }}>
             <label style={{ display: "block", fontSize: 12, color: "#666", marginBottom: 4 }}>
-              対象 Node（未指定なら 1 件目）
+              対象のタスク（未指定なら 1 件目）
             </label>
             <select
               value={focusNodeId}
@@ -1539,7 +1537,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
               <option value="">— 未指定 —</option>
               {allNodes.map((n) => (
                 <option key={n.id} value={n.id}>
-                  {n.id.slice(0, 8)}… {String(n.title ?? "").slice(0, 20) || "(無題)"}
+                  タスク {n.id.slice(0, 8)}… {String(n.title ?? "").slice(0, 20) || "(無題)"}
                 </option>
               ))}
             </select>
@@ -1605,16 +1603,11 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                 <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid #a5d6a7" }}>
                   <div style={{ fontSize: 12, color: "#1b5e20", marginBottom: 8 }}>状態を変更する</div>
                   {!applyTargetNode ? (
-                    <div style={{ fontSize: 13, color: "#c62828" }}>対象Nodeが見つかりません</div>
+                    <div style={{ fontSize: 13, color: "#c62828" }}>対象のタスクが見つかりません</div>
                   ) : (
                     <>
                       <div style={{ fontSize: 13, marginBottom: 6 }}>
-                        現在のステータス: <b>{applyTargetNode.status ?? "—"}</b>
-                        {(STATUS_LABELS as Record<string, string>)[applyTargetNode.status ?? ""] && (
-                          <span style={{ color: "#666", marginLeft: 4 }}>
-                            （{(STATUS_LABELS as Record<string, string>)[applyTargetNode.status ?? ""]}）
-                          </span>
-                        )}
+                        現在の状態: <b>{(STATUS_LABELS as Record<string, string>)[applyTargetNode.status ?? ""] ?? "—"}</b>
                       </div>
                       {isValidStatus(applyTargetNode.status) ? (
                         <>
@@ -1636,7 +1629,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           >
                             {getValidTransitions(applyTargetNode.status as Status).map((s) => (
                               <option key={s} value={s}>
-                                {s}（{(STATUS_LABELS as Record<string, string>)[s] ?? s}）
+                                {(STATUS_LABELS as Record<string, string>)[s] ?? s}
                               </option>
                             ))}
                           </select>

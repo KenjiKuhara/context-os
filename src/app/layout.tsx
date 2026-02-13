@@ -2,6 +2,20 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+/** Phase12-Dark A2: 初回描画前に data-theme を確定（SSR 安全）。ユーザー保存 > OS > light。 */
+const THEME_INIT_SCRIPT = `
+(function(){
+  var key = 'kuharaos.theme';
+  var theme = 'light';
+  try {
+    var stored = typeof localStorage !== 'undefined' && localStorage.getItem(key);
+    if (stored === 'light' || stored === 'dark') { theme = stored; }
+    else if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) { theme = 'dark'; }
+  } catch (e) {}
+  try { document.documentElement.setAttribute('data-theme', theme); } catch (e) {}
+})();
+`;
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -25,6 +39,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {children}
       </body>
     </html>

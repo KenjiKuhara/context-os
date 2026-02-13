@@ -92,6 +92,8 @@ export interface TreeListProps {
   selectedId: string | null;
   getNodeTitle: (node: Record<string, unknown>) => string;
   getNodeSubtext: (node: Record<string, unknown>) => string;
+  /** Phase11-B: 行内状態表示用。未指定時は raw status を表示しない（空またはラベル未定義時は —） */
+  getStatusLabel?: (node: Record<string, unknown>) => string;
   /** Phase9-A: 履歴クリック連動でハイライトするノード ID の集合 */
   highlightIds?: Set<string> | null;
 }
@@ -108,6 +110,7 @@ function TreeRow({
   isHighlighted,
   getTitle,
   getSubtext,
+  statusLabel,
 }: {
   node: Record<string, unknown>;
   depth: number;
@@ -120,6 +123,7 @@ function TreeRow({
   isHighlighted: boolean;
   getTitle: (n: Record<string, unknown>) => string;
   getSubtext: (n: Record<string, unknown>) => string;
+  statusLabel: string;
 }) {
   const nodeId = node.id as string;
   const bg = isHighlighted ? "#fff8e1" : isSelected ? "#f5f7ff" : "white";
@@ -190,12 +194,12 @@ function TreeRow({
         </div>
         {hasChildren && (
           <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>
-            子{childCount}件
+            子タスク {childCount} 件
           </div>
         )}
       </div>
       <div style={{ fontSize: 12, color: "#333", whiteSpace: "nowrap" }}>
-        {(node.status as string) ?? ""}
+        {statusLabel || "—"}
       </div>
     </div>
   );
@@ -211,6 +215,7 @@ function renderNode(
   const isExpanded = props.expandedSet.has(id);
 
   const isHighlighted = (props.highlightIds?.has(id)) ?? false;
+  const statusLabel = props.getStatusLabel ? props.getStatusLabel(tn.node) : "";
   return (
     <div key={id}>
       <TreeRow
@@ -225,6 +230,7 @@ function renderNode(
         isHighlighted={isHighlighted}
         getTitle={props.getNodeTitle}
         getSubtext={props.getNodeSubtext}
+        statusLabel={statusLabel}
       />
       {hasChildren && isExpanded && (
         <div>
@@ -353,7 +359,7 @@ export function TreeList(props: TreeListProps) {
   if (props.roots.length === 0) {
     return (
       <div style={{ padding: 12, color: "#666" }}>
-        対象のノードがありません
+        対象のタスクがありません
       </div>
     );
   }
@@ -364,7 +370,7 @@ export function TreeList(props: TreeListProps) {
     <div
       tabIndex={0}
       role="tree"
-      aria-label="ノードツリー"
+      aria-label="タスクツリー"
       onKeyDown={handleKeyDown}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}

@@ -211,7 +211,7 @@ function StatusBadge({ status }: { status: string }) {
         fontWeight: 700,
       }}
     >
-      {status}（{getStatusLabel(status)}）
+      {getStatusLabel(status)}
     </span>
   );
 }
@@ -689,6 +689,11 @@ export default function DashboardPage() {
 
   const applyStatus = async (targetStatus: string) => {
     if (!selected) return;
+    const fromLabel = getStatusLabel(selected.status);
+    const toLabel = getStatusLabel(targetStatus);
+    if (!window.confirm(`このタスクの状態を ${fromLabel} → ${toLabel} に変更します。よろしいですか？`)) {
+      return;
+    }
     setEstimatePhase("applying");
     setError(null);
 
@@ -726,7 +731,7 @@ export default function DashboardPage() {
 
       setResultMessage(
         json.status_changed
-          ? `${json.from_status}（${getStatusLabel(json.from_status)}）→ ${json.to_status}（${getStatusLabel(json.to_status)}）に変更しました`
+          ? `${getStatusLabel(json.from_status)} → ${getStatusLabel(json.to_status)}に変更しました`
           : "メモを記録しました（状態は変更なし）"
       );
 
@@ -951,7 +956,7 @@ export default function DashboardPage() {
 
           {visibleNodes.length === 0 ? (
             <div style={{ padding: 12, color: "#666" }}>
-              対象のノードがありません
+              対象のタスクがありません
             </div>
           ) : viewMode === "tree" ? (
             <TreeList
@@ -989,6 +994,7 @@ export default function DashboardPage() {
               selectedId={selected?.id ?? null}
               getNodeTitle={(n) => getNodeTitle(n as Node)}
               getNodeSubtext={(n) => getNodeSubtext(n as Node)}
+              getStatusLabel={(n) => getStatusLabel((n as { status?: string }).status ?? "")}
               highlightIds={highlightNodeIds}
             />
           ) : (
@@ -1041,7 +1047,7 @@ export default function DashboardPage() {
                   <div
                     style={{ fontSize: 12, color: "#333", whiteSpace: "nowrap" }}
                   >
-                    {n.status}
+                    {getStatusLabel(n.status)}
                   </div>
                 </div>
               );
@@ -1055,7 +1061,7 @@ export default function DashboardPage() {
 
           {!selected ? (
             <div style={{ marginTop: 8, color: "#666" }}>
-              左の一覧からノードをクリックしてください
+              左の一覧からタスクをクリックしてください
             </div>
           ) : (
             <div style={{ marginTop: 10 }}>
@@ -1072,7 +1078,7 @@ export default function DashboardPage() {
                   <div style={{ marginTop: 4 }}>
                     <b>温度：</b> {selected.temperature}
                     <span style={{ fontSize: 11, color: "#999", marginLeft: 4 }}>
-                      （参考値・06_Temperature_Spec準拠）
+                      （参考値）
                     </span>
                   </div>
                 )}
@@ -1315,7 +1321,7 @@ export default function DashboardPage() {
                               cursor: "pointer",
                             }}
                           >
-                            {c.status}（{c.label}）
+                            {c.label}
                           </button>
                         ))}
                       </div>
@@ -1383,7 +1389,7 @@ export default function DashboardPage() {
                                 cursor: "pointer",
                               }}
                             >
-                              {c.status}（{c.label}）
+                              {c.label}
                             </button>
                           ))}
                       </div>
@@ -1414,7 +1420,7 @@ export default function DashboardPage() {
           }}
         >
           <div style={{ fontWeight: 800, fontSize: 16 }}>
-            Observer の提案
+            観測結果の提案
           </div>
 
           {/* メタ情報: created_at（ローカル）, source, node_count, rule_version — report があるとき表示 */}
@@ -1442,15 +1448,15 @@ export default function DashboardPage() {
                 })()}
               </span>
               <span>
-                <b>source:</b>{" "}
+                <b>取得元:</b>{" "}
                 {((observerReport as Record<string, unknown>).source as string) ?? "—"}
               </span>
               <span>
-                <b>node_count:</b>{" "}
+                <b>タスク数:</b>{" "}
                 {String((observerReport as Record<string, unknown>).node_count ?? "—")}
               </span>
               <span>
-                <b>rule_version:</b>{" "}
+                <b>ルール版:</b>{" "}
                 {(() => {
                   const payload = (observerReport as Record<string, unknown>).payload as Record<string, unknown> | undefined;
                   const debug = payload?.suggested_next && typeof payload.suggested_next === "object" && (payload.suggested_next as Record<string, unknown>).debug;
@@ -1521,7 +1527,7 @@ export default function DashboardPage() {
                 }}
               >
                 <div style={{ fontWeight: 800, color: "#8b6914", marginBottom: 8 }}>
-                  ⚠ Observer が異常を検知しました（{warnings.length}件）
+                  ⚠ 異常を検知しました（{warnings.length}件）
                 </div>
                 {warnings.map((w, i) => (
                   <div
@@ -1603,7 +1609,7 @@ export default function DashboardPage() {
           {/* report が null のとき（API が ok: true, report: null を返した場合） */}
           {!observerLoading && !observerError && !observerReport && (
             <div style={{ marginTop: 8, color: "#666" }}>
-              Observer レポートがまだありません。Actions で Observer Cron を実行するか、ローカルで python main.py --save を実行してください。
+              観測結果がまだありません。Actions で Observer Cron を実行するか、ローカルで python main.py --save を実行してください。
             </div>
           )}
 
