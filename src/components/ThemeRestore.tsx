@@ -6,7 +6,7 @@
  * 消える場合があるため、クライアントでマウント直後に保存値から再適用する。
  */
 
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 import { THEME_STORAGE_KEY, resolveTheme, applyResolvedTheme } from "@/lib/theme";
 
 function getStored(): string | null {
@@ -19,7 +19,7 @@ function getStored(): string | null {
 }
 
 export function ThemeRestore() {
-  useEffect(() => {
+  useLayoutEffect(() => {
     const stored = getStored();
     applyResolvedTheme(resolveTheme(stored));
   }, []);
