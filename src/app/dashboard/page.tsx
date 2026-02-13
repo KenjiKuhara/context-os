@@ -21,8 +21,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATUS_LABELS } from "@/lib/stateMachine";
 import { ProposalPanel } from "@/components/ProposalPanel";
-import { buildTree, type TreeNode } from "@/lib/dashboardTree";
 import { TreeList } from "@/components/TreeList";
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+import { buildTree, type TreeNode } from "@/lib/dashboardTree";
 import type { HistoryItemSelectPayload } from "@/components/ProposalPanel";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -462,7 +463,7 @@ export default function DashboardPage() {
     (kind: string) => {
       if (!trays) return;
       let nodeId: string | null = null;
-      let nextTray: keyof Trays = "all";
+      let nextTray: keyof Trays | "all" = "all";
       if (kind === "needs_decision") {
         nextTray = "needs_decision";
         nodeId = trays.needs_decision[0]?.id ?? null;
@@ -774,11 +775,16 @@ export default function DashboardPage() {
 
   return (
     <div style={{ padding: 24, fontFamily: "sans-serif" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 800 }}>
-        状態が見えるダッシュボード
-      </h1>
-      <div style={{ color: "#666", marginTop: 4 }}>
-        「机の上（アクティブ）」だけをトレーに分けて表示します
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 800 }}>
+            状態が見えるダッシュボード
+          </h1>
+          <div style={{ color: "#666", marginTop: 4 }}>
+            「机の上（アクティブ）」だけをトレーに分けて表示します
+          </div>
+        </div>
+        <ThemeSwitcher />
       </div>
 
       {/* Loading */}

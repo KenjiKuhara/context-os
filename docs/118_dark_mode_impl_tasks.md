@@ -304,7 +304,7 @@ html[data-theme="dark"] {
 
 ---
 | A2 | 初期値は prefers-color-scheme（SSR 安全） | body 先頭のインラインスクリプトで localStorage + prefers-color-scheme を判定し、初回描画前に html に data-theme を付与。サーバーは data-theme を出さず hydration mismatch を防ぐ。 | DONE |
-| A3 | 手動切替 3 択の永続化 | ライト / ダーク / システムに合わせる を選択可能にし、選択を localStorage に保存する | TODO |
+| A3 | 手動切替 3 択の永続化 | ライト / ダーク / システムに合わせる を選択可能にし、選択を localStorage に保存。仕様確定のうえ /dashboard 上部に 3 択 UI を配置。 | DONE |
 | A4 | 永続化の優先順位ルール | 「ユーザー指定 > OS」を明文化。保存値があればそれを使用、なければ prefers-color-scheme に従う | TODO |
 
 ---
@@ -372,9 +372,54 @@ html[data-theme="dark"] {
 
 ---
 
----
+### A3 仕様確定（運用事故が起きない仕様）
 
-## Block B: UI 切替（/dashboard のみ）
+#### 1. 保存値（localStorage: kuharaos.theme）
+
+- **キー**: `kuharaos.theme`（A2 と同一）
+- **保存する値**: `"light"` | `"dark"` | `"system"` のいずれかのみを保存する
+- **不正値**: 他が入っていた場合は「未保存」と同様に扱い、表示上は「システムに合わせる」選択とする。data-theme の解決は A2 と同様（system 扱いで matchMedia に委譲）
+
+#### 2. data-theme の付与ルール（html[data-theme]）
+
+- **付与する値**: 常に `"light"` または `"dark"` のいずれかだけを付与する。`"system"` は付与しない。
+- **"system" 選択時**: `matchMedia('(prefers-color-scheme: dark)').matches` で判定し、`true` なら `"dark"`、`false` なら `"light"` を付与する。
+- **"light" / "dark" 選択時**: そのままその値を付与する。
+
+#### 3. OS テーマ変更への追従ポリシー（断定）
+
+- **"system" 選択時のみ追従する**: ユーザーが「システムに合わせる」を選んでいる間は、OS のライト/ダーク変更を `matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ...)` で検知し、`data-theme` をその都度 light/dark に更新する。
+- **"light" / "dark" 選択時は追従しない**: ユーザーが明示的にライトまたはダークを選んだ場合は、OS を変更しても画面は変えず、選択したテーマを維持する。運用で「ユーザーが選んだモードが勝つ」ことを保証する。
+- **理由**: ユーザーが「システムに合わせる」を選んだ場合は OS の意図を尊重し、「ライト」「ダーク」を選んだ場合はユーザーの明示的選択を優先して意図しない切り替えを防ぐ。
+
+#### 4. A3 実装箇所一覧
+
+| ファイル / コンポーネント | 変更内容 |
+|---------------------------|----------|
+| **新規** `src/lib/theme.ts` | `THEME_STORAGE_KEY`、`resolveTheme`、`applyResolvedTheme`。保存値の解決と data-theme 付与の一元化。 |
+| **新規** `src/components/ThemeSwitcher.tsx` | 3 択 UI（ライト / ダーク / システムに合わせる）。localStorage 読み書き、クリックで即時反映、system 時のみ matchMedia change で追従。色はトークンのみ。 |
+| **変更** `src/app/dashboard/page.tsx` | ヘッダー行を flex 化し、右側に `ThemeSwitcher` を配置。文言変更なし。 |
+
+#### 5. 動作確認結果（想定）
+
+- **ライト**: クリックで data-theme="light"、localStorage に "light"。リロード後も light のまま。
+- **ダーク**: クリックで data-theme="dark"、localStorage に "dark"。リロード後も dark のまま。
+- **システムに合わせる**: クリックで localStorage に "system"、data-theme は matchMedia で light/dark。リロード後は A2 が system を解決して付与。OS を切り替えた場合は change イベントで data-theme が更新される。
+- **初期表示**: localStorage 未設定時は「システムに合わせる」を選択状態として表示（A2 が OS で解決済み）。
+
+#### 6. 想定リスク（特に system 追従）
+
+| リスク | 内容 | 対策 |
+|--------|------|------|
+| **system 追従の二重適用** | A2 の script と ThemeSwitcher の useEffect の両方で data-theme を設定 | A2 は初回のみ。Switcher は「system」選択時のみ change で更新。競合しない。 |
+| **localStorage と表示のずれ** | 他タブや手動で key を書き換えた場合 | リロード時に A2 が正しく反映。Switcher はマウント時に getStoredTheme() で同期。 |
+| **トークン未定義時のフォールバック** | data-theme 付与前の一瞬 | A2 で body 先頭 script が付与するため、Switcher がマウントされる頃には定義済み。 |
+
+#### 7. A4 へ進める可否（断定）
+
+**A4 に進んでよい。** A3 で保存値・data-theme 付与ルール・OS 追従ポリシーを仕様として確定し、3 択 UI と永続化を実装済み。A4 は「永続化の優先順位ルールの明文化」であり、118 の A2/A3 仕様および本節で既に明文化しているため、A4 は 118 への追記で完了可能。
+
+---
 
 | ID | タスク | 内容 | ステータス |
 |----|--------|------|------------|
