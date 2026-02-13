@@ -10,13 +10,9 @@ export const THEME_STORAGE_KEY = "kuharaos.theme";
 export type ThemeStored = "light" | "dark" | "system";
 export type ThemeResolved = "light" | "dark";
 
-/** 保存値を data-theme に渡す値に解決する（system のときは matchMedia で判定。未設定・無効値はダーク） */
+/** 保存値を data-theme に渡す値に解決する。基本ダークで、明示的に「ライト」のときだけ light（system・未設定・無効値はすべて dark） */
 export function resolveTheme(stored: string | null): ThemeResolved {
-  if (stored === "light" || stored === "dark") return stored;
-  if (stored === "system" && typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
-    return "dark";
-  }
-  if (stored === "system") return "light";
+  if (stored === "light") return "light";
   return "dark";
 }
 

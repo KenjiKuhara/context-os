@@ -14,9 +14,7 @@ const THEME_INIT_SCRIPT = `
   var theme = 'dark';
   try {
     var stored = typeof localStorage !== 'undefined' && localStorage.getItem(key);
-    if (stored === 'light' || stored === 'dark') { theme = stored; }
-    else if (stored === 'system' && typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) { theme = 'dark'; }
-    else if (stored === 'system') { theme = 'light'; }
+    if (stored === 'light') { theme = 'light'; }
   } catch (e) {}
   try { document.documentElement.setAttribute('data-theme', theme); } catch (e) {}
 })();
