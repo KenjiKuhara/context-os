@@ -10,13 +10,14 @@ export const THEME_STORAGE_KEY = "kuharaos.theme";
 export type ThemeStored = "light" | "dark" | "system";
 export type ThemeResolved = "light" | "dark";
 
-/** 保存値を data-theme に渡す値に解決する（system のときは matchMedia で判定） */
+/** 保存値を data-theme に渡す値に解決する（system のときは matchMedia で判定。未設定・無効値はダーク） */
 export function resolveTheme(stored: string | null): ThemeResolved {
   if (stored === "light" || stored === "dark") return stored;
-  if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
+  if (stored === "system" && typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
     return "dark";
   }
-  return "light";
+  if (stored === "system") return "light";
+  return "dark";
 }
 
 /** data-theme を適用する（document.documentElement に設定） */

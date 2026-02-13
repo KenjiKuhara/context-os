@@ -26,9 +26,12 @@ a {
   text-decoration: none;
 }
 
-/* Phase12-Dark: data-theme に合わせて color-scheme を設定（スクリプトで data-theme を付与するため、ダーク時はここで反映） */
-html[data-theme="dark"] {
+/* Phase12-Dark: 基本ダークのため :root で dark。ライト選択時のみ light に上書き */
+:root {
   color-scheme: dark;
+}
+html[data-theme="light"] {
+  color-scheme: light;
 }
 
 /* Phase12-Dark: ダークモードで入力欄の背景を白にしない（トークンで統一） */

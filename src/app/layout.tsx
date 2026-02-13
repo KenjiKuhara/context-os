@@ -11,11 +11,12 @@ import { ThemeRestore } from "@/components/ThemeRestore";
 const THEME_INIT_SCRIPT = `
 (function(){
   var key = 'kuharaos.theme';
-  var theme = 'light';
+  var theme = 'dark';
   try {
     var stored = typeof localStorage !== 'undefined' && localStorage.getItem(key);
     if (stored === 'light' || stored === 'dark') { theme = stored; }
-    else if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) { theme = 'dark'; }
+    else if (stored === 'system' && typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) { theme = 'dark'; }
+    else if (stored === 'system') { theme = 'light'; }
   } catch (e) {}
   try { document.documentElement.setAttribute('data-theme', theme); } catch (e) {}
 })();

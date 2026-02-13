@@ -9,44 +9,44 @@
  * 参照: docs/118_dark_mode_impl_tasks.md A1 設計、docs/117_dark_mode_design.md
  */
 
-/* デフォルト（data-theme 未設定・スクリプト前）はライト。html[data-theme="dark"] で上書きされる */
+/* デフォルト（data-theme 未設定・スクリプト前）はダーク。html[data-theme="light"] で上書きされる */
 :root {
-  --theme-bg-page: #ffffff;
-  --theme-bg-panel: #ffffff;
-  --theme-bg-card: #fafafa;
-  --theme-bg-selected: #f5f7ff;
-  --theme-bg-highlight: #fff8e1;
-  --theme-bg-badge: #f0f0f0;
-  --theme-bg-success: #e8f5e9;
-  --theme-bg-warning: #fffde7;
-  --theme-bg-warning-strong: #fff9c4;
-  --theme-bg-danger: #fff5f5;
-  --theme-bg-sage: #faf6f2;
-  --theme-bg-muted: #f8f9fa;
-  --theme-bg-disabled: #f3f3f3;
-  --theme-bg-code: #f5f5f5;
-  --theme-text-primary: #171717;
-  --theme-text-secondary: #444444;
-  --theme-text-muted: #666666;
-  --theme-text-muted-strong: #555555;
+  --theme-bg-page: #121212;
+  --theme-bg-panel: #1e1e1e;
+  --theme-bg-card: #252525;
+  --theme-bg-selected: #1e2a4a;
+  --theme-bg-highlight: #3d3520;
+  --theme-bg-badge: #3a3a3a;
+  --theme-bg-success: #1b2e1b;
+  --theme-bg-warning: #3d3520;
+  --theme-bg-warning-strong: #4a4020;
+  --theme-bg-danger: #2e1b1b;
+  --theme-bg-sage: #2d2620;
+  --theme-bg-muted: #2a2a2a;
+  --theme-bg-disabled: #333333;
+  --theme-bg-code: #2d2d2d;
+  --theme-text-primary: #e8e8e8;
+  --theme-text-secondary: #b0b0b0;
+  --theme-text-muted: #888888;
+  --theme-text-muted-strong: #999999;
   --theme-text-on-primary: #ffffff;
-  --theme-text-success: #2e7d32;
-  --theme-text-warning: #8b6914;
-  --theme-text-danger: #c62828;
-  --theme-text-sage: #4e342e;
-  --theme-border-default: #dddddd;
-  --theme-border-subtle: #eeeeee;
-  --theme-border-muted: #cccccc;
-  --theme-border-focus: #5567ff;
-  --theme-border-warning: #b8860b;
-  --theme-border-danger: #c62828;
-  --theme-border-sage: #5d4037;
-  --theme-color-success: #2e7d32;
-  --theme-color-warning: #b8860b;
-  --theme-color-danger: #c62828;
-  --theme-color-info: #5567ff;
-  --theme-color-info-bg: #f5f7ff;
-  --theme-focus-ring: rgba(85, 103, 255, 0.35);
+  --theme-text-success: #81c784;
+  --theme-text-warning: #e6c547;
+  --theme-text-danger: #ef9a9a;
+  --theme-text-sage: #d7ccc8;
+  --theme-border-default: #404040;
+  --theme-border-subtle: #333333;
+  --theme-border-muted: #555555;
+  --theme-border-focus: #7b8cff;
+  --theme-border-warning: #d4a84b;
+  --theme-border-danger: #e57373;
+  --theme-border-sage: #8d6e63;
+  --theme-color-success: #81c784;
+  --theme-color-warning: #d4a84b;
+  --theme-color-danger: #ef9a9a;
+  --theme-color-info: #7b8cff;
+  --theme-color-info-bg: #1e2a4a;
+  --theme-focus-ring: rgba(123, 140, 255, 0.4);
 }
 
 html {
