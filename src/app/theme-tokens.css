@@ -20,6 +20,7 @@ html {
   --bg-warning: var(--theme-bg-warning);
   --bg-warning-strong: var(--theme-bg-warning-strong);
   --bg-danger: var(--theme-bg-danger);
+  --bg-sage: var(--theme-bg-sage);
   --bg-muted: var(--theme-bg-muted);
   --bg-disabled: var(--theme-bg-disabled);
   --bg-code: var(--theme-bg-code);
@@ -59,6 +60,7 @@ html[data-theme="light"] {
   --theme-bg-warning: #fffde7;
   --theme-bg-warning-strong: #fff9c4;
   --theme-bg-danger: #fff5f5;
+  --theme-bg-sage: #faf6f2;
   --theme-bg-muted: #f8f9fa;
   --theme-bg-disabled: #f3f3f3;
   --theme-bg-code: #f5f5f5;
@@ -98,6 +100,7 @@ html[data-theme="dark"] {
   --theme-bg-warning: #3d3520;
   --theme-bg-warning-strong: #4a4020;
   --theme-bg-danger: #2e1b1b;
+  --theme-bg-sage: #2d2620;
   --theme-bg-muted: #2a2a2a;
   --theme-bg-disabled: #333333;
   --theme-bg-code: #2d2d2d;

@@ -10,7 +10,8 @@ import { useMemo, useCallback, useState } from "react";
 import type { TreeNode } from "@/lib/dashboardTree";
 
 const INDENT_PX = 20;
-const GUIDE_COLOR = "rgba(0,0,0,0.08)";
+/** B2: 階層のガイド線（インデント）はトークンで theme に追従 */
+const GUIDE_BORDER = "var(--border-subtle)";
 
 function walkTree(
   roots: TreeNode[],
@@ -126,7 +127,7 @@ function TreeRow({
   statusLabel: string;
 }) {
   const nodeId = node.id as string;
-  const bg = isHighlighted ? "#fff8e1" : isSelected ? "#f5f7ff" : "white";
+  const bg = isHighlighted ? "var(--bg-highlight)" : isSelected ? "var(--bg-selected)" : "var(--bg-card)";
   return (
     <div
       style={{
@@ -137,10 +138,10 @@ function TreeRow({
         paddingRight: 12,
         paddingTop: 8,
         paddingBottom: 8,
-        borderTop: "1px solid #eee",
+        borderTop: "1px solid var(--border-subtle)",
         background: bg,
         cursor: "pointer",
-        borderLeft: depth > 0 ? `2px solid ${GUIDE_COLOR}` : undefined,
+        borderLeft: depth > 0 ? `2px solid ${GUIDE_BORDER}` : undefined,
         marginLeft: depth > 0 ? 0 : undefined,
       }}
       onClick={onSelect}
@@ -159,7 +160,7 @@ function TreeRow({
           border: "none",
           background: "transparent",
           cursor: hasChildren ? "pointer" : "default",
-          color: hasChildren ? "#333" : "#ccc",
+          color: hasChildren ? "var(--text-primary)" : "var(--text-muted)",
           flexShrink: 0,
           fontSize: 10,
           display: "flex",
@@ -183,7 +184,7 @@ function TreeRow({
         <div
           style={{
             fontSize: 12,
-            color: "#666",
+            color: "var(--text-secondary)",
             marginTop: 2,
             whiteSpace: "nowrap",
             overflow: "hidden",
@@ -193,12 +194,12 @@ function TreeRow({
           {getSubtext(node) || "（途中内容なし）"}
         </div>
         {hasChildren && (
-          <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
             子タスク {childCount} 件
           </div>
         )}
       </div>
-      <div style={{ fontSize: 12, color: "#333", whiteSpace: "nowrap" }}>
+      <div style={{ fontSize: 12, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
         {statusLabel || "—"}
       </div>
     </div>
@@ -243,7 +244,7 @@ function renderNode(
                   paddingTop: 4,
                   paddingBottom: 4,
                   fontSize: 12,
-                  color: "#c62828",
+                  color: "var(--text-danger)",
                 }}
               >
                 （循環のため表示を打ち切り）
@@ -358,7 +359,7 @@ export function TreeList(props: TreeListProps) {
 
   if (props.roots.length === 0) {
     return (
-      <div style={{ padding: 12, color: "#666" }}>
+      <div style={{ padding: 12, color: "var(--text-secondary)" }}>
         対象のタスクがありません
       </div>
     );
@@ -377,9 +378,8 @@ export function TreeList(props: TreeListProps) {
       style={{
         outline: "none",
         borderRadius: 4,
-        boxShadow: focused
-          ? "inset 0 0 0 1px rgba(85, 103, 255, 0.35)"
-          : undefined,
+        background: "var(--bg-panel)",
+        boxShadow: focused ? "inset 0 0 0 1px var(--focus-ring)" : undefined,
       }}
     >
       {props.roots.map((root) => renderNode(root, props, 0))}

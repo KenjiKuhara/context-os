@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-/** Phase12-Dark A2: 初回描画前に data-theme を確定（SSR 安全）。ユーザー保存 > OS > light。 */
+/**
+ * Phase12-Dark A2: 初回描画前に data-theme を確定（SSR 安全）。
+ * 解決ロジックは docs/118 A4 契約に従い、src/lib/theme.ts の resolveTheme() と同一分岐で複製している。
+ * 契約変更時は theme.ts とこの script の両方を同じ分岐に揃えること。
+ */
 const THEME_INIT_SCRIPT = `
 (function(){
   var key = 'kuharaos.theme';

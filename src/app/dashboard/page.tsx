@@ -122,6 +122,15 @@ function getStatusLabel(status: string): string {
   return (STATUS_LABELS as Record<string, string>)[status] ?? status;
 }
 
+/** B4: 状態 → トークン（118 で明文化）。成功/危険/要注目はセマンティックに、それ以外は中性。 */
+function getStatusBadgeStyle(status: string): { background: string; color: string } {
+  if (status === "DONE") return { background: "var(--bg-success)", color: "var(--text-success)" };
+  if (status === "CANCELLED") return { background: "var(--bg-danger)", color: "var(--text-danger)" };
+  if (["BLOCKED", "NEEDS_DECISION", "NEEDS_REVIEW"].includes(status))
+    return { background: "var(--bg-warning)", color: "var(--text-warning)" };
+  return { background: "var(--bg-badge)", color: "var(--text-primary)" };
+}
+
 function getNodeSubtext(n: Node): string {
   // 04_Domain_Model: context が第一級。note はフォールバック。
   return n.context ?? n.note ?? "";
@@ -186,7 +195,7 @@ function SummaryCard({
     <div
       onClick={onClick}
       style={{
-        border: active ? "2px solid #5567ff" : "1px solid #ddd",
+        border: active ? "2px solid var(--border-focus)" : "1px solid var(--border-default)",
         borderRadius: 10,
         padding: 12,
         minWidth: 150,
@@ -194,20 +203,22 @@ function SummaryCard({
         userSelect: "none",
       }}
     >
-      <div style={{ fontSize: 12, color: "#666" }}>{title}</div>
+      <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{title}</div>
       <div style={{ fontSize: 22, fontWeight: 900 }}>{value}</div>
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { background, color } = getStatusBadgeStyle(status);
   return (
     <span
       style={{
         display: "inline-block",
         padding: "2px 8px",
         borderRadius: 6,
-        background: "#f0f0f0",
+        background,
+        color,
         fontSize: 13,
         fontWeight: 700,
       }}
@@ -761,11 +772,11 @@ export default function DashboardPage() {
 
   if (!mounted) {
     return (
-      <div style={{ padding: 24, fontFamily: "sans-serif" }}>
+      <div style={{ padding: 24, fontFamily: "sans-serif", background: "var(--bg-page)", color: "var(--text-primary)", minHeight: "100vh" }}>
         <h1 style={{ fontSize: 24, fontWeight: 800 }}>
           状態が見えるダッシュボード
         </h1>
-        <div style={{ color: "#666", marginTop: 4 }}>
+        <div style={{ color: "var(--text-secondary)", marginTop: 4 }}>
           「机の上（アクティブ）」だけをトレーに分けて表示します
         </div>
         <div style={{ marginTop: 16 }}>読み込み中…</div>
@@ -774,13 +785,13 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={{ padding: 24, fontFamily: "sans-serif" }}>
+    <div style={{ padding: 24, fontFamily: "sans-serif", background: "var(--bg-page)", color: "var(--text-primary)", minHeight: "100vh" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800 }}>
             状態が見えるダッシュボード
           </h1>
-          <div style={{ color: "#666", marginTop: 4 }}>
+          <div style={{ color: "var(--text-secondary)", marginTop: 4 }}>
             「机の上（アクティブ）」だけをトレーに分けて表示します
           </div>
         </div>
@@ -796,12 +807,13 @@ export default function DashboardPage() {
           style={{
             marginTop: 16,
             padding: 12,
-            border: "1px solid #f99",
+            border: "1px solid var(--border-danger)",
             borderRadius: 8,
+            background: "var(--bg-danger)",
           }}
         >
           <div style={{ fontWeight: 700 }}>エラー</div>
-          <div style={{ color: "#900" }}>{error}</div>
+          <div style={{ color: "var(--text-danger)" }}>{error}</div>
         </div>
       )}
 
@@ -811,18 +823,18 @@ export default function DashboardPage() {
           style={{
             marginTop: 16,
             padding: "14px 16px",
-            border: "1px solid #5d4037",
-            borderLeft: "4px solid #5d4037",
+            border: "1px solid var(--border-sage)",
+            borderLeft: "4px solid var(--border-sage)",
             borderRadius: 8,
-            background: "#faf6f2",
-            color: "#3e2723",
+            background: "var(--bg-sage)",
+            color: "var(--text-sage)",
             fontSize: 13,
           }}
         >
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <span style={{ fontSize: 18, lineHeight: 1.2, color: "#5d4037" }} aria-hidden>◆</span>
+            <span style={{ fontSize: 18, lineHeight: 1.2, color: "var(--text-sage)" }} aria-hidden>◆</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6, color: "#4e342e" }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6, color: "var(--text-sage)" }}>
                 大賢者の助言
               </div>
               <div style={{ lineHeight: 1.6, marginBottom: 8 }}>
@@ -836,11 +848,11 @@ export default function DashboardPage() {
                   width: "100%",
                   textAlign: "left",
                   fontSize: 12,
-                  color: "#5d4037",
+                  color: "var(--text-sage)",
                   fontWeight: 600,
                   paddingTop: 6,
                   marginTop: 6,
-                  borderTop: "1px solid rgba(93,64,55,0.2)",
+                  borderTop: "1px solid var(--border-subtle)",
                   border: "none",
                   background: "none",
                   cursor: "pointer",
@@ -909,15 +921,16 @@ export default function DashboardPage() {
         {/* ─── Left: Node list ────────────────────────── */}
         <div
           style={{
-            border: "1px solid #ddd",
+            border: "1px solid var(--border-default)",
             borderRadius: 10,
             overflow: "hidden",
+            background: "var(--bg-panel)",
           }}
         >
           <div
             style={{
               padding: 12,
-              borderBottom: "1px solid #eee",
+              borderBottom: "1px solid var(--border-subtle)",
               fontWeight: 800,
               display: "flex",
               alignItems: "center",
@@ -934,9 +947,9 @@ export default function DashboardPage() {
                 style={{
                   padding: "4px 8px",
                   marginRight: 4,
-                  border: viewMode === "flat" ? "2px solid #5567ff" : "1px solid #ddd",
+                  border: viewMode === "flat" ? "2px solid var(--border-focus)" : "1px solid var(--border-default)",
                   borderRadius: 6,
-                  background: viewMode === "flat" ? "#f5f7ff" : "white",
+                  background: viewMode === "flat" ? "var(--bg-selected)" : "var(--bg-card)",
                   cursor: "pointer",
                   fontSize: 12,
                 }}
@@ -948,9 +961,9 @@ export default function DashboardPage() {
                 onClick={() => setViewMode("tree")}
                 style={{
                   padding: "4px 8px",
-                  border: viewMode === "tree" ? "2px solid #5567ff" : "1px solid #ddd",
+                  border: viewMode === "tree" ? "2px solid var(--border-focus)" : "1px solid var(--border-default)",
                   borderRadius: 6,
-                  background: viewMode === "tree" ? "#f5f7ff" : "white",
+                  background: viewMode === "tree" ? "var(--bg-selected)" : "var(--bg-card)",
                   cursor: "pointer",
                   fontSize: 12,
                 }}
@@ -961,7 +974,7 @@ export default function DashboardPage() {
           </div>
 
           {visibleNodes.length === 0 ? (
-            <div style={{ padding: 12, color: "#666" }}>
+            <div style={{ padding: 12, color: "var(--text-secondary)" }}>
               対象のタスクがありません
             </div>
           ) : viewMode === "tree" ? (
@@ -1018,9 +1031,9 @@ export default function DashboardPage() {
                   }}
                   style={{
                     padding: 12,
-                    borderTop: "1px solid #eee",
+                    borderTop: "1px solid var(--border-subtle)",
                     cursor: "pointer",
-                    background: isHighlighted ? "#fff8e1" : isSelected ? "#f5f7ff" : "white",
+                    background: isHighlighted ? "var(--bg-highlight)" : isSelected ? "var(--bg-selected)" : "var(--bg-card)",
                     display: "flex",
                     justifyContent: "space-between",
                     gap: 12,
@@ -1040,7 +1053,7 @@ export default function DashboardPage() {
                     <div
                       style={{
                         fontSize: 12,
-                        color: "#666",
+                        color: "var(--text-secondary)",
                         marginTop: 2,
                         whiteSpace: "nowrap",
                         overflow: "hidden",
@@ -1051,7 +1064,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div
-                    style={{ fontSize: 12, color: "#333", whiteSpace: "nowrap" }}
+                    style={{ fontSize: 12, color: "var(--text-primary)", whiteSpace: "nowrap" }}
                   >
                     {getStatusLabel(n.status)}
                   </div>
@@ -1062,11 +1075,11 @@ export default function DashboardPage() {
         </div>
 
         {/* ─── Right: Detail + Estimate flow ──────────── */}
-        <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: 12 }}>
+        <div style={{ border: "1px solid var(--border-default)", borderRadius: 10, padding: 12, background: "var(--bg-panel)" }}>
           <div style={{ fontWeight: 800 }}>詳細</div>
 
           {!selected ? (
-            <div style={{ marginTop: 8, color: "#666" }}>
+            <div style={{ marginTop: 8, color: "var(--text-secondary)" }}>
               左の一覧からタスクをクリックしてください
             </div>
           ) : (
@@ -1083,7 +1096,7 @@ export default function DashboardPage() {
                 {selected.temperature != null && (
                   <div style={{ marginTop: 4 }}>
                     <b>温度：</b> {selected.temperature}
-                    <span style={{ fontSize: 11, color: "#999", marginLeft: 4 }}>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 4 }}>
                       （参考値）
                     </span>
                   </div>
@@ -1091,7 +1104,7 @@ export default function DashboardPage() {
                 {selected.context && (
                   <div style={{ marginTop: 4 }}>
                     <b>途中内容：</b>
-                    <span style={{ color: "#333" }}>{selected.context}</span>
+                    <span style={{ color: "var(--text-primary)" }}>{selected.context}</span>
                   </div>
                 )}
                 <div style={{ marginTop: 4 }} suppressHydrationWarning>
@@ -1104,7 +1117,7 @@ export default function DashboardPage() {
                 style={{
                   marginTop: 12,
                   paddingTop: 12,
-                  borderTop: "1px solid #eee",
+                  borderTop: "1px solid var(--border-subtle)",
                   fontSize: 12,
                 }}
               >
@@ -1112,13 +1125,13 @@ export default function DashboardPage() {
                   関連する直近履歴
                 </div>
                 {relatedRecentHistoryLoading && (
-                  <div style={{ color: "#666" }}>取得中…</div>
+                  <div style={{ color: "var(--text-secondary)" }}>取得中…</div>
                 )}
                 {!relatedRecentHistoryLoading && relatedRecentHistoryError && (
-                  <div style={{ color: "#c62828" }}>{relatedRecentHistoryError}</div>
+                  <div style={{ color: "var(--text-danger)" }}>{relatedRecentHistoryError}</div>
                 )}
                 {!relatedRecentHistoryLoading && !relatedRecentHistoryError && relatedRecentHistory == null && (
-                  <div style={{ color: "#666" }}>該当する履歴はありません</div>
+                  <div style={{ color: "var(--text-secondary)" }}>該当する履歴はありません</div>
                 )}
                 {!relatedRecentHistoryLoading && !relatedRecentHistoryError && relatedRecentHistory && (() => {
                   const pc = relatedRecentHistory.proposed_change ?? {};
@@ -1127,11 +1140,11 @@ export default function DashboardPage() {
                   const summary = getRelatedHistorySummary(pc);
                   const reason = pc.reason != null && String(pc.reason).trim() !== "" ? String(pc.reason) : null;
                   return (
-                    <div style={{ color: "#333" }}>
+                    <div style={{ color: "var(--text-primary)" }}>
                       <div><b>{typeLabel}</b> {dateStr}</div>
                       <div style={{ marginTop: 4 }}>{summary}</div>
                       {reason != null && (
-                        <div style={{ marginTop: 4, fontSize: 11, color: "#555" }}>理由: {reason}</div>
+                        <div style={{ marginTop: 4, fontSize: 11, color: "var(--text-muted)" }}>理由: {reason}</div>
                       )}
                     </div>
                   );
@@ -1145,8 +1158,8 @@ export default function DashboardPage() {
                     marginTop: 12,
                     padding: 8,
                     borderRadius: 6,
-                    background: "#e8f5e9",
-                    color: "#2e7d32",
+                    background: "var(--bg-success)",
+                    color: "var(--text-success)",
                     fontSize: 13,
                   }}
                 >
@@ -1161,13 +1174,13 @@ export default function DashboardPage() {
                 style={{
                   marginTop: 14,
                   paddingTop: 12,
-                  borderTop: "1px solid #eee",
+                  borderTop: "1px solid var(--border-subtle)",
                 }}
               >
                 <div style={{ fontWeight: 800, marginBottom: 8 }}>
                   何が起きた？
                 </div>
-                <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>
+                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6 }}>
                   状態の推定に使います。メモとしても履歴に残ります。
                 </div>
                 <textarea
@@ -1178,7 +1191,7 @@ export default function DashboardPage() {
                     width: "100%",
                     padding: 10,
                     borderRadius: 8,
-                    border: "1px solid #ccc",
+                    border: "1px solid var(--border-muted)",
                     boxSizing: "border-box",
                   }}
                   disabled={
@@ -1198,10 +1211,10 @@ export default function DashboardPage() {
                     marginTop: 8,
                     padding: "8px 16px",
                     borderRadius: 8,
-                    border: "1px solid #ccc",
+                    border: "1px solid var(--border-muted)",
                     fontWeight: 700,
                     background:
-                      estimatePhase === "loading" ? "#f3f3f3" : "white",
+                      estimatePhase === "loading" ? "var(--bg-disabled)" : "var(--bg-card)",
                     cursor:
                       !intentDraft.trim() || estimatePhase !== "idle"
                         ? "not-allowed"
@@ -1218,7 +1231,7 @@ export default function DashboardPage() {
                   style={{
                     marginTop: 14,
                     paddingTop: 12,
-                    borderTop: "1px solid #eee",
+                    borderTop: "1px solid var(--border-subtle)",
                   }}
                 >
                   <div style={{ fontWeight: 800, marginBottom: 8 }}>
@@ -1237,7 +1250,7 @@ export default function DashboardPage() {
                       <div
                         style={{
                           fontSize: 12,
-                          color: "#666",
+                          color: "var(--text-secondary)",
                           marginTop: 4,
                         }}
                       >
@@ -1258,9 +1271,9 @@ export default function DashboardPage() {
                           style={{
                             padding: "8px 14px",
                             borderRadius: 8,
-                            border: "1px solid #5567ff",
-                            background: "#5567ff",
-                            color: "white",
+                            border: "1px solid var(--border-focus)",
+                            background: "var(--color-info)",
+                            color: "var(--text-on-primary)",
                             fontWeight: 700,
                             cursor: "pointer",
                           }}
@@ -1272,8 +1285,8 @@ export default function DashboardPage() {
                           style={{
                             padding: "8px 14px",
                             borderRadius: 8,
-                            border: "1px solid #ccc",
-                            background: "white",
+                            border: "1px solid var(--border-muted)",
+                            background: "var(--bg-card)",
                             fontWeight: 700,
                             cursor: "pointer",
                           }}
@@ -1287,11 +1300,11 @@ export default function DashboardPage() {
                           style={{
                             padding: "8px 14px",
                             borderRadius: 8,
-                            border: "1px solid #ccc",
-                            background: "white",
+                            border: "1px solid var(--border-muted)",
+                            background: "var(--bg-card)",
                             fontWeight: 700,
                             cursor: "pointer",
-                            color: "#666",
+                            color: "var(--text-secondary)",
                           }}
                         >
                           メモだけ残す
@@ -1301,7 +1314,7 @@ export default function DashboardPage() {
                   ) : (
                     /* ── キーワードから推定できなかった場合 ── */
                     <div>
-                      <div style={{ fontSize: 13, color: "#666" }}>
+                      <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
                         キーワードから状態を推定できませんでした。
                         <br />
                         以下から選ぶか、メモだけ残せます。
@@ -1321,8 +1334,8 @@ export default function DashboardPage() {
                             style={{
                               padding: "4px 10px",
                               borderRadius: 6,
-                              border: "1px solid #ddd",
-                              background: "white",
+                              border: "1px solid var(--border-default)",
+                              background: "var(--bg-card)",
                               fontSize: 12,
                               cursor: "pointer",
                             }}
@@ -1339,11 +1352,11 @@ export default function DashboardPage() {
                           marginTop: 8,
                           padding: "8px 14px",
                           borderRadius: 8,
-                          border: "1px solid #ccc",
-                          background: "white",
+                          border: "1px solid var(--border-muted)",
+                          background: "var(--bg-card)",
                           fontWeight: 700,
                           cursor: "pointer",
-                          color: "#666",
+                          color: "var(--text-secondary)",
                         }}
                       >
                         メモだけ残す
@@ -1358,13 +1371,13 @@ export default function DashboardPage() {
                       style={{
                         marginTop: 10,
                         paddingTop: 10,
-                        borderTop: "1px solid #f0f0f0",
+                        borderTop: "1px solid var(--border-subtle)",
                       }}
                     >
                       <div
                         style={{
                           fontSize: 12,
-                          color: "#666",
+                          color: "var(--text-secondary)",
                           marginBottom: 6,
                         }}
                       >
@@ -1389,8 +1402,8 @@ export default function DashboardPage() {
                               style={{
                                 padding: "4px 10px",
                                 borderRadius: 6,
-                                border: "1px solid #ddd",
-                                background: "white",
+                                border: "1px solid var(--border-default)",
+                                background: "var(--bg-card)",
                                 fontSize: 12,
                                 cursor: "pointer",
                               }}
@@ -1406,7 +1419,7 @@ export default function DashboardPage() {
 
               {/* Applying indicator */}
               {estimatePhase === "applying" && (
-                <div style={{ marginTop: 10, color: "#666" }}>反映中…</div>
+                <div style={{ marginTop: 10, color: "var(--text-secondary)" }}>反映中…</div>
               )}
             </div>
           )}
@@ -1420,7 +1433,7 @@ export default function DashboardPage() {
         <div
           style={{
             marginTop: 24,
-            border: "1px solid #ddd",
+            border: "1px solid var(--border-default)",
             borderRadius: 10,
             padding: 16,
           }}
@@ -1435,7 +1448,7 @@ export default function DashboardPage() {
               style={{
                 marginTop: 8,
                 fontSize: 12,
-                color: "#666",
+                color: "var(--text-secondary)",
                 display: "flex",
                 flexWrap: "wrap",
                 gap: "12px 16px",
@@ -1505,7 +1518,7 @@ export default function DashboardPage() {
                   const minutes = Math.floor((Date.now() - observedAt) / 60_000);
                   if (minutes < 60) return null;
                   return (
-                    <span style={{ color: "#888", fontStyle: "italic" }}>
+                    <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
                       ⚠ 少し古い提案です
                     </span>
                   );
@@ -1526,13 +1539,13 @@ export default function DashboardPage() {
                 style={{
                   marginTop: 8,
                   padding: 12,
-                  border: "1px solid #b8860b",
+                  border: "1px solid var(--border-warning)",
                   borderRadius: 8,
-                  background: "#fffde7",
+                  background: "var(--bg-warning)",
                   fontSize: 13,
                 }}
               >
-                <div style={{ fontWeight: 800, color: "#8b6914", marginBottom: 8 }}>
+                <div style={{ fontWeight: 800, color: "var(--text-warning)", marginBottom: 8 }}>
                   ⚠ 異常を検知しました（{warnings.length}件）
                 </div>
                 {warnings.map((w, i) => (
@@ -1541,14 +1554,14 @@ export default function DashboardPage() {
                     style={{
                       marginTop: i > 0 ? 10 : 0,
                       padding: 8,
-                      background: "#fff9c4",
+                      background: "var(--bg-warning-strong)",
                       borderRadius: 6,
                     }}
                   >
                     <div style={{ fontWeight: 700 }}>
                       {String(w.code ?? "UNKNOWN")}
                     </div>
-                    <div style={{ marginTop: 4, color: "#333" }}>
+                    <div style={{ marginTop: 4, color: "var(--text-primary)" }}>
                       {String(w.message ?? "")}
                     </div>
                     {w.details != null && (
@@ -1559,9 +1572,9 @@ export default function DashboardPage() {
                           style={{
                             fontSize: 12,
                             padding: "4px 8px",
-                            border: "1px solid #b8860b",
+                            border: "1px solid var(--border-warning)",
                             borderRadius: 4,
-                            background: "white",
+                            background: "var(--bg-card)",
                             cursor: "pointer",
                           }}
                         >
@@ -1572,7 +1585,7 @@ export default function DashboardPage() {
                             style={{
                               marginTop: 6,
                               padding: 8,
-                              background: "#f5f5f5",
+                              background: "var(--bg-code)",
                               borderRadius: 4,
                               fontSize: 11,
                               overflow: "auto",
@@ -1592,7 +1605,7 @@ export default function DashboardPage() {
           })()}
 
           {observerLoading && (
-            <div style={{ marginTop: 8, color: "#666" }}>読み込み中…</div>
+            <div style={{ marginTop: 8, color: "var(--text-secondary)" }}>読み込み中…</div>
           )}
 
           {/* 取得失敗時: 1 行でメッセージを表示 */}
@@ -1601,10 +1614,10 @@ export default function DashboardPage() {
               style={{
                 marginTop: 8,
                 padding: 10,
-                border: "1px solid #f99",
+                border: "1px solid var(--border-danger)",
                 borderRadius: 6,
-                background: "#fff5f5",
-                color: "#900",
+                background: "var(--bg-danger)",
+                color: "var(--text-danger)",
                 fontSize: 13,
               }}
             >
@@ -1614,7 +1627,7 @@ export default function DashboardPage() {
 
           {/* report が null のとき（API が ok: true, report: null を返した場合） */}
           {!observerLoading && !observerError && !observerReport && (
-            <div style={{ marginTop: 8, color: "#666" }}>
+            <div style={{ marginTop: 8, color: "var(--text-secondary)" }}>
               観測結果がまだありません。Actions で Observer Cron を実行するか、ローカルで python main.py --save を実行してください。
             </div>
           )}
@@ -1625,7 +1638,7 @@ export default function DashboardPage() {
               .payload as Record<string, unknown> | null | undefined;
             if (!payload) {
               return (
-                <div style={{ marginTop: 8, color: "#666", fontSize: 13 }}>
+                <div style={{ marginTop: 8, color: "var(--text-secondary)", fontSize: 13 }}>
                   レポート内容がありません。
                 </div>
               );
@@ -1652,9 +1665,9 @@ export default function DashboardPage() {
                   <div
                     style={{
                       fontSize: 13,
-                      color: "#333",
+                      color: "var(--text-primary)",
                       padding: 8,
-                      background: "#f8f9fa",
+                      background: "var(--bg-muted)",
                       borderRadius: 6,
                     }}
                   >
@@ -1668,9 +1681,9 @@ export default function DashboardPage() {
                     style={{
                       marginTop: 12,
                       padding: 10,
-                      border: "1px solid #5567ff",
+                      border: "1px solid var(--border-focus)",
                       borderRadius: 8,
-                      background: "#f5f7ff",
+                      background: "var(--bg-selected)",
                     }}
                   >
                     <div style={{ fontWeight: 700, fontSize: 13 }}>
@@ -1679,10 +1692,10 @@ export default function DashboardPage() {
                     <div style={{ fontWeight: 800, marginTop: 4 }}>
                       {suggestedNext.title as string}
                     </div>
-                    <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
                       {suggestedNext.reason as string}
                     </div>
-                    <div style={{ fontSize: 12, color: "#444", marginTop: 4 }}>
+                    <div style={{ fontSize: 12, color: "var(--text-primary)", marginTop: 4 }}>
                       → {suggestedNext.next_action as string}
                     </div>
                   </div>
@@ -1699,18 +1712,18 @@ export default function DashboardPage() {
                         key={i}
                         style={{
                           padding: 8,
-                          border: "1px solid #eee",
+                          border: "1px solid var(--border-subtle)",
                           borderRadius: 6,
                           marginBottom: 4,
                           fontSize: 13,
                         }}
                       >
                         <b>{p.title as string}</b>
-                        <span style={{ color: "#666", marginLeft: 8 }}>
+                        <span style={{ color: "var(--text-secondary)", marginLeft: 8 }}>
                           {p.current_status as string} →{" "}
                           {p.suggested_status as string}
                         </span>
-                        <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
                           {p.reason as string}
                         </div>
                       </div>
@@ -1729,9 +1742,9 @@ export default function DashboardPage() {
                         key={i}
                         style={{
                           padding: 8,
-                          border: "1px solid #ffd54f",
+                          border: "1px solid var(--border-warning)",
                           borderRadius: 6,
-                          background: "#fffde7",
+                          background: "var(--bg-warning)",
                           marginBottom: 4,
                           fontSize: 13,
                         }}

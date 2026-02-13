@@ -1,5 +1,6 @@
 /**
  * Phase12-Dark: テーマ永続化キーと解決ロジック（A2/A3 で共有）
+ * 契約: docs/118 A4。A2 の layout 先頭インライン script はこの resolveTheme() と同一分岐で複製している。
  * - localStorage には "light" | "dark" | "system" を保存
  * - html[data-theme] には常に "light" または "dark" のみ付与
  */

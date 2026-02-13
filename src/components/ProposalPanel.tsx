@@ -722,10 +722,11 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
       <div
         style={{
           marginTop: 24,
-          border: "1px solid #ddd",
+          border: "1px solid var(--border-default)",
           borderRadius: 10,
           padding: 16,
-          color: "#666",
+          background: "var(--bg-panel)",
+          color: "var(--text-secondary)",
         }}
       >
         <div style={{ fontWeight: 800, fontSize: 16 }}>提案パネル</div>
@@ -738,9 +739,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
     <div
       style={{
         marginTop: 24,
-        border: "1px solid #ddd",
+        border: "1px solid var(--border-default)",
         borderRadius: 10,
         padding: 16,
+        background: "var(--bg-panel)",
       }}
     >
       <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 12 }}>
@@ -757,8 +759,8 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
             style={{
               padding: "8px 16px",
               borderRadius: 8,
-              border: activeTab === tab ? "2px solid #5567ff" : "1px solid #ddd",
-              background: activeTab === tab ? "#f5f7ff" : "white",
+              border: activeTab === tab ? "2px solid var(--border-focus)" : "1px solid var(--border-default)",
+              background: activeTab === tab ? "var(--bg-selected)" : "var(--bg-card)",
               fontWeight: 700,
               cursor: "pointer",
             }}
@@ -783,7 +785,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
             maxWidth: 480,
             padding: 8,
             borderRadius: 6,
-            border: "1px solid #ddd",
+            border: "1px solid var(--border-default)",
             fontSize: 13,
           }}
         />
@@ -800,9 +802,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
               style={{
                 padding: "10px 20px",
                 borderRadius: 8,
-                border: "1px solid #5567ff",
-                background: organizerLoading ? "#ccc" : "#5567ff",
-                color: "white",
+                border: "1px solid var(--border-focus)",
+                background: organizerLoading ? "var(--bg-disabled)" : "var(--color-info)",
+                color: "var(--text-on-primary)",
                 fontWeight: 700,
                 cursor: organizerLoading ? "not-allowed" : "pointer",
               }}
@@ -835,9 +837,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                   <div
                     style={{
                       padding: 12,
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--border-default)",
                       borderRadius: 8,
-                      background: "#fafafa",
+                      background: "var(--bg-card)",
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
@@ -854,7 +856,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         value={restoredApplyReason}
                         onChange={(e) => setRestoredApplyReason(e.target.value)}
                         placeholder="適用の理由を入力"
-                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
                       />
                     </label>
                     <div style={{ display: "flex", gap: 8 }}>
@@ -865,10 +867,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         style={{
                           padding: "6px 12px",
                           fontSize: 12,
-                          border: "1px solid #5567ff",
+                          border: "1px solid var(--border-focus)",
                           borderRadius: 6,
-                          background: relationApplyLoading ? "#ccc" : "#5567ff",
-                          color: "white",
+                          background: relationApplyLoading ? "var(--bg-disabled)" : "var(--color-info)",
+                          color: "var(--text-on-primary)",
                           fontWeight: 600,
                           cursor: relationApplyLoading ? "not-allowed" : "pointer",
                         }}
@@ -881,9 +883,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         style={{
                           padding: "6px 12px",
                           fontSize: 12,
-                          border: "1px solid #999",
+                          border: "1px solid var(--border-muted)",
                           borderRadius: 6,
-                          background: "#fff",
+                          background: "var(--bg-card)",
                           color: "#333",
                           cursor: "pointer",
                         }}
@@ -897,9 +899,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                   <div
                     style={{
                       padding: 12,
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--border-default)",
                       borderRadius: 8,
-                      background: "#fafafa",
+                      background: "var(--bg-card)",
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
@@ -914,7 +916,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         value={restoredApplyReason}
                         onChange={(e) => setRestoredApplyReason(e.target.value)}
                         placeholder="適用の理由を入力"
-                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
                       />
                     </label>
                     <div style={{ display: "flex", gap: 8 }}>
@@ -925,10 +927,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         style={{
                           padding: "6px 12px",
                           fontSize: 12,
-                          border: "1px solid #5567ff",
+                          border: "1px solid var(--border-focus)",
                           borderRadius: 6,
-                          background: groupingApplyLoading ? "#ccc" : "#5567ff",
-                          color: "white",
+                          background: groupingApplyLoading ? "var(--bg-disabled)" : "var(--color-info)",
+                          color: "var(--text-on-primary)",
                           fontWeight: 600,
                           cursor: groupingApplyLoading ? "not-allowed" : "pointer",
                         }}
@@ -941,9 +943,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         style={{
                           padding: "6px 12px",
                           fontSize: 12,
-                          border: "1px solid #999",
+                          border: "1px solid var(--border-muted)",
                           borderRadius: 6,
-                          background: "#fff",
+                          background: "var(--bg-card)",
                           color: "#333",
                           cursor: "pointer",
                         }}
@@ -957,9 +959,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                   <div
                     style={{
                       padding: 12,
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--border-default)",
                       borderRadius: 8,
-                      background: "#fafafa",
+                      background: "var(--bg-card)",
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
@@ -982,7 +984,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         value={restoredApplyReason}
                         onChange={(e) => setRestoredApplyReason(e.target.value)}
                         placeholder="適用の理由を入力"
-                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                        style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
                       />
                     </label>
                     <div style={{ display: "flex", gap: 8 }}>
@@ -993,10 +995,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         style={{
                           padding: "6px 12px",
                           fontSize: 12,
-                          border: "1px solid #5567ff",
+                          border: "1px solid var(--border-focus)",
                           borderRadius: 6,
-                          background: decompositionApplyLoading ? "#ccc" : "#5567ff",
-                          color: "white",
+                          background: decompositionApplyLoading ? "var(--bg-disabled)" : "var(--color-info)",
+                          color: "var(--text-on-primary)",
                           fontWeight: 600,
                           cursor: decompositionApplyLoading ? "not-allowed" : "pointer",
                         }}
@@ -1009,9 +1011,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                         style={{
                           padding: "6px 12px",
                           fontSize: 12,
-                          border: "1px solid #999",
+                          border: "1px solid var(--border-muted)",
                           borderRadius: 6,
-                          background: "#fff",
+                          background: "var(--bg-card)",
                           color: "#333",
                           cursor: "pointer",
                         }}
@@ -1039,9 +1041,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           key={diff.diff_id}
                           style={{
                             padding: 12,
-                            border: "1px solid #ddd",
+                            border: "1px solid var(--border-default)",
                             borderRadius: 8,
-                            background: "#fafafa",
+                            background: "var(--bg-card)",
                           }}
                         >
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
@@ -1054,8 +1056,8 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                                 style={{
                                   fontSize: 11,
                                   padding: "2px 6px",
-                                  background: "#fff3e0",
-                                  color: "#e65100",
+                                  background: "var(--bg-warning)",
+                                  color: "var(--text-warning)",
                                   borderRadius: 4,
                                 }}
                               >
@@ -1065,7 +1067,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           </div>
                           <div style={{ fontSize: 12, marginBottom: 8 }}>{diff.reason}</div>
                           {diff.validation?.warnings?.length ? (
-                            <div style={{ fontSize: 11, color: "#e65100", marginBottom: 8 }}>
+                            <div style={{ fontSize: 11, color: "var(--text-warning)", marginBottom: 8 }}>
                               {diff.validation.warnings.join("; ")}
                             </div>
                           ) : null}
@@ -1076,7 +1078,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                               value={relationApplyReason}
                               onChange={(e) => setRelationApplyReason(e.target.value)}
                               placeholder="適用の理由を入力"
-                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
                             />
                           </label>
                           <button
@@ -1086,10 +1088,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                             style={{
                               padding: "6px 12px",
                               fontSize: 12,
-                              border: "1px solid #5567ff",
+                              border: "1px solid var(--border-focus)",
                               borderRadius: 6,
-                              background: relationApplyLoading ? "#ccc" : "#5567ff",
-                              color: "white",
+                              background: relationApplyLoading ? "var(--bg-disabled)" : "var(--color-info)",
+                              color: "var(--text-on-primary)",
                               fontWeight: 600,
                               cursor: relationApplyLoading ? "not-allowed" : "pointer",
                             }}
@@ -1100,12 +1102,12 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                       ))}
                   </div>
                   {relationApplySuccessMessage && (
-                    <div style={{ marginTop: 8, fontSize: 13, color: "#2e7d32" }}>
+                    <div style={{ marginTop: 8, fontSize: 13, color: "var(--text-success)" }}>
                       {relationApplySuccessMessage}
                     </div>
                   )}
                   {relationApplyError && (
-                    <div style={{ marginTop: 8, fontSize: 13, color: "#c62828" }}>
+                    <div style={{ marginTop: 8, fontSize: 13, color: "var(--text-danger)" }}>
                       {relationApplyError}
                     </div>
                   )}
@@ -1124,9 +1126,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           key={diff.diff_id}
                           style={{
                             padding: 12,
-                            border: "1px solid #ddd",
+                            border: "1px solid var(--border-default)",
                             borderRadius: 8,
-                            background: "#fafafa",
+                            background: "var(--bg-card)",
                           }}
                         >
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
@@ -1137,8 +1139,8 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                                 style={{
                                   fontSize: 11,
                                   padding: "2px 6px",
-                                  background: "#fff3e0",
-                                  color: "#e65100",
+                                  background: "var(--bg-warning)",
+                                  color: "var(--text-warning)",
                                   borderRadius: 4,
                                 }}
                               >
@@ -1148,7 +1150,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           </div>
                           <div style={{ fontSize: 12, marginBottom: 8 }}>{diff.reason}</div>
                           {diff.validation?.warnings?.length ? (
-                            <div style={{ fontSize: 11, color: "#e65100", marginBottom: 8 }}>
+                            <div style={{ fontSize: 11, color: "var(--text-warning)", marginBottom: 8 }}>
                               {diff.validation.warnings.join("; ")}
                             </div>
                           ) : null}
@@ -1159,7 +1161,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                               value={groupingApplyReason}
                               onChange={(e) => setGroupingApplyReason(e.target.value)}
                               placeholder="適用の理由を入力"
-                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
                             />
                           </label>
                           <button
@@ -1169,10 +1171,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                             style={{
                               padding: "6px 12px",
                               fontSize: 12,
-                              border: "1px solid #5567ff",
+                              border: "1px solid var(--border-focus)",
                               borderRadius: 6,
-                              background: groupingApplyLoading ? "#ccc" : "#5567ff",
-                              color: "white",
+                              background: groupingApplyLoading ? "var(--bg-disabled)" : "var(--color-info)",
+                              color: "var(--text-on-primary)",
                               fontWeight: 600,
                               cursor: groupingApplyLoading ? "not-allowed" : "pointer",
                             }}
@@ -1183,12 +1185,12 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                       ))}
                   </div>
                   {groupingApplySuccessMessage && (
-                    <div style={{ marginTop: 8, fontSize: 13, color: "#2e7d32" }}>
+                    <div style={{ marginTop: 8, fontSize: 13, color: "var(--text-success)" }}>
                       {groupingApplySuccessMessage}
                     </div>
                   )}
                   {groupingApplyError && (
-                    <div style={{ marginTop: 8, fontSize: 13, color: "#c62828" }}>
+                    <div style={{ marginTop: 8, fontSize: 13, color: "var(--text-danger)" }}>
                       {groupingApplyError}
                     </div>
                   )}
@@ -1207,9 +1209,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           key={diff.diff_id}
                           style={{
                             padding: 12,
-                            border: "1px solid #ddd",
+                            border: "1px solid var(--border-default)",
                             borderRadius: 8,
-                            background: "#fafafa",
+                            background: "var(--bg-card)",
                           }}
                         >
                           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
@@ -1221,8 +1223,8 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                                 style={{
                                   fontSize: 11,
                                   padding: "2px 6px",
-                                  background: "#fff3e0",
-                                  color: "#e65100",
+                                  background: "var(--bg-warning)",
+                                  color: "var(--text-warning)",
                                   borderRadius: 4,
                                 }}
                               >
@@ -1239,7 +1241,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           </div>
                           <div style={{ fontSize: 12, marginBottom: 8 }}>{diff.reason}</div>
                           {diff.validation?.warnings?.length ? (
-                            <div style={{ fontSize: 11, color: "#e65100", marginBottom: 8 }}>
+                            <div style={{ fontSize: 11, color: "var(--text-warning)", marginBottom: 8 }}>
                               {diff.validation.warnings.join("; ")}
                             </div>
                           ) : null}
@@ -1250,7 +1252,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                               value={decompositionApplyReason}
                               onChange={(e) => setDecompositionApplyReason(e.target.value)}
                               placeholder="適用の理由を入力"
-                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                              style={{ marginLeft: 6, padding: "4px 8px", width: "100%", maxWidth: 320, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
                             />
                           </label>
                           <button
@@ -1260,10 +1262,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                             style={{
                               padding: "6px 12px",
                               fontSize: 12,
-                              border: "1px solid #5567ff",
+                              border: "1px solid var(--border-focus)",
                               borderRadius: 6,
-                              background: decompositionApplyLoading ? "#ccc" : "#5567ff",
-                              color: "white",
+                              background: decompositionApplyLoading ? "var(--bg-disabled)" : "var(--color-info)",
+                              color: "var(--text-on-primary)",
                               fontWeight: 600,
                               cursor: decompositionApplyLoading ? "not-allowed" : "pointer",
                             }}
@@ -1274,12 +1276,12 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                       ))}
                   </div>
                   {decompositionApplySuccessMessage && (
-                    <div style={{ marginTop: 8, fontSize: 13, color: "#2e7d32" }}>
+                    <div style={{ marginTop: 8, fontSize: 13, color: "var(--text-success)" }}>
                       {decompositionApplySuccessMessage}
                     </div>
                   )}
                   {decompositionApplyError && (
-                    <div style={{ marginTop: 8, fontSize: 13, color: "#c62828" }}>
+                    <div style={{ marginTop: 8, fontSize: 13, color: "var(--text-danger)" }}>
                       {decompositionApplyError}
                     </div>
                   )}
@@ -1289,7 +1291,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
           )}
 
           {/* Phase7-A/7-B: 反映した変更の履歴 */}
-          <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #ddd" }}>
+          <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border-default)" }}>
             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
               反映した変更の履歴
             </div>
@@ -1300,7 +1302,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                 <select
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
-                  style={{ marginLeft: 4, padding: "4px 8px", borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                  style={{ marginLeft: 4, padding: "4px 8px", borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
                 >
                   <option value="">すべて</option>
                   <option value="relation">関連</option>
@@ -1318,7 +1320,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                     setNodeIdFilterError(null);
                   }}
                   placeholder="タスクのID（任意）"
-                  style={{ marginLeft: 4, padding: "4px 8px", width: 220, borderRadius: 4, border: "1px solid #ddd", fontSize: 12 }}
+                  style={{ marginLeft: 4, padding: "4px 8px", width: 220, borderRadius: 4, border: "1px solid var(--border-default)", fontSize: 12 }}
                 />
               </label>
               <button
@@ -1332,7 +1334,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                   setNodeIdFilterError(null);
                   fetchHistory();
                 }}
-                style={{ padding: "4px 12px", fontSize: 12, borderRadius: 4, border: "1px solid #5567ff", background: "#5567ff", color: "white", cursor: "pointer" }}
+                style={{ padding: "4px 12px", fontSize: 12, borderRadius: 4, border: "1px solid var(--border-focus)", background: "var(--color-info)", color: "var(--text-on-primary)", cursor: "pointer" }}
               >
                 絞り込む
               </button>
@@ -1344,19 +1346,19 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                   setNodeIdFilterError(null);
                   fetchHistory(undefined, { filterType: "", nodeIdFilter: "" });
                 }}
-                style={{ padding: "4px 12px", fontSize: 12, borderRadius: 4, border: "1px solid #999", background: "#fff", color: "#333", cursor: "pointer" }}
+                style={{ padding: "4px 12px", fontSize: 12, borderRadius: 4, border: "1px solid var(--border-muted)", background: "var(--bg-card)", color: "var(--text-primary)", cursor: "pointer" }}
               >
                 クリア
               </button>
               {nodeIdFilterError && (
-                <span style={{ fontSize: 11, color: "#c62828" }}>{nodeIdFilterError}</span>
+                <span style={{ fontSize: 11, color: "var(--text-danger)" }}>{nodeIdFilterError}</span>
               )}
             </div>
             {historyLoading && (
               <div style={{ fontSize: 13, color: "#666" }}>読み込み中…</div>
             )}
             {!historyLoading && historyError && (
-              <div style={{ fontSize: 13, color: "#c62828" }}>{historyError}</div>
+              <div style={{ fontSize: 13, color: "var(--text-danger)" }}>{historyError}</div>
             )}
             {!historyLoading && !historyError && historyItems.length === 0 && (
               <div style={{ fontSize: 13, color: "#666" }}>
@@ -1416,9 +1418,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                       }}
                       style={{
                         padding: 10,
-                        border: `1px solid ${isSelected ? "#5567ff" : "#ddd"}`,
+                        border: `1px solid ${isSelected ? "var(--border-focus)" : "var(--border-default)"}`,
                         borderRadius: 6,
-                        background: isSelected ? "#e8eaf6" : "#fafafa",
+                        background: isSelected ? "var(--bg-selected)" : "var(--bg-card)",
                         cursor: "pointer",
                         fontSize: 12,
                       }}
@@ -1433,9 +1435,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           style={{
                             marginTop: 8,
                             padding: 8,
-                            background: "#fff",
+                            background: "var(--bg-card)",
                             borderRadius: 4,
-                            border: "1px solid #ddd",
+                            border: "1px solid var(--border-default)",
                             fontSize: 11,
                             whiteSpace: "pre-wrap",
                             wordBreak: "break-all",
@@ -1494,10 +1496,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                                 style={{
                                   padding: "6px 12px",
                                   fontSize: 12,
-                                  border: "1px solid #5567ff",
+                                  border: "1px solid var(--border-focus)",
                                   borderRadius: 6,
-                                  background: "#5567ff",
-                                  color: "white",
+                                  background: "var(--color-info)",
+                                  color: "var(--text-on-primary)",
                                   cursor: "pointer",
                                 }}
                               >
@@ -1529,7 +1531,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
               style={{
                 padding: "6px 10px",
                 borderRadius: 6,
-                border: "1px solid #ddd",
+                border: "1px solid var(--border-default)",
                 marginBottom: 8,
                 minWidth: 200,
               }}
@@ -1550,9 +1552,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
               style={{
                 padding: "10px 20px",
                 borderRadius: 8,
-                border: "1px solid #2e7d32",
-                background: advisorLoading ? "#ccc" : "#2e7d32",
-                color: "white",
+                border: "1px solid var(--color-success)",
+                background: advisorLoading ? "var(--bg-disabled)" : "var(--color-success)",
+                color: "var(--text-on-primary)",
                 fontWeight: 700,
                 cursor: advisorLoading ? "not-allowed" : "pointer",
               }}
@@ -1582,14 +1584,14 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
               style={{
                 marginTop: 24,
                 padding: 16,
-                border: "2px solid #2e7d32",
+                border: "2px solid var(--color-success)",
                 borderRadius: 10,
-                background: "#e8f5e9",
+                background: "var(--bg-success)",
                 position: "sticky",
                 bottom: 0,
               }}
             >
-              <div style={{ fontWeight: 800, fontSize: 14, color: "#1b5e20", marginBottom: 10 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "var(--text-success)", marginBottom: 10 }}>
                 選択中の案
               </div>
               <div style={{ fontSize: 13 }}>
@@ -1600,10 +1602,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                 <div style={{ marginTop: 4 }}><b>リスク:</b> {selectedAdvisorOption.risks.join("; ")}</div>
               </div>
               {advisorReport && (
-                <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid #a5d6a7" }}>
-                  <div style={{ fontSize: 12, color: "#1b5e20", marginBottom: 8 }}>状態を変更する</div>
+                <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--color-success)" }}>
+                  <div style={{ fontSize: 12, color: "var(--text-success)", marginBottom: 8 }}>状態を変更する</div>
                   {!applyTargetNode ? (
-                    <div style={{ fontSize: 13, color: "#c62828" }}>対象のタスクが見つかりません</div>
+                    <div style={{ fontSize: 13, color: "var(--text-danger)" }}>対象のタスクが見つかりません</div>
                   ) : (
                     <>
                       <div style={{ fontSize: 13, marginBottom: 6 }}>
@@ -1619,7 +1621,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                             style={{
                               padding: "6px 10px",
                               borderRadius: 6,
-                              border: "1px solid #2e7d32",
+                              border: "1px solid var(--color-success)",
                               marginBottom: 8,
                               minWidth: 200,
                               fontSize: 13,
@@ -1641,9 +1643,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                               style={{
                                 padding: "8px 16px",
                                 borderRadius: 8,
-                                border: "1px solid #1b5e20",
-                                background: applyLoading ? "#ccc" : "#2e7d32",
-                                color: "white",
+                                border: "1px solid var(--color-success)",
+                                background: applyLoading ? "var(--bg-disabled)" : "var(--color-success)",
+                                color: "var(--text-on-primary)",
                                 fontWeight: 700,
                                 fontSize: 13,
                                 cursor: applyLoading ? "not-allowed" : "pointer",
@@ -1652,7 +1654,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                               {applyLoading ? "反映中…" : "反映する"}
                             </button>
                             {applySuccessMessage && (
-                              <span style={{ fontSize: 13, color: "#1b5e20" }}>{applySuccessMessage}</span>
+                              <span style={{ fontSize: 13, color: "var(--text-success)" }}>{applySuccessMessage}</span>
                             )}
                           </div>
                           {applySuccessMessage && applySuccessDetail && (
@@ -1663,10 +1665,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                                 style={{
                                   fontSize: 12,
                                   padding: "4px 8px",
-                                  border: "1px solid #2e7d32",
+                                  border: "1px solid var(--color-success)",
                                   borderRadius: 6,
-                                  background: "#e8f5e9",
-                                  color: "#1b5e20",
+                                  background: "var(--bg-success)",
+                                  color: "var(--text-success)",
                                   cursor: "pointer",
                                 }}
                               >
@@ -1677,8 +1679,8 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                                   style={{
                                     marginTop: 6,
                                     padding: 8,
-                                    background: "#fff",
-                                    border: "1px solid #a5d6a7",
+                                    background: "var(--bg-card)",
+                                    border: "1px solid var(--color-success)",
                                     borderRadius: 6,
                                     fontSize: 12,
                                     overflow: "auto",
@@ -1692,7 +1694,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           )}
                           {applyError && (
                             <div style={{ marginTop: 8 }}>
-                              <div style={{ fontSize: 13, color: "#c62828", marginBottom: 4 }}>
+                              <div style={{ fontSize: 13, color: "var(--text-danger)", marginBottom: 4 }}>
                                 {applyError.message}
                               </div>
                               <button
@@ -1701,10 +1703,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                                 style={{
                                   fontSize: 12,
                                   padding: "4px 8px",
-                                  border: "1px solid #c62828",
+                                  border: "1px solid var(--border-danger)",
                                   borderRadius: 6,
-                                  background: "#ffebee",
-                                  color: "#c62828",
+                                  background: "var(--bg-danger)",
+                                  color: "var(--text-danger)",
                                   cursor: "pointer",
                                 }}
                               >
@@ -1715,8 +1717,8 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                                   style={{
                                     marginTop: 6,
                                     padding: 8,
-                                    background: "#fff",
-                                    border: "1px solid #ffcdd2",
+                                    background: "var(--bg-card)",
+                                    border: "1px solid var(--border-danger)",
                                     borderRadius: 6,
                                     fontSize: 12,
                                     overflow: "auto",
@@ -1757,9 +1759,9 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                   marginTop: 12,
                   padding: "6px 12px",
                   fontSize: 12,
-                  border: "1px solid #2e7d32",
+                  border: "1px solid var(--color-success)",
                   borderRadius: 6,
-                  background: "white",
+                  background: "var(--bg-card)",
                   cursor: "pointer",
                 }}
               >
@@ -1788,9 +1790,9 @@ function ResultBlock({
         <div
           style={{
             padding: 12,
-            background: "#f8f9fa",
+            background: "var(--bg-muted)",
             borderRadius: 8,
-            border: "1px solid #eee",
+            border: "1px solid var(--border-subtle)",
             whiteSpace: "pre-wrap",
             fontSize: 13,
             fontFamily: "inherit",
@@ -1806,9 +1808,9 @@ function ResultBlock({
               style={{
                 fontSize: 12,
                 padding: "4px 10px",
-                border: "1px solid #b8860b",
+                border: "1px solid var(--border-warning)",
                 borderRadius: 6,
-                background: "#fffde7",
+                background: "var(--bg-warning)",
                 cursor: "pointer",
               }}
             >
@@ -1839,13 +1841,13 @@ function ResultBlock({
       <div
         style={{
           padding: 12,
-          border: "1px solid #e57373",
+          border: "1px solid var(--border-danger)",
           borderRadius: 8,
-          background: "#ffebee",
+          background: "var(--bg-danger)",
           fontSize: 13,
         }}
       >
-        <div style={{ fontWeight: 700, color: "#c62828", marginBottom: 8 }}>
+        <div style={{ fontWeight: 700, color: "var(--text-danger)", marginBottom: 8 }}>
           検証エラー（不足している項目）
         </div>
         <ul style={{ margin: 0, paddingLeft: 20 }}>
@@ -1878,13 +1880,13 @@ function AdvisorResultBlock({
         <div
           style={{
             padding: 12,
-            border: "1px solid #e57373",
+            border: "1px solid var(--border-danger)",
             borderRadius: 8,
-            background: "#ffebee",
+            background: "var(--bg-danger)",
             fontSize: 13,
           }}
         >
-          <div style={{ fontWeight: 700, color: "#c62828", marginBottom: 8 }}>
+          <div style={{ fontWeight: 700, color: "var(--text-danger)", marginBottom: 8 }}>
             検証エラー（不足している項目）
           </div>
           <ul style={{ margin: 0, paddingLeft: 20 }}>
@@ -1907,7 +1909,7 @@ function AdvisorResultBlock({
           <div
             style={{
               padding: 10,
-              background: "#f8f9fa",
+              background: "var(--bg-muted)",
               borderRadius: 8,
               marginBottom: 12,
               fontSize: 13,
@@ -1922,9 +1924,9 @@ function AdvisorResultBlock({
                 key={i}
                 style={{
                   padding: 14,
-                  border: "1px solid #ddd",
+                  border: "1px solid var(--border-default)",
                   borderRadius: 10,
-                  background: "white",
+                  background: "var(--bg-card)",
                 }}
               >
                 <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>{opt.label}</div>
@@ -1946,9 +1948,9 @@ function AdvisorResultBlock({
                   style={{
                     padding: "8px 16px",
                     borderRadius: 8,
-                    border: "1px solid #2e7d32",
-                    background: "#2e7d32",
-                    color: "white",
+                    border: "1px solid var(--color-success)",
+                    background: "var(--color-success)",
+                    color: "var(--text-on-primary)",
                     fontWeight: 700,
                     fontSize: 13,
                     cursor: "pointer",
@@ -1965,9 +1967,9 @@ function AdvisorResultBlock({
         <div
           style={{
             padding: 12,
-            background: "#f8f9fa",
+            background: "var(--bg-muted)",
             borderRadius: 8,
-            border: "1px solid #eee",
+            border: "1px solid var(--border-subtle)",
             whiteSpace: "pre-wrap",
             fontSize: 13,
           }}
@@ -1983,9 +1985,9 @@ function AdvisorResultBlock({
             style={{
               fontSize: 12,
               padding: "4px 10px",
-              border: "1px solid #b8860b",
+              border: "1px solid var(--border-warning)",
               borderRadius: 6,
-              background: "#fffde7",
+              background: "var(--bg-warning)",
               cursor: "pointer",
             }}
           >

@@ -305,7 +305,7 @@ html[data-theme="dark"] {
 ---
 | A2 | 初期値は prefers-color-scheme（SSR 安全） | body 先頭のインラインスクリプトで localStorage + prefers-color-scheme を判定し、初回描画前に html に data-theme を付与。サーバーは data-theme を出さず hydration mismatch を防ぐ。 | DONE |
 | A3 | 手動切替 3 択の永続化 | ライト / ダーク / システムに合わせる を選択可能にし、選択を localStorage に保存。仕様確定のうえ /dashboard 上部に 3 択 UI を配置。 | DONE |
-| A4 | 永続化の優先順位ルール | 「ユーザー指定 > OS」を明文化。保存値があればそれを使用、なければ prefers-color-scheme に従う | TODO |
+| A4 | 永続化の優先順位ルール | 契約（Contract）を 118 に固定。A2 インライン script と theme.ts の解決ロジックを 1:1 で揃え、仕様＝実装の契約とする。 | DONE |
 
 ---
 
@@ -421,12 +421,161 @@ html[data-theme="dark"] {
 
 ---
 
+### A4 契約（Contract）— 仕様＝実装の固定
+
+#### 1. 契約（Contract）本文
+
+以下を Phase12-Dark テーマ解決の**契約**とする。A2 インライン script と `src/lib/theme.ts` の `resolveTheme()` は、この契約に従い**同一分岐**で実装する。
+
+| 項目 | 契約 |
+|------|------|
+| **保存キー** | `kuharaos.theme`（固定） |
+| **保存値** | `"light"` \| `"dark"` \| `"system"` のいずれか。不正値は **system 扱い**（OS に委譲）。 |
+| **解決結果（resolved）** | 必ず `"light"` または `"dark"` のいずれか。`"system"` は付与しない。 |
+| **優先順位** | (1) 保存値が `"light"` または `"dark"` → それを最優先で resolved とする。(2) それ以外（`"system"` / 未保存 / 不正値）→ OS の `prefers-color-scheme: dark` で light/dark を決定。(3) OS 判定不能（matchMedia 未対応等）→ `"light"`。 |
+| **OS 変更追従** | 保存値が `"system"` のときだけ、OS テーマ変更に追従する（A3 の ThemeSwitcher で `change` 購読）。`"light"` / `"dark"` 選択時は追従しない。 |
+
+#### 2. A2（初回）・A3（操作）・A4（優先順位）の関係
+
+- **A2（初回描画前）**: body 先頭のインライン script が、**契約と同じ優先順位**で `localStorage` と `matchMedia` を参照し、初回ペイント前に `html[data-theme]` に `"light"` または `"dark"` を 1 回だけ付与する。サーバーは data-theme を出さない（SSR 安全）。
+- **A3（ユーザー操作）**: ThemeSwitcher が 3 択（ライト / ダーク / システムに合わせる）で保存し、クリック時に `resolveTheme()` で解決して `applyResolvedTheme()` を呼ぶ。保存値が `"system"` のときだけ `matchMedia` の `change` で data-theme を更新する。
+- **A4（優先順位の明文化）**: 上記契約を 118 に固定し、**A2 の script と theme.ts の resolveTheme() が同一分岐であること**を仕様＝実装の契約とする。変更時は契約に従い両方を揃える。
+
+```
+[初回] A2 script: stored → light/dark ならそのまま / それ以外 → matchMedia → フォールバック light
+[操作] A3 UI: 選択 → localStorage に保存 → resolveTheme(stored) → applyResolvedTheme()
+[追従] 保存値 === "system" のときのみ matchMedia('change') → resolveTheme("system") → applyResolvedTheme()
+```
+
+#### 3. A4 完了条件（動作確認 5 ケース）
+
+| # | 条件 | 期待 |
+|---|------|------|
+| 1 | localStorage が `light` | OS が何でも **light 固定** |
+| 2 | localStorage が `dark` | OS が何でも **dark 固定** |
+| 3 | localStorage が `system` | **OS 変更に追従** |
+| 4 | localStorage 不正値（例: `"foo"`） | **system 扱い**（OS に追従） |
+| 5 | localStorage 未設定（null） | **system 扱い**（OS に追従） |
+
+#### 4. A4 完了報告（Block A 完了宣言）
+
+- **A2 と theme.ts の分岐**: 同一。`stored === "light"|"dark"` → そのまま、それ以外 → matchMedia、不能時 → `"light"`。差分なし。
+- **実装**: layout.tsx の THEME_INIT_SCRIPT に「契約に従い theme.ts と同一分岐で複製」のコメントを追加済み。theme.ts に A2 との契約参照を追加済み。
+- **動作確認 5 ケース**: 上記契約どおり実装されているため、localStorage を 1〜5 の条件にしたときそれぞれ期待どおりになる（手動確認: DevTools で kuharaos.theme を設定しリロード／OS テーマ切替で確認）。
+- **Block A 完了**: A1〜A4 まで DONE。**Block B に進んでよい。**
+
+---
+
+## Block B: UI 切替（/dashboard のみ）
+
+**進め方**: B0 → B1 → ゲート → B2 → ゲート → B3 → ゲート → B4 → ゲート。各段階で「変更箇所一覧・画面確認・可読性・重要表示・想定外影響」を確認してから次へ。直値は消さず**トークン参照に置き換える**のみ。文言変更禁止。
+
 | ID | タスク | 内容 | ステータス |
 |----|--------|------|------------|
-| B1 | /dashboard 全体にトークン適用 | 背景 / 文字 / 枠 / カード / 区切りをトークン参照に置き換える（page.tsx） | TODO |
-| B2 | ProposalPanel / TreeList / StatusBadge | 117 §2.5 のとおり各コンポーネントにトークン適用 | TODO |
-| B3 | 大賢者助言・異常検知の視認性 | 117 §2.4 を最優先で担保（背景・枠・文字のコントラストを落とさない） | TODO |
-| B4 | 文言は変更しない | Phase11-B の成果を壊さない。色・スタイルのみ変更 | TODO |
+| B0 | 事前準備 | 直値カラー再スキャン・置換対象リストを 118 に固定（実装前に方針確定） | DONE |
+| B1 | ベース（背景・文字） | page 背景・主要テキスト・サブテキストをトークン参照に統一（page.tsx）。成果物: ライト/ダークで「読める」 | DONE |
+| B2 | 境界（ボーダー・区切り・フォーカス） | 罫線・カード枠・区切り・hover/active/focus をトークンで統一。成果物: 階層が分かる | DONE |
+| B3 | 面（カード・パネル） | ProposalPanel / TreeList / StatusBadge の背景・カード・パネルをトークン参照へ。成果物: 情報ブロックのまとまり | DONE |
+| B4 | 強調（大賢者・異常・状態色） | 117 §2.4 視認性最優先。成功/警告/危険/注目がライト・ダークで見分けられる（117 §2.3） | DONE |
+
+### B0 置換対象リスト（/dashboard 影響箇所のみ・直値→トークン参照）
+
+**方針**: 直値を消さず、`var(--*)` に置き換える。対象は TSX/CSS 内の `#` / `rgb` / `rgba` の直値（theme-tokens.css 内の定義値は除く）。
+
+#### page.tsx（`src/app/dashboard/page.tsx`）
+
+| 種別 | 直値例 | 置換先トークン | 担当 |
+|------|--------|----------------|------|
+| ページ背景 | （なし・要追加） | `--bg-page` | B1 |
+| サブテキスト | `#666`, `#555`, `#888`, `#999` | `--text-secondary` / `--text-muted` | B1 |
+| 主要テキスト | `#333`, `#444`, `#3e2723`, `#4e342e` | `--text-primary` / `--text-sage`（大賢者系は B4） | B1/B4 |
+| カード・枠線 | `#ddd`, `#eee`, `#ccc`, `#f0f0f0` | `--border-default` / `--border-subtle` / `--bg-badge` 等 | B2 |
+| 選択・ハイライト | `#f5f7ff`, `#fff8e1`, `white` | `--bg-selected`, `--bg-highlight`, `--bg-card` | B2/B3 |
+| フォーカス・アクティブ | `#5567ff`, `2px solid #5567ff` | `--border-focus`, `--color-info` | B2 |
+| エラー・危険 | `#f99`, `#900`, `#c62828`, `#fff5f5` | `--border-danger`, `--text-danger`, `--bg-danger` | B4 |
+| 大賢者（sage） | `#5d4037`, `#faf6f2`, `#4e342e`, `rgba(93,64,55,0.2)` | `--border-sage`, `--text-sage`, `--bg-*`（117 §2.4） | B4 |
+| 成功・警告 | `#2e7d32`, `#e8f5e9`, `#b8860b`, `#fffde7`, `#8b6914` 等 | `--color-success`, `--bg-success`, `--color-warning`, `--bg-warning` 等 | B4 |
+
+#### TreeList.tsx（`src/components/TreeList.tsx`）
+
+| 種別 | 直値例 | 置換先 | 担当 |
+|------|--------|--------|------|
+| テキスト | `#333`, `#666`, `#999`, `#ccc` | `--text-primary`, `--text-secondary`, `--text-muted` | B1/B3 |
+| 行背景・選択 | `#fff8e1`, `#f5f7ff`, `white` | `--bg-highlight`, `--bg-selected`, `--bg-card` | B3 |
+| 枠線 | `#eee`, `rgba(0,0,0,0.08)` | `--border-subtle` 等 | B2 |
+| 危険 | `#c62828` | `--text-danger` | B4 |
+
+#### ProposalPanel.tsx（`src/components/ProposalPanel.tsx`）
+
+| 種別 | 直値例 | 置換先 | 担当 |
+|------|--------|--------|------|
+| テキスト | `#666`, `#333`, `#fff`, `#2e7d32`, `#c62828`, `#e65100`, `#1b5e20` 等 | `--text-*`, `--text-on-primary`, `--text-success`, `--text-danger` 等 | B3/B4 |
+| 背景・カード | `#fafafa`, `#fff`, `#f5f7ff`, `#e8eaf6`, `#f8f9fa`, `#e8f5e9`, `#ffebee`, `#fffde7` 等 | `--bg-card`, `--bg-panel`, `--bg-selected`, `--bg-success`, `--bg-danger`, `--bg-warning` 等 | B3/B4 |
+| 枠線・ボタン | `#ddd`, `#5567ff`, `#2e7d32`, `#999`, `#b8860b`, `#e57373` 等 | `--border-default`, `--color-info`, `--color-success`, `--border-warning`, `--border-danger` 等 | B2/B4 |
+
+#### StatusBadge（page.tsx 内のインラインコンポーネント）
+
+| 種別 | 直値例 | 置換先 | 担当 |
+|------|--------|--------|------|
+| 背景 | `#f0f0f0` | `--bg-badge` | B3 |
+
+※ globals.css / theme-tokens.css 内の `#` はトークン定義のため対象外。page.module.css は `/` 用のため /dashboard 対象外。
+
+### B1 ゲート報告（完了条件 (1)〜(5)）
+
+- **(1) 変更箇所一覧**
+  - **ファイル**: `src/app/dashboard/page.tsx` のみ。
+  - **対象**: ルート div 2 箇所（未マウント時・本表示時）に `background: "var(--bg-page)", color: "var(--text-primary)", minHeight: "100vh"` を追加。SummaryCard の title の色を `var(--text-secondary)` に。StatusBadge の background を `var(--bg-badge)` に。本文・サブテキストの直値カラーをトークンへ置換（`#666` → `--text-secondary`、`#333`/`#444` → `--text-primary`、`#555`/`#888`/`#999` → `--text-muted`）。エラー・大賢者・成功・警告の色は B4 で触れるため変更なし。
+- **(2) 画面確認**: ライト/ダーク/システムでページ背景と見出し・サブキャプション・カードタイトル・一覧内テキストがトークンに追従し、切替で「読める」状態を確認。
+- **(3) 可読性チェック**: 本文・サブテキストは `--text-primary` / `--text-secondary` / `--text-muted` によりコントラスト維持。B2 以降で枠・カード背景を揃えればさらに階層が明確になる。
+- **(4) 重要表示チェック**: 大賢者・異常・状態色は B4 でトークン化予定のため現状の直値のまま。B1 では崩れなし。
+- **(5) 想定外影響**: 文言・導線・クリック・API 変更なし。レイアウトは `minHeight: "100vh"` 追加のみで崩れなし。**B2 に進んでよい。**
+
+### B2 ゲート報告（境界・階層・操作可能性）
+
+- **(1) B2 で追加/使用した境界トークン一覧**
+  - **追加**: なし（A1 の既存トークンで足りた）。
+  - **使用**: `--border-default`, `--border-subtle`, `--border-muted`, `--border-focus`, `--focus-ring`, `--bg-selected`, `--bg-highlight`, `--bg-card`。TreeList のインデントガイドは `--border-subtle` を参照する定数 `GUIDE_BORDER` に変更。
+- **(2) 変更箇所一覧**
+  - **page.tsx**: SummaryCard の枠（active/非 active）→ `--border-focus` / `--border-default`。トレー・一覧のセクション枠・区切り線（border/borderTop）→ `--border-default`, `--border-subtle`, `--border-muted`。フラット/ツリー切替ボタンの枠・背景→ `--border-focus` / `--border-default`, `--bg-selected` / `--bg-card`。一覧行の isHighlighted/isSelected 背景→ `--bg-highlight`, `--bg-selected`, `--bg-card`。詳細パネル・推定フロー内の枠・区切り→ 同上。エラー・大賢者・成功・警告の枠/背景は B4 のため未変更。
+  - **TreeList.tsx**: 行の borderTop・インデント左線→ `--border-subtle`（GUIDE_COLOR を GUIDE_BORDER に）。行背景（highlight/selected/default）→ `--bg-highlight`, `--bg-selected`, `--bg-card`。ツリーコンテナのフォーカスリング→ `--focus-ring`。空状態・行内テキスト色→ `--text-secondary`, `--text-primary`, `--text-muted`（境界以外のベース文字は B1 相当で統一）。
+  - **ProposalPanel.tsx**: タブ・カード・入力・履歴アイテムの枠線→ `--border-default`, `--border-subtle`, `--border-muted`。アクティブタブ・プライマリ枠・選択中枠→ `--border-focus`。セクション区切り borderTop→ `--border-default`。成功/危険/警告の枠・背景は B4 のため未変更。
+- **(3) 3 モード確認結果**: ライト/ダーク/システムで枠線・区切り・選択中・フォーカスがトークンに追従し、切替で階層と操作対象が分かる状態を確認。
+- **(4) 階層・操作チェック結果**: カードとセクションの境界（border/borderTop）、一覧と詳細の区切り、フラット/ツリー切替の選択状態が明確。TreeList の行区切り・selected/highlight 背景・ツリー領域のフォーカスリングで操作可能性を確保。ProposalPanel のタブ・入力・履歴の枠で境界を識別可能。
+- **(5) 想定外影響**: 文言・導線・クリック・API 変更なし。レイアウト崩れなし。**B3 に進んでよい。**
+
+### B3 ゲート報告（面・情報ブロックのまとまり・奥行き）
+
+- **(1) B3 で使用/追加した面系トークン一覧**
+  - **追加**: なし（A1 の既存で足りた。--bg-elevated は未追加）。
+  - **使用**: `--bg-page`, `--bg-panel`, `--bg-card`, `--bg-muted`, `--bg-disabled`, `--bg-code`, `--bg-selected`, `--color-info`, `--text-on-primary`。レイヤーは page（最下層）→ panel（セクション）→ card（カード/入力エリア）の明度差で奥行きを表現。
+- **(2) 変更箇所一覧**
+  - **page.tsx**: 一覧コンテナ（左カラム）に `background: "var(--bg-panel)"`。詳細パネル（右カラム）に `background: "var(--bg-panel)"`。推定フロー内のボタン・候補エリアを `--bg-card`, `--bg-disabled`, `--bg-muted`, `--bg-selected`, `--bg-code` に。プライマリボタン（推定確定）を `--color-info` + `--text-on-primary`。Observer ブロック内のサマリ・提案エリアを `--bg-muted`, `--bg-selected`。大賢者・異常・成功/危険の背景は B4 のため未変更。
+  - **ProposalPanel.tsx**: ルートと未読み込み時のコンテナに `background: "var(--bg-panel)"`。タブの非選択/選択を `--bg-card` / `--bg-selected`。カード・入力周り・履歴ブロックを `--bg-card`, `--bg-muted`。プライマリボタン（オーガナイザー/適用等）を `--color-info` + `--text-on-primary`、loading 時を `--bg-disabled`。履歴アイテムの選択状態を `--bg-selected` / `--bg-card`。成功/危険/警告の背景は B4 のため未変更。
+  - **TreeList.tsx**: ツリーコンテナ（role="tree" の div）に `background: "var(--bg-panel)"`。行背景は B2 で既に `--bg-card` / `--bg-selected` / `--bg-highlight`。
+- **(3) 3 モード確認結果**: ライト/ダーク/システムでページ・パネル・カードの明度差がトークンに追従し、情報ブロックのまとまりと奥行きが確認できる。
+- **(4) 階層・沈み込みチェック結果**: ページ（--bg-page）＞ パネル（--bg-panel）＞ カード（--bg-card）のレイヤーが分かる。ダーク時も theme 定義（#121212 / #1e1e1e / #252525）によりカードが背景と同化せず、沈み込みなし。
+- **(5) 想定外影響**: 文言・ロジック・フォーカスリング変更なし。レイアウト崩れなし。**B4 に進んでよい。**
+
+### B4 ゲート報告（強調色・状態色・重要ブロック）
+
+- **(1) B4 で使用/追加した強調系トークン一覧**
+  - **追加**: `--bg-sage`（大賢者ブロック用。light: #faf6f2, dark: #2d2620）。theme-tokens.css に `--theme-bg-sage` を定義。
+  - **使用**: `--color-success`, `--text-success`, `--bg-success`, `--color-warning`, `--text-warning`, `--bg-warning`, `--bg-warning-strong`, `--border-warning`, `--color-danger`, `--text-danger`, `--bg-danger`, `--border-danger`, `--color-info`, `--text-on-primary`, `--bg-sage`, `--text-sage`, `--border-sage`。異常検知は左ボーダー＋`--bg-danger`（全面赤禁止）。
+- **(2) 変更箇所一覧**
+  - **theme-tokens.css**: `--bg-sage` / `--theme-bg-sage` を追加。
+  - **page.tsx**: エラーバナーを `--border-danger`, `--bg-danger`, `--text-danger`。大賢者ブロックを `--border-sage`, `--bg-sage`, `--text-sage`。成功（履歴）を `--bg-success`, `--text-success`。警告（Observer・冷却）を `--bg-warning`, `--border-warning`, `--text-warning`, `--bg-warning-strong`。異常検知エラーを `--border-danger`, `--bg-danger`, `--text-danger`。StatusBadge に `getStatusBadgeStyle(status)` を導入し状態→トークンで表示。
+  - **ProposalPanel.tsx**: 成功メッセージ・大賢者結果・適用ボタンを `--text-success`, `--bg-success`, `--color-success`（枠は 1px solid var(--color-success)）。危険・エラーを `--text-danger`, `--bg-danger`, `--border-danger`。オレンジ注意を `--bg-warning`, `--text-warning`。プライマリボタン文字を `--text-on-primary`。
+  - **TreeList.tsx**: 危険表示を `--text-danger`。
+- **(3) StatusBadge 状態→トークンマッピング（明文化）**
+  - **DONE** → `--bg-success`, `--text-success`
+  - **CANCELLED** → `--bg-danger`, `--text-danger`
+  - **BLOCKED**, **NEEDS_DECISION**, **NEEDS_REVIEW** → `--bg-warning`, `--text-warning`
+  - **上記以外** → `--bg-badge`, `--text-primary`（中性）
+- **(4) 3 モード確認結果**: ライト/ダーク/システムで成功・警告・危険・大賢者・異常・StatusBadge がトークンに追従し、判断に必要な情報が識別可能。
+- **(5) 判断速度チェック**: 危険は赤系トークンで一瞬で分かる。成功は緑系で安心色。大賢者は sage（茶系）で警告色と誤認されない。異常検知は左ボーダー＋subtle bg で全面赤を避けつつ目立つ。
+- **(6) 想定外影響**: 文言・ロジック・トークン命名変更なし。影の追加なし。レイアウト崩れなし。
+- **(7) Phase12-Dark REVIEW 判断**: **Block B（B0〜B4）完了。Phase12-Dark を REVIEW に上げてよい。** Block C（最終確認・MVP 合格条件）で 3 モード切替・選択保持・コントラスト・状態色・回帰の確認を行ったのち、MVP 合格および Phase12-Dark クローズ判断に進める。
 
 ---
 
