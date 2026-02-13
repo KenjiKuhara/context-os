@@ -104,6 +104,11 @@ const TRAY_LABEL: Record<keyof Trays | "all", string> = {
   other_active: "その他",
 };
 
+/** Phase11-D: 滞留検知メッセージの閾値 */
+const READY_THRESHOLD = 3;
+const NEEDS_DECISION_THRESHOLD = 2;
+const IN_PROGRESS_STALE_MINUTES = 60;
+
 // ─── Helpers ────────────────────────────────────────────────
 
 function getNodeTitle(n: Node): string {
@@ -512,6 +517,60 @@ export default function DashboardPage() {
     return c;
   }, [trays]);
 
+  /** Phase11-D: 滞留検知時のみ表示する大賢者型メッセージ（107/109 思想・事実→推奨→理由・マスター呼称） */
+  const stagnationMessage = useMemo((): {
+    kind: string;
+    body: string;
+    actionLine: string;
+  } | null => {
+    if (!trays) return null;
+    const all: Node[] = [
+      ...trays.in_progress,
+      ...trays.needs_decision,
+      ...trays.waiting_external,
+      ...trays.cooling,
+      ...trays.other_active,
+    ];
+    const readyCount = all.filter((n) => n.status === "READY").length;
+    const needsDecisionCount = trays.needs_decision.length;
+    const staleThreshold = Date.now() - IN_PROGRESS_STALE_MINUTES * 60 * 1000;
+    const inProgressStaleCount = trays.in_progress.filter((n) => {
+      const u = n.updated_at;
+      if (!u) return true;
+      try {
+        return new Date(u).getTime() < staleThreshold;
+      } catch {
+        return true;
+      }
+    }).length;
+
+    if (needsDecisionCount >= NEEDS_DECISION_THRESHOLD) {
+      return {
+        kind: "needs_decision",
+        body:
+          "マスター、判断待ちが 2 件以上あります。優先順位の確認を推奨します。滞留が長いと見落としの原因になります。",
+        actionLine: "判断待ちのトレーで優先順位を確認する",
+      };
+    }
+    if (inProgressStaleCount >= 1) {
+      return {
+        kind: "in_progress_stale",
+        body:
+          "マスター、実施中のタスクのうち、60 分以上更新がないものが 1 件以上あります。再開または状態の変更を推奨します。長期停滞は次の一手を決めづらくします。",
+        actionLine: "実施中のトレーで該当タスクを選び、状態を更新する",
+      };
+    }
+    if (readyCount >= READY_THRESHOLD) {
+      return {
+        kind: "ready",
+        body:
+          "マスター、着手可能なタスクが 3 件以上あります。どれから着手するか選ぶことを推奨します。未着手の蓄積は優先の判断材料になります。",
+        actionLine: "着手可能なタスクから 1 件を選んで着手する",
+      };
+    }
+    return null;
+  }, [trays]);
+
   // ─── Estimate flow ─────────────────────────────────────
   //
   // 09_API_Contract.md §7: estimate-status
@@ -651,6 +710,45 @@ export default function DashboardPage() {
         >
           <div style={{ fontWeight: 700 }}>エラー</div>
           <div style={{ color: "#900" }}>{error}</div>
+        </div>
+      )}
+
+      {/* Phase11-D: 大賢者の助言（滞留検知時のみ・アイコン＋見出し＋本文＋推奨アクション） */}
+      {!loading && trays && stagnationMessage && (
+        <div
+          style={{
+            marginTop: 16,
+            padding: "14px 16px",
+            border: "1px solid #5d4037",
+            borderLeft: "4px solid #5d4037",
+            borderRadius: 8,
+            background: "#faf6f2",
+            color: "#3e2723",
+            fontSize: 13,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <span style={{ fontSize: 18, lineHeight: 1.2, color: "#5d4037" }} aria-hidden>◆</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6, color: "#4e342e" }}>
+                大賢者の助言
+              </div>
+              <div style={{ lineHeight: 1.6, marginBottom: 8 }}>
+                {stagnationMessage.body}
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#5d4037",
+                  fontWeight: 600,
+                  paddingTop: 6,
+                  borderTop: "1px solid rgba(93,64,55,0.2)",
+                }}
+              >
+                → {stagnationMessage.actionLine}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

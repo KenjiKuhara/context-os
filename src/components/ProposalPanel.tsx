@@ -187,8 +187,8 @@ function formatResponseBody(data: unknown): string {
 }
 
 const TAB_LABEL: Record<Tab, string> = {
-  organizer: "Organizer",
-  advisor: "Advisor",
+  organizer: "構成案",
+  advisor: "判断案",
 };
 
 /** Phase9-A: 履歴 1 件クリック時にツリー連動用に渡す payload */
@@ -459,7 +459,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
       if (!confRes.ok || !confJson.ok || !confJson.confirmation?.confirmation_id) {
         setApplyError({
           stage: "confirmations",
-          message: "確認IDの発行に失敗しました",
+          message: "確認の取得に失敗しました",
           status: confRes.status,
           endpoint: confEndpoint,
           body: formatResponseBody(confJson),
@@ -522,7 +522,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
         }
       } catch (_) {
         setApplySuccessMessage(
-          "適用は成功しましたが、画面更新に失敗しました。再読み込みしてください"
+          "反映は成功しましたが、画面更新に失敗しました。再読み込みしてください"
         );
       }
     } finally {
@@ -566,7 +566,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
         });
         const confJson = await confRes.json().catch(() => ({}));
         if (!confRes.ok || !confJson.ok || !confJson.confirmation?.confirmation_id) {
-          throw new Error(confJson.error || "確認IDの発行に失敗しました");
+          throw new Error(confJson.error || "確認の取得に失敗しました");
         }
         const applyRes = await fetch("/api/diffs/relation/apply", {
           method: "POST",
@@ -626,7 +626,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
         });
         const confJson = await confRes.json().catch(() => ({}));
         if (!confRes.ok || !confJson.ok || !confJson.confirmation?.confirmation_id) {
-          throw new Error(confJson.error || "確認IDの発行に失敗しました");
+          throw new Error(confJson.error || "確認の取得に失敗しました");
         }
         const applyRes = await fetch("/api/diffs/grouping/apply", {
           method: "POST",
@@ -685,7 +685,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
         });
         const confJson = await confRes.json().catch(() => ({}));
         if (!confRes.ok || !confJson.ok || !confJson.confirmation?.confirmation_id) {
-          throw new Error(confJson.error || "確認IDの発行に失敗しました");
+          throw new Error(confJson.error || "確認の取得に失敗しました");
         }
         const applyRes = await fetch("/api/diffs/decomposition/apply", {
           method: "POST",
@@ -724,7 +724,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
           color: "#666",
         }}
       >
-        <div style={{ fontWeight: 800, fontSize: 16 }}>提案パネル（Phase 4）</div>
+        <div style={{ fontWeight: 800, fontSize: 16 }}>提案パネル</div>
         <div style={{ marginTop: 8 }}>ダッシュボードを読み込んでから利用できます。</div>
       </div>
     );
@@ -740,7 +740,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
       }}
     >
       <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 12 }}>
-        提案パネル（Phase 4）
+        提案パネル
       </div>
 
       {/* タブ */}
@@ -803,7 +803,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                 cursor: organizerLoading ? "not-allowed" : "pointer",
               }}
             >
-              {organizerLoading ? "生成中…" : "Organizer提案を生成"}
+              {organizerLoading ? "生成中…" : "構成案を生成"}
             </button>
             {organizerLoading && (
               <span style={{ marginLeft: 12, color: "#666", fontSize: 13 }}>
@@ -824,7 +824,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
           {restoredDiff && (
             <div style={{ marginTop: 16 }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-                復元した Apply 候補（{restoredDiff.type === "relation" ? "relation" : restoredDiff.type === "grouping" ? "grouping" : "decomposition"}）
+                再表示した変更案（{restoredDiff.type === "relation" ? "relation" : restoredDiff.type === "grouping" ? "grouping" : "decomposition"}）
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {restoredDiff.type === "relation" && (
@@ -869,7 +869,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           cursor: relationApplyLoading ? "not-allowed" : "pointer",
                         }}
                       >
-                        {relationApplyLoading ? "適用中…" : "このDiffを反映する"}
+                        {relationApplyLoading ? "反映中…" : "この変更を反映する"}
                       </button>
                       <button
                         type="button"
@@ -929,7 +929,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           cursor: groupingApplyLoading ? "not-allowed" : "pointer",
                         }}
                       >
-                        {groupingApplyLoading ? "適用中…" : "このDiffを反映する"}
+                        {groupingApplyLoading ? "反映中…" : "この変更を反映する"}
                       </button>
                       <button
                         type="button"
@@ -1000,7 +1000,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           cursor: decompositionApplyLoading ? "not-allowed" : "pointer",
                         }}
                       >
-                        {decompositionApplyLoading ? "適用中…" : "このDiffを反映する"}
+                        {decompositionApplyLoading ? "反映中…" : "この変更を反映する"}
                       </button>
                       <button
                         type="button"
@@ -1028,7 +1028,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
               {(organizerResult.diffs as OrganizerDiffItem[]).filter((d) => d.type === "relation").length > 0 && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-                    適用可能な Diff（relation）
+                    反映できる変更案（relation）
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {(organizerResult.diffs as OrganizerDiffItem[])
@@ -1093,7 +1093,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                               cursor: relationApplyLoading ? "not-allowed" : "pointer",
                             }}
                           >
-                            {relationApplyLoading ? "適用中…" : "このDiffを反映する"}
+                            {relationApplyLoading ? "反映中…" : "この変更を反映する"}
                           </button>
                         </div>
                       ))}
@@ -1113,7 +1113,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
               {(organizerResult.diffs as OrganizerDiffItem[]).filter((d) => d.type === "grouping").length > 0 && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-                    適用可能な Diff（grouping）
+                    反映できる変更案（grouping）
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {(organizerResult.diffs as OrganizerDiffItem[])
@@ -1176,7 +1176,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                               cursor: groupingApplyLoading ? "not-allowed" : "pointer",
                             }}
                           >
-                            {groupingApplyLoading ? "適用中…" : "このDiffを反映する"}
+                            {groupingApplyLoading ? "反映中…" : "この変更を反映する"}
                           </button>
                         </div>
                       ))}
@@ -1196,7 +1196,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
               {(organizerResult.diffs as OrganizerDiffItem[]).filter((d) => d.type === "decomposition").length > 0 && (
                 <div style={{ marginTop: 16 }}>
                   <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-                    適用可能な Diff（decomposition）
+                    反映できる変更案（decomposition）
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {(organizerResult.diffs as OrganizerDiffItem[])
@@ -1270,7 +1270,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                               cursor: decompositionApplyLoading ? "not-allowed" : "pointer",
                             }}
                           >
-                            {decompositionApplyLoading ? "適用中…" : "このDiffを反映する"}
+                            {decompositionApplyLoading ? "反映中…" : "この変更を反映する"}
                           </button>
                         </div>
                       ))}
@@ -1290,10 +1290,10 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
             </>
           )}
 
-          {/* Phase7-A/7-B: 適用済み Diff 履歴 */}
+          {/* Phase7-A/7-B: 反映した変更の履歴 */}
           <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #ddd" }}>
             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-              適用済み Diff 履歴
+              反映した変更の履歴
             </div>
             {/* Phase7-B: フィルタ UI */}
             <div style={{ marginBottom: 10, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
@@ -1362,7 +1362,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
             )}
             {!historyLoading && !historyError && historyItems.length === 0 && (
               <div style={{ fontSize: 13, color: "#666" }}>
-                {filterType || nodeIdFilter.trim() ? "該当する履歴がありません" : "Apply 済みの Diff はまだありません"}
+                {filterType || nodeIdFilter.trim() ? "該当する履歴がありません" : "まだ反映した変更はありません"}
               </div>
             )}
             {!historyLoading && !historyError && historyItems.length > 0 && (
@@ -1503,7 +1503,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                                   cursor: "pointer",
                                 }}
                               >
-                                この変更内容をApply候補として再表示する
+                                この変更を候補に再表示する
                               </button>
                             </div>
                           )}
@@ -1559,7 +1559,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                 cursor: advisorLoading ? "not-allowed" : "pointer",
               }}
             >
-              {advisorLoading ? "生成中…" : "Advisor提案を生成"}
+              {advisorLoading ? "生成中…" : "判断案を生成"}
             </button>
             {advisorLoading && (
               <span style={{ marginLeft: 12, color: "#666", fontSize: 13 }}>
@@ -1603,7 +1603,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
               </div>
               {advisorReport && (
                 <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid #a5d6a7" }}>
-                  <div style={{ fontSize: 12, color: "#1b5e20", marginBottom: 8 }}>Apply（ステータス変更）</div>
+                  <div style={{ fontSize: 12, color: "#1b5e20", marginBottom: 8 }}>状態を変更する</div>
                   {!applyTargetNode ? (
                     <div style={{ fontSize: 13, color: "#c62828" }}>対象Nodeが見つかりません</div>
                   ) : (
@@ -1656,7 +1656,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                                 cursor: applyLoading ? "not-allowed" : "pointer",
                               }}
                             >
-                              {applyLoading ? "適用中…" : "Apply"}
+                              {applyLoading ? "反映中…" : "反映する"}
                             </button>
                             {applySuccessMessage && (
                               <span style={{ fontSize: 13, color: "#1b5e20" }}>{applySuccessMessage}</span>
@@ -1751,7 +1751,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
                           )}
                         </>
                       ) : (
-                        <div style={{ fontSize: 13, color: "#666" }}>現在のステータスが不明なため Apply できません</div>
+                        <div style={{ fontSize: 13, color: "#666" }}>現在の状態が分からないため反映できません</div>
                       )}
                     </>
                   )}
