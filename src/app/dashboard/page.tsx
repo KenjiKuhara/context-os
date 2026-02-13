@@ -68,6 +68,8 @@ type EstimatePreview = {
 
 /** Phase6-B: ツリー開閉状態の永続化（72 準拠） */
 const TREE_EXPANDED_STORAGE_KEY = "kuharaos.tree.expanded.v1";
+/** Phase11-E: 大賢者メッセージ再出現制御（lastHandledSageKind + timestamp） */
+const SAGE_LAST_HANDLED_KEY = "kuharaos.sage.lastHandled";
 
 /** Phase9-A: treeRoots から ノード→親 マップを構築 */
 function buildParentById(roots: TreeNode[]): Map<string, string> {
@@ -259,6 +261,8 @@ export default function DashboardPage() {
   const hasRestoredExpandedRef = useRef(false);
   /** Phase9-A: 履歴クリック連動でハイライトするノード ID の集合 */
   const [highlightNodeIds, setHighlightNodeIds] = useState<Set<string> | null>(null);
+  /** Phase11-D: 大賢者アクションクリック後、トレー切替完了時にフォーカスするノード ID */
+  const pendingSageFocusNodeIdRef = useRef<string | null>(null);
 
   /** Phase10-A: ノード詳細に関連する直近履歴 1 件 */
   const [relatedRecentHistory, setRelatedRecentHistory] = useState<{
@@ -453,6 +457,64 @@ export default function DashboardPage() {
     [viewMode, treeRoots.length, parentById, visibleNodes]
   );
 
+  /** Phase11-D: 大賢者アクション行クリック → 該当トレー展開＋最上位対象タスクにフォーカス */
+  const handleSageActionClick = useCallback(
+    (kind: string) => {
+      if (!trays) return;
+      let nodeId: string | null = null;
+      let nextTray: keyof Trays = "all";
+      if (kind === "needs_decision") {
+        nextTray = "needs_decision";
+        nodeId = trays.needs_decision[0]?.id ?? null;
+      } else if (kind === "in_progress_stale") {
+        nextTray = "in_progress";
+        const staleThreshold = Date.now() - IN_PROGRESS_STALE_MINUTES * 60 * 1000;
+        const first = trays.in_progress.find((n) => {
+          const u = n.updated_at;
+          if (!u) return true;
+          try {
+            return new Date(u).getTime() < staleThreshold;
+          } catch {
+            return true;
+          }
+        });
+        nodeId = first?.id ?? null;
+      } else if (kind === "ready") {
+        nextTray = "other_active";
+        const first = trays.other_active.find((n) => n.status === "READY");
+        nodeId = first?.id ?? null;
+      }
+      setActiveTrayKey(nextTray);
+      pendingSageFocusNodeIdRef.current = nodeId;
+      try {
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem(
+            SAGE_LAST_HANDLED_KEY,
+            JSON.stringify({ kind, timestamp: Date.now() })
+          );
+        }
+      } catch {
+        // ignore
+      }
+    },
+    [trays]
+  );
+
+  /** Phase11-D: トレー切替後にフォーカス対象ノードを選択・ツリー展開・ハイライト */
+  useEffect(() => {
+    const id = pendingSageFocusNodeIdRef.current;
+    if (!id || visibleNodes.length === 0) return;
+    const node = visibleNodes.find((n) => n.id === id);
+    if (!node) return;
+    pendingSageFocusNodeIdRef.current = null;
+    setSelected(node as Node);
+    setHighlightNodeIds(new Set([id]));
+    if (viewMode === "tree" && treeRoots.length > 0) {
+      const ancestorIds = getAncestorIds(id, parentById);
+      setExpandedSet((prev) => new Set([...prev, ...ancestorIds]));
+    }
+  }, [visibleNodes, treeRoots, viewMode, parentById]);
+
   // Phase6-B: 開閉状態の復元（tree モード時のみ・初回のみ）
   useEffect(() => {
     if (!trays || viewMode !== "tree" || hasRestoredExpandedRef.current) return;
@@ -517,7 +579,7 @@ export default function DashboardPage() {
     return c;
   }, [trays]);
 
-  /** Phase11-D: 滞留検知時のみ表示する大賢者型メッセージ（107/109 思想・事実→推奨→理由・マスター呼称） */
+  /** Phase11-D/11-E: 滞留検知時のみ表示。Phase11-E: 同 kind を直前に対応した場合は再表示しない（状態改善時のみ再出現許可） */
   const stagnationMessage = useMemo((): {
     kind: string;
     body: string;
@@ -544,31 +606,50 @@ export default function DashboardPage() {
       }
     }).length;
 
+    let candidate: { kind: string; body: string; actionLine: string } | null = null;
     if (needsDecisionCount >= NEEDS_DECISION_THRESHOLD) {
-      return {
+      candidate = {
         kind: "needs_decision",
         body:
           "マスター、判断待ちが 2 件以上あります。優先順位の確認を推奨します。滞留が長いと見落としの原因になります。",
         actionLine: "判断待ちのトレーで優先順位を確認する",
       };
-    }
-    if (inProgressStaleCount >= 1) {
-      return {
+    } else if (inProgressStaleCount >= 1) {
+      candidate = {
         kind: "in_progress_stale",
         body:
           "マスター、実施中のタスクのうち、60 分以上更新がないものが 1 件以上あります。再開または状態の変更を推奨します。長期停滞は次の一手を決めづらくします。",
         actionLine: "実施中のトレーで該当タスクを選び、状態を更新する",
       };
-    }
-    if (readyCount >= READY_THRESHOLD) {
-      return {
+    } else if (readyCount >= READY_THRESHOLD) {
+      candidate = {
         kind: "ready",
         body:
           "マスター、着手可能なタスクが 3 件以上あります。どれから着手するか選ぶことを推奨します。未着手の蓄積は優先の判断材料になります。",
         actionLine: "着手可能なタスクから 1 件を選んで着手する",
       };
     }
-    return null;
+
+    if (candidate === null) {
+      try {
+        if (typeof localStorage !== "undefined") localStorage.removeItem(SAGE_LAST_HANDLED_KEY);
+      } catch {
+        // ignore
+      }
+      return null;
+    }
+    try {
+      if (typeof localStorage !== "undefined") {
+        const raw = localStorage.getItem(SAGE_LAST_HANDLED_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { kind?: string };
+          if (parsed.kind === candidate.kind) return null;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return candidate;
   }, [trays]);
 
   // ─── Estimate flow ─────────────────────────────────────
@@ -736,17 +817,26 @@ export default function DashboardPage() {
               <div style={{ lineHeight: 1.6, marginBottom: 8 }}>
                 {stagnationMessage.body}
               </div>
-              <div
+              <button
+                type="button"
+                onClick={() => handleSageActionClick(stagnationMessage.kind)}
                 style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
                   fontSize: 12,
                   color: "#5d4037",
                   fontWeight: 600,
                   paddingTop: 6,
+                  marginTop: 6,
                   borderTop: "1px solid rgba(93,64,55,0.2)",
+                  border: "none",
+                  background: "none",
+                  cursor: "pointer",
                 }}
               >
                 → {stagnationMessage.actionLine}
-              </div>
+              </button>
             </div>
           </div>
         </div>
