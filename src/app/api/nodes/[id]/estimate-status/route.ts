@@ -460,6 +460,68 @@ export async function POST(
       });
     }
 
+    // 親が完了 or 中止の場合、子孫ノードを同様に更新し、各子に「親が完了/中止になったため」のメモを残す
+    if ((toStatus === "DONE" || toStatus === "CANCELLED") && statusChanged) {
+      const cascadeReason =
+        toStatus === "DONE"
+          ? "親が完了になったため"
+          : "親が中止になったため";
+      const { data: childRows } = await supabaseAdmin
+        .from("node_children")
+        .select("parent_id, child_id");
+      const parentToChildren = new Map<string, string[]>();
+      for (const row of childRows ?? []) {
+        const p = (row as { parent_id?: string }).parent_id;
+        const c = (row as { child_id?: string }).child_id;
+        if (p && c) {
+          const list = parentToChildren.get(p) ?? [];
+          list.push(c);
+          parentToChildren.set(p, list);
+        }
+      }
+      const descendantIds = new Set<string>();
+      const queue = [id];
+      while (queue.length > 0) {
+        const cur = queue.shift()!;
+        const children = parentToChildren.get(cur) ?? [];
+        for (const childId of children) {
+          if (!descendantIds.has(childId)) {
+            descendantIds.add(childId);
+            queue.push(childId);
+          }
+        }
+      }
+      const nowCascade = new Date().toISOString();
+      for (const childId of descendantIds) {
+        const { data: childNode } = await supabaseAdmin
+          .from("nodes")
+          .select("id, status")
+          .eq("id", childId)
+          .single();
+        if (!childNode) continue;
+        const childFrom = (childNode.status as string) ?? "";
+        if (childFrom === toStatus) continue;
+        await supabaseAdmin
+          .from("nodes")
+          .update({ status: toStatus })
+          .eq("id", childId);
+        await supabaseAdmin.from("node_status_history").insert({
+          node_id: childId,
+          from_status: childFrom,
+          to_status: toStatus,
+          reason: cascadeReason,
+          source: "cascade",
+          confirmation_id: null,
+          confirmed_by: null,
+          confirmed_at: null,
+          ui_action: null,
+          proposed_change: null,
+          consumed: true,
+          consumed_at: nowCascade,
+        });
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       applied: true,
