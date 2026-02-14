@@ -490,24 +490,36 @@ export default function DashboardPage() {
       setQuickSwitchError(null);
       setOptimisticStatusOverrides((prev) => ({ ...prev, [nodeId]: targetStatus }));
       const requestId = ++lastQuickSwitchRequestIdRef.current;
-      const confirmation = {
-        confirmation_id: crypto.randomUUID(),
-        confirmed_by: "human" as const,
-        confirmed_at: new Date().toISOString(),
-        ui_action: "dashboard_status_quick_switch",
-        proposed_change: { type: "status_change", from: selected.status, to: targetStatus },
-      };
-      fetch(`/api/nodes/${nodeId}/estimate-status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          intent: "クイック切替",
-          confirm_status: targetStatus,
-          reason: "クイック切替",
-          source: "human_ui",
-          confirmation,
-        }),
-      })
+      // Phase 2-γ: confirmation_events に先に 1 件挿入し、返却された confirmation_id で estimate-status を呼ぶ
+      const createConfirmation = () =>
+        fetch("/api/confirmations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            node_id: nodeId,
+            ui_action: "dashboard_status_quick_switch",
+            proposed_change: { type: "status_change", from: selected.status, to: targetStatus },
+          }),
+        })
+          .then((res) => res.json())
+          .then((confJson: { ok?: boolean; confirmation?: { confirmation_id?: string }; error?: string }) => {
+            if (!confJson.ok || !confJson.confirmation?.confirmation_id) throw confJson;
+            return confJson.confirmation.confirmation_id as string;
+          });
+      createConfirmation()
+        .then((confirmationId) =>
+          fetch(`/api/nodes/${nodeId}/estimate-status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              intent: "クイック切替",
+              confirm_status: targetStatus,
+              reason: "クイック切替",
+              source: "human_ui",
+              confirmation_id: confirmationId,
+            }),
+          })
+        )
         .then((res) => res.json())
         .then((json: { ok?: boolean; error?: string; valid_transitions?: Array<{ status: string; label: string }> }) => {
           if (requestId !== lastQuickSwitchRequestIdRef.current) return;
