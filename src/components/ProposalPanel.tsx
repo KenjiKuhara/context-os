@@ -197,6 +197,8 @@ export type HistoryItemSelectPayload = { primaryNodeId: string; nodeIds: string[
 export interface ProposalPanelProps {
   /** GET /api/dashboard の trays。null のときはパネルは「データなし」表示 */
   trays: Trays | null;
+  /** 構成案を生成するときの対象ノード ID（ダッシュボードで選択中のタスク）。未指定時は全ノードが対象 */
+  selectedNodeId?: string | null;
   /** Apply 成功時にダッシュボードを再取得するコールバック */
   onRefreshDashboard?: () => Promise<unknown>;
   /** Phase9-A: 履歴 1 件クリック時に該当 node_id を親に通知（ツリー展開・ハイライト・詳細表示用） */
@@ -239,7 +241,7 @@ function getHistoryItemNodeIds(item: ConfirmationHistoryItem): HistoryItemSelect
   return null;
 }
 
-export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }: ProposalPanelProps) {
+export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHistoryItemSelect }: ProposalPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("organizer");
   const [organizerLoading, setOrganizerLoading] = useState(false);
   const [advisorLoading, setAdvisorLoading] = useState(false);
@@ -354,6 +356,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           dashboard: dashboardPayload,
+          focusNodeId: selectedNodeId ?? undefined,
           userIntent: userIntent.trim() || undefined,
         }),
       });
@@ -369,7 +372,7 @@ export function ProposalPanel({ trays, onRefreshDashboard, onHistoryItemSelect }
     } finally {
       setOrganizerLoading(false);
     }
-  }, [dashboardPayload, organizerLoading, userIntent]);
+  }, [dashboardPayload, selectedNodeId, organizerLoading, userIntent]);
 
   const runAdvisor = useCallback(async () => {
     if (!dashboardPayload || advisorLoading) return;

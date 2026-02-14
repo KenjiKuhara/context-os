@@ -2213,6 +2213,7 @@ export default function DashboardPage() {
       {!loading && (
         <ProposalPanel
           trays={trays ?? null}
+          selectedNodeId={selected?.id ?? null}
           onRefreshDashboard={refreshDashboard}
           onHistoryItemSelect={handleHistoryItemSelect}
         />

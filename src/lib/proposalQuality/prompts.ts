@@ -3,7 +3,7 @@
  */
 
 import type { RunInputDashboard } from "./dashboard";
-import { extractValidNodeIds } from "./dashboard";
+import { extractValidNodeIds, resolveFocusNode } from "./dashboard";
 
 function nodesSummary(dashboard: RunInputDashboard): string {
   const ids = extractValidNodeIds(dashboard);
@@ -22,15 +22,25 @@ function nodesSummary(dashboard: RunInputDashboard): string {
 export function buildOrganizerPrompt(
   dashboard: RunInputDashboard,
   userIntent?: string | null,
-  constraints?: string | null
+  constraints?: string | null,
+  focusNodeId?: string | null
 ): string {
   const nodes = nodesSummary(dashboard);
+  const focusLine =
+    focusNodeId != null && focusNodeId !== ""
+      ? (() => {
+          const focusNode = resolveFocusNode(dashboard, focusNodeId);
+          return focusNode
+            ? `\n## 対象ノード（このノードを中心に提案すること。decomposition はこのノードを親とする提案を優先）\n- id: ${focusNode.id}, title: ${String(focusNode.title ?? "")}, status: ${String(focusNode.status ?? "")}`
+            : "";
+        })()
+      : "";
   const intent = userIntent?.trim() ? `\nユーザーの意図: ${userIntent}` : "";
   const constraint = constraints?.trim() ? `\n制約: ${constraints}` : "";
   return `あなたは Organizer（Level 1）です。Node 群を整理・構造化した提案を、以下の JSON 形式**のみ**で出力してください。余計な説明やマークダウンは付けず、JSON だけを返してください。
 
 ## 入力（机の上）
-${nodes}
+${nodes}${focusLine}
 ${intent}
 ${constraint}
 

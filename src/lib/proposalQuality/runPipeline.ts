@@ -72,7 +72,12 @@ export async function runOrganizerPipeline(
   let retryCount = 0;
 
   const systemPrompt = "You are Organizer. Output only valid JSON, no other text or markdown.";
-  let userPrompt = buildOrganizerPrompt(input.dashboard, input.userIntent, input.constraints);
+  let userPrompt = buildOrganizerPrompt(
+    input.dashboard,
+    input.userIntent,
+    input.constraints,
+    input.focusNodeId
+  );
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
