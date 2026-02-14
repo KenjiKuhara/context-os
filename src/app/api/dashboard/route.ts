@@ -39,6 +39,7 @@ export async function GET() {
 
     const nodeIds = (nodeData ?? []).map((n) => n.id as string);
     let lastMemoByNodeId: Record<string, string> = {};
+    let lastMemoAtByNodeId: Record<string, string> = {};
     if (nodeIds.length > 0) {
       const { data: historyRows } = await supabaseAdmin
         .from("node_status_history")
@@ -54,6 +55,8 @@ export async function GET() {
         if (reason) {
           seen.add(id);
           lastMemoByNodeId[id] = reason;
+          const at = row.consumed_at;
+          lastMemoAtByNodeId[id] = typeof at === "string" ? at : "";
         }
       }
     }
@@ -79,7 +82,11 @@ export async function GET() {
     };
 
     for (const n of nodeData ?? []) {
-      const nodeWithMemo = { ...n, last_memo: lastMemoByNodeId[n.id as string] ?? null };
+      const nodeWithMemo = {
+        ...n,
+        last_memo: lastMemoByNodeId[n.id as string] ?? null,
+        last_memo_at: lastMemoAtByNodeId[n.id as string] ?? null,
+      };
       switch (n.status) {
         case "IN_PROGRESS":
           trays.in_progress.push(nodeWithMemo);

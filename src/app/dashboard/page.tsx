@@ -43,8 +43,10 @@ type Node = {
   parent_id?: string | null; // Phase6-A ツリー用
   sibling_order?: number | null;
   created_at?: string | null;
-  /** 最後に追加したメモ（node_status_history の最新 reason）。一覧サブテキストで優先表示 */
+  /** 最後に追加したメモ（node_status_history の最新 reason）。一覧・詳細で優先表示 */
   last_memo?: string | null;
+  /** 最後のメモ／ステータス更新の時刻（node_status_history.consumed_at）。「更新」の相対表示に使用 */
+  last_memo_at?: string | null;
 };
 
 type Trays = {
@@ -138,6 +140,22 @@ function getStatusBadgeStyle(status: string): { background: string; color: strin
 function getNodeSubtext(n: Node): string {
   // 最後に追加したメモ（推定する／この状態にするで記録）を優先。なければ途中内容・note
   return n.last_memo ?? n.context ?? n.note ?? "";
+}
+
+/** 最終観測と同じ仕様：ISO 日時から「たった今」「N分前」「N時間前」「N日以上前」を返す */
+function formatRelativeTime(isoString: string | null | undefined): string {
+  if (!isoString) return "（不明）";
+  try {
+    const t = new Date(isoString).getTime();
+    const now = Date.now();
+    const minutes = Math.floor((now - t) / 60_000);
+    if (minutes < 1) return "たった今";
+    if (minutes < 60) return `${minutes}分前`;
+    if (minutes < 24 * 60) return `${Math.floor(minutes / 60)}時間前`;
+    return `${Math.floor(minutes / (24 * 60))}日以上前`;
+  } catch {
+    return "（不明）";
+  }
 }
 
 /** Phase10-A: 履歴 1 件の種別ラベル（102 設計 §4） */
@@ -1398,14 +1416,17 @@ export default function DashboardPage() {
                     </span>
                   </div>
                 )}
-                {selected.context && (
+                {(selected.last_memo ?? selected.context) && (
                   <div style={{ marginTop: 4 }}>
                     <b>途中内容：</b>
-                    <span style={{ color: "var(--text-primary)" }}>{selected.context}</span>
+                    <span style={{ color: "var(--text-primary)" }}>
+                      {selected.last_memo ?? selected.context ?? ""}
+                    </span>
                   </div>
                 )}
                 <div style={{ marginTop: 4 }} suppressHydrationWarning>
-                  <b>更新：</b> {selected.updated_at ?? "（不明）"}
+                  <b>最終更新：</b>{" "}
+                  {formatRelativeTime(selected.last_memo_at ?? selected.updated_at)}
                 </div>
               </div>
 
