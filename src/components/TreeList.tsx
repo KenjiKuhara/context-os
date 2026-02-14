@@ -276,6 +276,7 @@ function DropSlot({
             right: 0,
             height: "2px",
             background: "var(--color-insertion-line, hsl(25, 90%, 55%))",
+            pointerEvents: "none",
           }}
         />
       )}
