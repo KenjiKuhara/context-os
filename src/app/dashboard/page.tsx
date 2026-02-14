@@ -1502,19 +1502,23 @@ export default function DashboardPage() {
               getNodeSubtext={(n) => getNodeSubtext(n as Node)}
               getStatusLabel={(n) => getStatusLabel(optimisticStatusOverrides[(n as Node).id] ?? (n as { status?: string }).status ?? "")}
               highlightIds={highlightNodeIds}
-              onTreeMove={async (movedNodeId, newParentId, orderedSiblingIds) => {
-                const res = await fetch("/api/tree/move", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ movedNodeId, newParentId, orderedSiblingIds }),
-                });
-                const json = await res.json();
-                if (!json.ok) {
-                  setError(json.error ?? "ツリーの移動に失敗しました");
-                  return;
-                }
-                await refreshDashboard();
-              }}
+              onTreeMove={
+                activeTrayKey === "all"
+                  ? async (movedNodeId, newParentId, orderedSiblingIds) => {
+                      const res = await fetch("/api/tree/move", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ movedNodeId, newParentId, orderedSiblingIds }),
+                      });
+                      const json = await res.json();
+                      if (!json.ok) {
+                        setError(json.error ?? "ツリーの移動に失敗しました");
+                        return;
+                      }
+                      await refreshDashboard();
+                    }
+                  : undefined
+              }
             />
           ) : (
             visibleNodes.map((n) => {

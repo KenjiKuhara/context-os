@@ -257,15 +257,28 @@ function DropSlot({
   const dropId = `${DROP_ID_PREFIX}${parentKey}-${siblingIndex}`;
   const allowed = !activeId || canDrop(activeId, parentId);
   const { setNodeRef, isOver } = useDroppable({ id: dropId, data: { parentId, siblingIndex }, disabled: !allowed });
+  const showLine = isOver && allowed;
   return (
     <div
       ref={setNodeRef}
       style={{
+        position: "relative",
         minHeight: 4,
-        background: isOver && allowed ? "var(--border-focus)" : undefined,
-        borderRadius: 2,
+        ...(showLine && { backgroundColor: "rgba(255, 140, 0, 0.05)" }),
       }}
     >
+      {showLine && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: "2px",
+            background: "var(--color-insertion-line, hsl(25, 90%, 55%))",
+          }}
+        />
+      )}
       {children}
     </div>
   );
@@ -280,6 +293,7 @@ function DraggableTreeRow({
   siblingIndex,
   orderedChildrenByParentId,
   descendantIdsOfDragged,
+  activeDragId,
 }: {
   nodeId: string;
   tn: TreeNode;
@@ -289,6 +303,7 @@ function DraggableTreeRow({
   siblingIndex: number;
   orderedChildrenByParentId: Map<string | null, string[]>;
   descendantIdsOfDragged: (id: string) => Set<string>;
+  activeDragId: string | null;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: nodeId,
@@ -332,7 +347,7 @@ function DraggableTreeRow({
                 （循環のため表示を打ち切り）
               </div>
             ) : (
-              renderNodeInner(c, props, depth + 1, tn.id, i, orderedChildrenByParentId, descendantIdsOfDragged, null)
+              renderNodeInner(c, props, depth + 1, tn.id, i, orderedChildrenByParentId, descendantIdsOfDragged, activeDragId)
             )
           )}
         </div>
@@ -379,6 +394,7 @@ function renderNodeInner(
             siblingIndex={siblingIndex}
             orderedChildrenByParentId={orderedChildrenByParentId}
             descendantIdsOfDragged={descendantIdsOfDragged}
+            activeDragId={activeDragId}
           />
         </DropSlot>
       </div>

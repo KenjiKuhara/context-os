@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { isDescendant } from "@/lib/dashboardTree";
+import { validateTreeMove, type NodeRow } from "./validate";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -33,21 +33,13 @@ function buildParentToChildrenFromNodes(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => null);
-    const movedNodeId = body?.movedNodeId;
-    const newParentId = body?.newParentId === null ? null : body?.newParentId;
-    const orderedSiblingIds = Array.isArray(body?.orderedSiblingIds)
-      ? (body.orderedSiblingIds as unknown[]).filter((x): x is string => typeof x === "string" && UUID_RE.test(x))
-      : undefined;
-
-    if (!validUuid(movedNodeId)) {
-      return NextResponse.json({ ok: false, error: "movedNodeId required (UUID)" }, { status: 400 });
-    }
-    if (newParentId !== null && !validUuid(newParentId)) {
-      return NextResponse.json({ ok: false, error: "newParentId must be null or UUID" }, { status: 400 });
-    }
-    if (movedNodeId === newParentId) {
-      return NextResponse.json({ ok: false, error: "cannot move node to itself" }, { status: 400 });
-    }
+    const logReject = (reason: string, movedNodeId: unknown, newParentId: unknown) => {
+      console.warn("[tree/move] reject", {
+        movedNodeId: typeof movedNodeId === "string" ? movedNodeId.slice(0, 8) : "",
+        newParentId: newParentId === null ? null : (newParentId as string).slice(0, 8),
+        reason,
+      });
+    };
 
     const { data: allNodes, error: fetchErr } = await supabaseAdmin
       .from("nodes")
@@ -55,22 +47,22 @@ export async function POST(req: NextRequest) {
       .limit(2000);
 
     if (fetchErr) throw fetchErr;
-    const nodes = (allNodes ?? []) as Array<{ id: string; parent_id?: string | null; sibling_order?: number | null }>;
+    const nodes = (allNodes ?? []) as NodeRow[];
+    const validation = validateTreeMove(body ?? {}, nodes);
+    if (!validation.ok) {
+      logReject(validation.error, body?.movedNodeId, body?.newParentId);
+      return NextResponse.json({ ok: false, error: validation.error }, { status: validation.status });
+    }
+
+    const movedNodeId = body?.movedNodeId as string;
+    const newParentId = body?.newParentId === null ? null : (body?.newParentId as string);
+    const orderedSiblingIds = Array.isArray(body?.orderedSiblingIds)
+      ? (body.orderedSiblingIds as unknown[]).filter((x): x is string => typeof x === "string" && UUID_RE.test(x))
+      : undefined;
+
     const nodeById = new Map(nodes.map((n) => [n.id, n]));
-
-    const moved = nodeById.get(movedNodeId);
-    if (!moved) {
-      return NextResponse.json({ ok: false, error: "movedNodeId not found" }, { status: 404 });
-    }
-    if (newParentId !== null && !nodeById.has(newParentId)) {
-      return NextResponse.json({ ok: false, error: "newParentId not found" }, { status: 404 });
-    }
-
+    const moved = nodeById.get(movedNodeId)!;
     const parentToChildren = buildParentToChildrenFromNodes(nodes);
-    if (newParentId !== null && isDescendant(movedNodeId, newParentId, parentToChildren)) {
-      return NextResponse.json({ ok: false, error: "would create cycle (target is descendant of moved)" }, { status: 400 });
-    }
-
     const oldParentId = moved.parent_id?.trim() ?? null;
     const isReorder = oldParentId === newParentId;
 
