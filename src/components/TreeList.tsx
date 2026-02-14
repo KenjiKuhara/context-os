@@ -14,6 +14,8 @@ import {
   KeyboardSensor,
   useSensor,
   useSensors,
+  pointerWithin,
+  rectIntersection,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
@@ -490,6 +492,15 @@ export function TreeList(props: TreeListProps) {
     useSensor(KeyboardSensor)
   );
 
+  const collisionDetection = useCallback(
+    (args: Parameters<typeof pointerWithin>[0]) => {
+      const pointer = pointerWithin(args);
+      if (pointer.length > 0) return pointer;
+      return rectIntersection(args);
+    },
+    []
+  );
+
   const visibleIds = useMemo(
     () => buildVisibleIds(props.roots, props.expandedSet),
     [props.roots, props.expandedSet]
@@ -617,6 +628,7 @@ export function TreeList(props: TreeListProps) {
     return (
       <DndContext
         sensors={sensors}
+        collisionDetection={collisionDetection}
         onDragStart={({ active }) => setActiveDragId(active.id as string)}
         onDragEnd={handleDragEnd}
       >
