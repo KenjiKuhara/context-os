@@ -152,14 +152,23 @@ export function isDescendant(
 }
 
 /**
- * Phase12-D: サブツリー内の最新活動日時（max updated_at）を取得。
- * ルート自身と配下全ノードの updated_at の最大値。無い場合は '' でソート時に末尾へ。
+ * Phase12-D: サブツリー内の最新活動日時を取得。
+ * ルート自身と配下全ノードについて「最終更新」＝ updated_at と last_memo_at の遅い方の最大値。
+ * 無い場合は '' でソート時に末尾へ。
  */
+function getLatestAt(node: Record<string, unknown> | undefined): string {
+  if (!node) return "";
+  const u = node.updated_at;
+  const m = node.last_memo_at;
+  const uStr = typeof u === "string" && u.trim() !== "" ? u : "";
+  const mStr = typeof m === "string" && m.trim() !== "" ? m : "";
+  if (!mStr) return uStr;
+  if (!uStr) return mStr;
+  return mStr > uStr ? mStr : uStr;
+}
+
 function getMaxUpdatedAtInSubtree(tn: TreeNode): string {
-  const selfAt =
-    tn.node && typeof tn.node.updated_at === "string" && tn.node.updated_at.trim() !== ""
-      ? tn.node.updated_at
-      : "";
+  const selfAt = getLatestAt(tn.node);
   let max = selfAt;
   for (const child of tn.children) {
     const childAt = getMaxUpdatedAtInSubtree(child);
@@ -172,7 +181,7 @@ function getMaxUpdatedAtInSubtree(tn: TreeNode): string {
  * 表示用ツリーを組み立てる。
  * @param nodes - 表示対象ノード一覧（トレーでフィルタ済み想定）
  * @param nodeChildren - API から返る node_children（parent_id, child_id, created_at）
- * @returns ルートから並んだ TreeNode の配列。Phase12-D: ルートは「最新活動日時」降順。
+ * @returns ルートから並んだ TreeNode の配列。一番トップのタスクのみ、そのタスクと配下の「最終更新」（updated_at / last_memo_at の遅い方）が新しい順。
  */
 export function buildTree(
   nodes: Array<Record<string, unknown> & { id: string; parent_id?: string | null }>,
