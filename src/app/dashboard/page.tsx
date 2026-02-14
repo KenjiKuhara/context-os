@@ -1173,10 +1173,6 @@ export default function DashboardPage() {
               alignItems: "center",
               gap: 8,
               marginBottom: 6,
-              padding: "6px 10px",
-              borderRadius: 8,
-              border: "1px solid var(--border-default)",
-              background: "var(--bg-card)",
               color: "var(--text-secondary)",
               fontSize: 12,
             }}
@@ -1188,12 +1184,13 @@ export default function DashboardPage() {
                   type="button"
                   onClick={() => setSelected(null)}
                   style={{
-                    padding: "4px 10px",
-                    borderRadius: 6,
+                    padding: "8px 14px",
+                    borderRadius: 8,
                     border: "1px solid var(--border-default)",
                     background: "var(--bg-card)",
                     color: "var(--text-primary)",
-                    fontSize: 12,
+                    fontSize: 13,
+                    fontWeight: 600,
                     cursor: "pointer",
                     flexShrink: 0,
                   }}
