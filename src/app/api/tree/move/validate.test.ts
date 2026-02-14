@@ -93,12 +93,27 @@ describe("validateTreeMove", () => {
     expect(result.error).toContain("newParentId not found");
   });
 
-  it("reject: reorder 時 orderedSiblingIds が兄弟全体と一致しないで 400", () => {
+  it("正常: reorder で orderedSiblingIds が兄弟の部分集合でも valid（マージされる）", () => {
     const result = validateTreeMove(
       {
         movedNodeId: uuid("c"),
         newParentId: uuid("b"),
         orderedSiblingIds: [uuid("c")],
+      },
+      [
+        ...nodes,
+        { id: uuid("d"), parent_id: uuid("b"), sibling_order: 1 },
+      ]
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("reject: reorder 時 orderedSiblingIds に兄弟でない ID が含まれると 400", () => {
+    const result = validateTreeMove(
+      {
+        movedNodeId: uuid("c"),
+        newParentId: uuid("b"),
+        orderedSiblingIds: [uuid("a"), uuid("c")],
       },
       [
         ...nodes,

@@ -74,11 +74,11 @@ export function validateTreeMove(
 
   if (isReorder && orderedSiblingIds && orderedSiblingIds.length > 0) {
     const oldSet = new Set(oldSiblingIds);
-    const newSet = new Set(orderedSiblingIds);
-    if (oldSet.size !== newSet.size || [...newSet].some((id) => !oldSet.has(id))) {
+    const hasInvalidId = orderedSiblingIds.some((id) => !oldSet.has(id));
+    if (hasInvalidId) {
       return {
         ok: false,
-        error: "orderedSiblingIds must match current siblings exactly (reorder)",
+        error: "orderedSiblingIds must only contain current siblings (reorder)",
         status: 400,
       };
     }

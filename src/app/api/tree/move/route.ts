@@ -77,7 +77,13 @@ export async function POST(req: NextRequest) {
 
     let newSiblingIds: string[];
     if (orderedSiblingIds && orderedSiblingIds.length > 0) {
-      newSiblingIds = orderedSiblingIds;
+      if (isReorder) {
+        const orderedSet = new Set(orderedSiblingIds);
+        const missing = oldSiblingIds.filter((id) => !orderedSet.has(id));
+        newSiblingIds = [...orderedSiblingIds, ...missing];
+      } else {
+        newSiblingIds = orderedSiblingIds;
+      }
     } else if (isReorder) {
       newSiblingIds = oldSiblingIds;
     } else {
