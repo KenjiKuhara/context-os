@@ -47,6 +47,8 @@ type Node = {
   last_memo?: string | null;
   /** 最後のメモ／ステータス更新の時刻（node_status_history.consumed_at）。「更新」の相対表示に使用 */
   last_memo_at?: string | null;
+  /** 期日（YYYY-MM-DD）。未設定は null */
+  due_date?: string | null;
 };
 
 type Trays = {
@@ -122,6 +124,13 @@ const IN_PROGRESS_STALE_MINUTES = 60;
 
 function getNodeTitle(n: Node): string {
   return n.title ?? n.name ?? "(タイトルなし)";
+}
+
+function formatDueDateDisplay(dueDate: string | null | undefined): string {
+  if (dueDate == null || dueDate === "") return "未設定";
+  const s = dueDate.trim();
+  if (!s) return "未設定";
+  return s.replace(/-/g, "/");
 }
 
 function getStatusLabel(status: string): string {
@@ -367,6 +376,11 @@ export default function DashboardPage() {
   /** タイトル保存中フラグ。Enter 保存直後の blur で二重保存しないため */
   const [titleSaveInFlight, setTitleSaveInFlight] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  /** 期日編集モード（編集中のノード ID） */
+  const [dueDateEditingNodeId, setDueDateEditingNodeId] = useState<string | null>(null);
+  /** 期日保存中フラグ。二重保存防止 */
+  const [dueDateSaveInFlight, setDueDateSaveInFlight] = useState(false);
+  const dueDateInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Data fetch ─────────────────────────────────────────
 
@@ -611,6 +625,12 @@ export default function DashboardPage() {
     }
   }, [titleEditingNodeId]);
 
+  useEffect(() => {
+    if (dueDateEditingNodeId && dueDateInputRef.current) {
+      dueDateInputRef.current.focus();
+    }
+  }, [dueDateEditingNodeId]);
+
   // Phase14-QuickAdd / Phase15-P0: 親選択中は parent_id 付与で子として追加。二重送信は300ms連打のみ防止。
   const handleQuickAddSubmit = useCallback(() => {
     const title = quickAddValue.trim();
@@ -806,6 +826,49 @@ export default function DashboardPage() {
   /** タスクタイトル インライン編集: キャンセル（ESC） */
   const handleTitleCancel = useCallback(() => {
     setTitleEditingNodeId(null);
+  }, []);
+
+  /** 期日: 保存（日付選択 or 解除）。二重保存防止のため dueDateSaveInFlight 中はスキップ */
+  const handleDueDateSave = useCallback(
+    (nodeId: string, value: string | null) => {
+      const current = selected?.id === nodeId ? (selected.due_date ?? null) : null;
+      const currentNorm = current == null || current === "" ? null : String(current).slice(0, 10);
+      const newNorm = value == null || value.trim() === "" ? null : value.trim().slice(0, 10);
+      if (currentNorm === newNorm) return;
+      setError(null);
+      setDueDateSaveInFlight(true);
+      fetch(`/api/nodes/${nodeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ due_date: newNorm, logChange: true }),
+      })
+        .then((res) => res.json())
+        .then((json: { ok?: boolean; error?: string; unchanged?: boolean }) => {
+          if (!json.ok) throw new Error(json.error ?? "保存に失敗しました");
+          setDueDateEditingNodeId(null);
+          return refreshDashboard().then((newTrays) => ({ newTrays, unchanged: json.unchanged }));
+        })
+        .then(({ newTrays, unchanged }) => {
+          if (newTrays && selected?.id === nodeId) {
+            const latest = findNodeInTrays(newTrays, nodeId);
+            if (latest) setSelected(latest);
+          }
+          setStatusLogRefreshKey((k) => k + 1);
+          if (!unchanged) {
+            setResultMessage("期日を更新しました");
+            setTimeout(() => setResultMessage(null), 2500);
+          }
+        })
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : "期日の保存に失敗しました");
+        })
+        .finally(() => setDueDateSaveInFlight(false));
+    },
+    [selected, refreshDashboard]
+  );
+
+  const handleDueDateCancel = useCallback(() => {
+    setDueDateEditingNodeId(null);
   }, []);
 
   // ─── Computed ───────────────────────────────────────────
@@ -1705,6 +1768,107 @@ export default function DashboardPage() {
                 )}
               </div>
 
+              {/* 期日: 表示 or 編集（date input）・解除 */}
+              <div style={{ marginTop: 8, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                <b>期日：</b>
+                {dueDateEditingNodeId === selected.id ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+                    <input
+                      ref={dueDateInputRef}
+                      type="date"
+                      defaultValue={selected.due_date ?? ""}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          e.preventDefault();
+                          handleDueDateCancel();
+                        }
+                      }}
+                      onChange={(e) => {
+                        if (dueDateSaveInFlight) return;
+                        const v = (e.target as HTMLInputElement).value.trim();
+                        if (v) handleDueDateSave(selected.id, v);
+                      }}
+                      onBlur={(e) => {
+                        if (dueDateSaveInFlight) return;
+                        const v = (e.target as HTMLInputElement).value.trim();
+                        if (v) handleDueDateSave(selected.id, v);
+                        else handleDueDateCancel();
+                      }}
+                      style={{
+                        padding: "4px 8px",
+                        border: "1px solid var(--border-focus)",
+                        borderRadius: 4,
+                        background: "var(--bg-card)",
+                        color: "var(--text-primary)",
+                      }}
+                      data-testid="detail-due-date-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (dueDateSaveInFlight) return;
+                        handleDueDateSave(selected.id, null);
+                      }}
+                      style={{
+                        padding: "4px 8px",
+                        fontSize: 12,
+                        border: "1px solid var(--border-default)",
+                        borderRadius: 4,
+                        background: "var(--bg-card)",
+                        color: "var(--text-secondary)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      解除
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <span>{formatDueDateDisplay(selected.due_date)}</span>
+                    <button
+                      type="button"
+                      onClick={() => setDueDateEditingNodeId(selected.id)}
+                      style={{
+                        padding: 4,
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        color: "var(--text-muted)",
+                        fontSize: 14,
+                      }}
+                      title="期日を編集"
+                      aria-label="期日を編集"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                    {selected.due_date ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (dueDateSaveInFlight) return;
+                          handleDueDateSave(selected.id, null);
+                        }}
+                        style={{
+                          padding: 2,
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          color: "var(--text-muted)",
+                          fontSize: 14,
+                        }}
+                        title="期日を解除"
+                        aria-label="期日を解除"
+                      >
+                        ×
+                      </button>
+                    ) : null}
+                  </>
+                )}
+              </div>
+
               <div style={{ marginTop: 8, fontSize: 13 }}>
                 <div>
                   <b>状態：</b> <StatusBadge status={displayStatus(selected)} />
@@ -1890,12 +2054,15 @@ export default function DashboardPage() {
                     {statusLog.map((entry, i) => {
                       const isStatusChange = entry.from_status !== entry.to_status;
                       const isTitleChange = typeof entry.reason === "string" && entry.reason.startsWith("タイトル変更:");
+                      const isDueDateChange = typeof entry.reason === "string" && entry.reason.startsWith("期日変更:");
                       const timeStr = formatLastUpdated(entry.consumed_at);
                       const label = isTitleChange
                         ? "タイトル変更"
-                        : isStatusChange
-                          ? `ステータス更新: ${getStatusLabel(entry.from_status)} → ${getStatusLabel(entry.to_status)}`
-                          : "メモ";
+                        : isDueDateChange
+                          ? "期日変更"
+                          : isStatusChange
+                            ? `ステータス更新: ${getStatusLabel(entry.from_status)} → ${getStatusLabel(entry.to_status)}`
+                            : "メモ";
                       const reasonTrim = typeof entry.reason === "string" ? entry.reason.trim() : "";
                       return (
                         <li key={i} style={{ marginTop: 6 }}>

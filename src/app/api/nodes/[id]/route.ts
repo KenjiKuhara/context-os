@@ -1,12 +1,27 @@
 /**
  * PATCH /api/nodes/:id
  *
- * タスクタイトルのインライン編集用。title 更新と変更時のみ node_status_history に履歴を残す。
- * 同一リクエスト内で nodes 更新 → history insert の順で実行。
+ * タスクの title / due_date を更新。変更時のみ node_status_history に履歴を残す。
+ * Body: title と due_date のどちらかまたは両方。少なくともどちらか必須。
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidDateString(s: string): boolean {
+  if (!DATE_ONLY_RE.test(s)) return false;
+  const d = new Date(s);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+function dueDateToDisplay(v: string | null | undefined): string {
+  if (v == null || v === "") return "未設定";
+  const s = typeof v === "string" ? v.trim() : "";
+  if (!s) return "未設定";
+  return s.replace(/-/g, "/");
+}
 
 export async function PATCH(
   req: NextRequest,
@@ -29,26 +44,63 @@ export async function PATCH(
       );
     }
 
-    const titleRaw = (body as { title?: unknown }).title;
-    const logChange = (body as { logChange?: unknown }).logChange !== false;
-
-    if (titleRaw === undefined || titleRaw === null) {
+    const hasTitle = "title" in body;
+    const hasDueDate = "due_date" in body;
+    if (!hasTitle && !hasDueDate) {
       return NextResponse.json(
-        { ok: false, error: "title is required" },
+        { ok: false, error: "title or due_date is required" },
         { status: 400 }
       );
     }
-    const newTitle = typeof titleRaw === "string" ? titleRaw.trim() : "";
-    if (newTitle === "") {
-      return NextResponse.json(
-        { ok: false, error: "title must not be empty" },
-        { status: 400 }
-      );
+
+    const logChange = (body as { logChange?: unknown }).logChange !== false;
+
+    let newTitle: string | undefined;
+    if (hasTitle) {
+      const titleRaw = (body as { title?: unknown }).title;
+      if (titleRaw === undefined || titleRaw === null) {
+        return NextResponse.json(
+          { ok: false, error: "title must not be empty when provided" },
+          { status: 400 }
+        );
+      }
+      const t = typeof titleRaw === "string" ? titleRaw.trim() : "";
+      if (t === "") {
+        return NextResponse.json(
+          { ok: false, error: "title must not be empty" },
+          { status: 400 }
+        );
+      }
+      newTitle = t;
+    }
+
+    let newDueDate: string | null | undefined;
+    if (hasDueDate) {
+      const dueRaw = (body as { due_date?: unknown }).due_date;
+      if (dueRaw === null || dueRaw === undefined) {
+        newDueDate = null;
+      } else if (typeof dueRaw === "string") {
+        const s = dueRaw.trim();
+        if (!s) newDueDate = null;
+        else if (!isValidDateString(s)) {
+          return NextResponse.json(
+            { ok: false, error: "due_date must be YYYY-MM-DD or null" },
+            { status: 400 }
+          );
+        } else {
+          newDueDate = s;
+        }
+      } else {
+        return NextResponse.json(
+          { ok: false, error: "due_date must be string or null" },
+          { status: 400 }
+        );
+      }
     }
 
     const { data: currentNode, error: selErr } = await supabaseAdmin
       .from("nodes")
-      .select("id, title, status, updated_at")
+      .select("id, title, status, updated_at, due_date")
       .eq("id", id.trim())
       .single();
 
@@ -60,14 +112,25 @@ export async function PATCH(
     }
 
     const currentTitle = typeof currentNode.title === "string" ? currentNode.title.trim() : "";
-    if (currentTitle === newTitle) {
+    const currentDueDate = currentNode.due_date ?? null;
+    const currentDueNorm = currentDueDate == null || currentDueDate === "" ? null : String(currentDueDate).slice(0, 10);
+    const newDueNorm = newDueDate === undefined ? undefined : (newDueDate === null || newDueDate === "" ? null : newDueDate.slice(0, 10));
+
+    const titleChanged = hasTitle && newTitle !== undefined && currentTitle !== newTitle;
+    const dueDateChanged = hasDueDate && newDueNorm !== undefined && currentDueNorm !== newDueNorm;
+
+    if (!titleChanged && !dueDateChanged) {
       return NextResponse.json({ ok: true, unchanged: true });
     }
 
     const now = new Date().toISOString();
+    const update: Record<string, unknown> = { updated_at: now };
+    if (titleChanged && newTitle !== undefined) update.title = newTitle;
+    if (dueDateChanged && newDueNorm !== undefined) update.due_date = newDueNorm;
+
     const { error: updErr } = await supabaseAdmin
       .from("nodes")
-      .update({ title: newTitle, updated_at: now })
+      .update(update)
       .eq("id", id.trim());
 
     if (updErr) {
@@ -77,21 +140,27 @@ export async function PATCH(
       );
     }
 
-    if (logChange) {
+    const currentStatus = (currentNode.status as string) ?? "";
+    if (logChange && titleChanged) {
       const reason = `タイトル変更:\n「${currentTitle || "(なし)"}」\n↓\n「${newTitle}」`;
-      const currentStatus = (currentNode.status as string) ?? "";
-      const { error: histErr } = await supabaseAdmin
-        .from("node_status_history")
-        .insert({
-          node_id: id.trim(),
-          from_status: currentStatus,
-          to_status: currentStatus,
-          reason,
-        });
-
-      if (histErr) {
-        console.warn("[nodes PATCH] history insert failed:", histErr.message);
-      }
+      await supabaseAdmin.from("node_status_history").insert({
+        node_id: id.trim(),
+        from_status: currentStatus,
+        to_status: currentStatus,
+        reason,
+      });
+    }
+    if (logChange && dueDateChanged) {
+      const fromDisplay = dueDateToDisplay(currentDueNorm ?? null);
+      const toDisplay = newDueNorm == null ? "未設定" : dueDateToDisplay(newDueNorm);
+      const reason = `期日変更:\n「${fromDisplay}」\n↓\n「${toDisplay}」`;
+      const { error: histErr } = await supabaseAdmin.from("node_status_history").insert({
+        node_id: id.trim(),
+        from_status: currentStatus,
+        to_status: currentStatus,
+        reason,
+      });
+      if (histErr) console.warn("[nodes PATCH] due_date history insert failed:", histErr.message);
     }
 
     return NextResponse.json({ ok: true });
