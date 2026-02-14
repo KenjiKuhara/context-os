@@ -20,6 +20,7 @@ import {
 } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
 import { useDroppable } from "@dnd-kit/core";
+import { useDndContext } from "@dnd-kit/core";
 import type { TreeNode } from "@/lib/dashboardTree";
 
 const INDENT_PX = 20;
@@ -119,6 +120,7 @@ export interface TreeListProps {
 }
 
 const DROP_ID_PREFIX = "drop-";
+const NEST_DROP_PREFIX = "drop-nest-";
 const ROOT_KEY = "root";
 
 function parseDropId(id: string): { parentId: string | null; siblingIndex: number } | null {
@@ -287,6 +289,34 @@ function DropSlot({
   );
 }
 
+/** 行の右20%ゾーン。ここにドロップすると target の子になる（nest） */
+function NestDropZone({
+  nodeId,
+  canDrop,
+  activeId,
+}: {
+  nodeId: string;
+  canDrop: (movedId: string, targetParentId: string | null) => boolean;
+  activeId: string | null;
+}) {
+  const allowed = !activeId || canDrop(activeId, nodeId);
+  const { setNodeRef } = useDroppable({
+    id: `${NEST_DROP_PREFIX}${nodeId}`,
+    data: { nodeId },
+    disabled: !allowed,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        width: "20%",
+        minWidth: 32,
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
 function DraggableTreeRow({
   nodeId,
   tn,
@@ -297,6 +327,8 @@ function DraggableTreeRow({
   orderedChildrenByParentId,
   descendantIdsOfDragged,
   activeDragId,
+  nestOverNodeId,
+  canDrop,
 }: {
   nodeId: string;
   tn: TreeNode;
@@ -307,6 +339,8 @@ function DraggableTreeRow({
   orderedChildrenByParentId: Map<string | null, string[]>;
   descendantIdsOfDragged: (id: string) => Set<string>;
   activeDragId: string | null;
+  nestOverNodeId: string | null;
+  canDrop: (movedId: string, targetParentId: string | null) => boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: nodeId,
@@ -316,44 +350,70 @@ function DraggableTreeRow({
   const isExpanded = props.expandedSet.has(nodeId);
   const isHighlighted = (props.highlightIds?.has(nodeId)) ?? false;
   const statusLabel = props.getStatusLabel ? props.getStatusLabel(tn.node) : "";
+  const showNestBar = nestOverNodeId === nodeId;
   return (
-    <div ref={setNodeRef} style={{ opacity: isDragging ? 0.5 : 1 }}>
-      <TreeRow
-        node={tn.node}
-        depth={depth}
-        isExpanded={isExpanded}
-        hasChildren={hasChildren}
-        childCount={tn.children.length}
-        onToggle={() => props.onToggleExpand(nodeId)}
-        onSelect={() => props.onSelectNode(tn.node)}
-        isSelected={props.selectedId === nodeId}
-        isHighlighted={isHighlighted}
-        getTitle={props.getNodeTitle}
-        getSubtext={props.getNodeSubtext}
-        statusLabel={statusLabel}
-        dragHandleProps={{ ...attributes, ...listeners }}
-      />
-      {hasChildren && isExpanded && (
-        <div>
-          {tn.children.map((c, i) =>
-            c.cycleDetected ? (
-              <div
-                key={c.id}
-                style={{
-                  paddingLeft: (depth + 1) * INDENT_PX + 22,
-                  paddingTop: 4,
-                  paddingBottom: 4,
-                  fontSize: 12,
-                  color: "var(--text-danger)",
-                }}
-              >
-                （循環のため表示を打ち切り）
-              </div>
-            ) : (
-              renderNodeInner(c, props, depth + 1, tn.id, i, orderedChildrenByParentId, descendantIdsOfDragged, activeDragId)
-            )
-          )}
-        </div>
+    <div
+      ref={setNodeRef}
+      style={{
+        display: "flex",
+        position: "relative",
+        opacity: isDragging ? 0.5 : 1,
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <TreeRow
+          node={tn.node}
+          depth={depth}
+          isExpanded={isExpanded}
+          hasChildren={hasChildren}
+          childCount={tn.children.length}
+          onToggle={() => props.onToggleExpand(nodeId)}
+          onSelect={() => props.onSelectNode(tn.node)}
+          isSelected={props.selectedId === nodeId}
+          isHighlighted={isHighlighted}
+          getTitle={props.getNodeTitle}
+          getSubtext={props.getNodeSubtext}
+          statusLabel={statusLabel}
+          dragHandleProps={{ ...attributes, ...listeners }}
+        />
+        {hasChildren && isExpanded && (
+          <div>
+            {tn.children.map((c, i) =>
+              c.cycleDetected ? (
+                <div
+                  key={c.id}
+                  style={{
+                    paddingLeft: (depth + 1) * INDENT_PX + 22,
+                    paddingTop: 4,
+                    paddingBottom: 4,
+                    fontSize: 12,
+                    color: "var(--text-danger)",
+                  }}
+                >
+                  （循環のため表示を打ち切り）
+                </div>
+              ) : (
+                renderNodeInner(c, props, depth + 1, tn.id, i, orderedChildrenByParentId, descendantIdsOfDragged, activeDragId, nestOverNodeId)
+              )
+            )}
+          </div>
+        )}
+      </div>
+      {props.onTreeMove && (
+        <NestDropZone nodeId={nodeId} canDrop={canDrop} activeId={activeDragId} />
+      )}
+      {showNestBar && (
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: 4,
+            background: "var(--color-nest-indicator, hsl(260, 70%, 55%))",
+            pointerEvents: "none",
+          }}
+        />
       )}
     </div>
   );
@@ -367,7 +427,8 @@ function renderNodeInner(
   siblingIndex: number,
   orderedChildrenByParentId: Map<string | null, string[]>,
   descendantIdsOfDragged: (id: string) => Set<string>,
-  activeDragId: string | null
+  activeDragId: string | null,
+  nestOverNodeId: string | null
 ): React.ReactNode {
   const id = tn.id;
   const hasChildren = tn.children.length > 0;
@@ -398,6 +459,8 @@ function renderNodeInner(
             orderedChildrenByParentId={orderedChildrenByParentId}
             descendantIdsOfDragged={descendantIdsOfDragged}
             activeDragId={activeDragId}
+            nestOverNodeId={nestOverNodeId}
+            canDrop={canDrop}
           />
         </DropSlot>
       </div>
@@ -436,7 +499,7 @@ function renderNodeInner(
                 （循環のため表示を打ち切り）
               </div>
             ) : (
-              renderNodeInner(c, props, depth + 1, tn.id, i, orderedChildrenByParentId, descendantIdsOfDragged, activeDragId)
+              renderNodeInner(c, props, depth + 1, tn.id, i, orderedChildrenByParentId, descendantIdsOfDragged, activeDragId, nestOverNodeId)
             )
           )}
         </div>
@@ -453,9 +516,57 @@ function renderNode(
   siblingIndex: number,
   orderedChildrenByParentId: Map<string | null, string[]>,
   descendantIdsOfDragged: (id: string) => Set<string>,
-  activeDragId: string | null
+  activeDragId: string | null,
+  nestOverNodeId: string | null
 ): React.ReactNode {
-  return renderNodeInner(tn, props, depth, parentId, siblingIndex, orderedChildrenByParentId, descendantIdsOfDragged, activeDragId);
+  return renderNodeInner(tn, props, depth, parentId, siblingIndex, orderedChildrenByParentId, descendantIdsOfDragged, activeDragId, nestOverNodeId);
+}
+
+/** DndContext の子で over を参照し、nestOverNodeId を renderNode に渡してツリーを描画する */
+function TreeBody({
+  roots,
+  treeListProps: props,
+  orderedChildrenByParentId,
+  descendantIdsOfDragged,
+  activeDragId,
+  onKeyDown,
+  focused,
+  onFocusChange,
+}: {
+  roots: TreeNode[];
+  treeListProps: TreeListProps;
+  orderedChildrenByParentId: Map<string | null, string[]>;
+  descendantIdsOfDragged: (id: string) => Set<string>;
+  activeDragId: string | null;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+  focused: boolean;
+  onFocusChange: (focused: boolean) => void;
+}) {
+  const { over } = useDndContext();
+  const nestOverNodeId =
+    over?.id != null && String(over.id).startsWith(NEST_DROP_PREFIX)
+      ? String(over.id).slice(NEST_DROP_PREFIX.length)
+      : null;
+  return (
+    <div
+      tabIndex={0}
+      role="tree"
+      aria-label="タスクツリー"
+      onKeyDown={onKeyDown}
+      onFocus={() => onFocusChange(true)}
+      onBlur={() => onFocusChange(false)}
+      style={{
+        outline: "none",
+        borderRadius: 4,
+        background: "var(--bg-panel)",
+        boxShadow: focused ? "inset 0 0 0 1px var(--focus-ring)" : undefined,
+      }}
+    >
+      {roots.map((root, i) =>
+        renderNode(root, props, 0, null, i, orderedChildrenByParentId, descendantIdsOfDragged, activeDragId, nestOverNodeId)
+      )}
+    </div>
+  );
 }
 
 export function TreeList(props: TreeListProps) {
@@ -476,7 +587,15 @@ export function TreeList(props: TreeListProps) {
       const { active, over } = event;
       if (!over || !props.onTreeMove) return;
       const movedNodeId = active.id as string;
-      const parsed = parseDropId(over.id as string);
+      const overId = String(over.id);
+      if (overId.startsWith(NEST_DROP_PREFIX)) {
+        const targetNodeId = overId.slice(NEST_DROP_PREFIX.length);
+        const children = orderedChildrenByParentId.get(targetNodeId) ?? [];
+        const orderedSiblingIds = [...children.filter((id) => id !== movedNodeId), movedNodeId];
+        props.onTreeMove(movedNodeId, targetNodeId, orderedSiblingIds);
+        return;
+      }
+      const parsed = parseDropId(overId);
       if (!parsed) return;
       const { parentId, siblingIndex } = parsed;
       const siblings = orderedChildrenByParentId.get(parentId) ?? [];
@@ -619,7 +738,7 @@ export function TreeList(props: TreeListProps) {
       }}
     >
       {props.roots.map((root, i) =>
-        renderNode(root, props, 0, null, i, orderedChildrenByParentId, descendantIdsOfDragged, activeDragId)
+        renderNode(root, props, 0, null, i, orderedChildrenByParentId, descendantIdsOfDragged, activeDragId, null)
       )}
     </div>
   );
@@ -632,7 +751,16 @@ export function TreeList(props: TreeListProps) {
         onDragStart={({ active }) => setActiveDragId(active.id as string)}
         onDragEnd={handleDragEnd}
       >
-        {treeContent}
+        <TreeBody
+          roots={props.roots}
+          treeListProps={props}
+          orderedChildrenByParentId={orderedChildrenByParentId}
+          descendantIdsOfDragged={descendantIdsOfDragged}
+          activeDragId={activeDragId}
+          onKeyDown={handleKeyDown}
+          focused={focused}
+          onFocusChange={setFocused}
+        />
       </DndContext>
     );
   }

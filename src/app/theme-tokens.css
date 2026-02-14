@@ -47,6 +47,7 @@
   --theme-color-info: #7b8cff;
   --theme-color-info-bg: #1e2a4a;
   --theme-color-insertion-line: #e68a2e;
+  --theme-color-nest-indicator: #8b5cf6;
   --theme-focus-ring: rgba(123, 140, 255, 0.4);
 }
 
@@ -87,6 +88,7 @@ html {
   --color-info: var(--theme-color-info);
   --color-info-bg: var(--theme-color-info-bg);
   --color-insertion-line: var(--theme-color-insertion-line);
+  --color-nest-indicator: var(--theme-color-nest-indicator);
   --focus-ring: var(--theme-focus-ring);
 }
 
@@ -128,6 +130,7 @@ html[data-theme="light"] {
   --theme-color-info: #5567ff;
   --theme-color-info-bg: #f5f7ff;
   --theme-color-insertion-line: #d97a0f;
+  --theme-color-nest-indicator: #7c3aed;
   --theme-focus-ring: rgba(85, 103, 255, 0.35);
 }
 
@@ -169,5 +172,6 @@ html[data-theme="dark"] {
   --theme-color-info: #7b8cff;
   --theme-color-info-bg: #1e2a4a;
   --theme-color-insertion-line: #e68a2e;
+  --theme-color-nest-indicator: #8b5cf6;
   --theme-focus-ring: rgba(123, 140, 255, 0.4);
 }
