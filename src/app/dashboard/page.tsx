@@ -19,7 +19,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { STATUS_LABELS } from "@/lib/stateMachine";
+import { STATUS_LABELS, getValidTransitions } from "@/lib/stateMachine";
 import { ProposalPanel } from "@/components/ProposalPanel";
 import { TreeList } from "@/components/TreeList";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
@@ -509,9 +509,9 @@ export default function DashboardPage() {
         }),
       })
         .then((res) => res.json())
-        .then((json: { ok?: boolean; error?: string; status_changed?: boolean; from_status?: string; to_status?: string }) => {
+        .then((json: { ok?: boolean; error?: string; valid_transitions?: Array<{ status: string; label: string }> }) => {
           if (requestId !== lastQuickSwitchRequestIdRef.current) return;
-          if (!json.ok) throw new Error(json.error ?? "failed");
+          if (!json.ok) throw json;
           return refreshDashboard();
         })
         .then((newTrays) => {
@@ -527,14 +527,21 @@ export default function DashboardPage() {
             return next;
           });
         })
-        .catch(() => {
+        .catch((err: unknown) => {
           if (requestId !== lastQuickSwitchRequestIdRef.current) return;
           setOptimisticStatusOverrides((prev) => {
             const next = { ...prev };
             delete next[nodeId];
             return next;
           });
-          setQuickSwitchError("状態の変更に失敗しました");
+          const msg =
+            err && typeof err === "object" && "error" in err && typeof (err as { error?: string }).error === "string"
+              ? (err as { error: string; valid_transitions?: Array<{ status: string; label: string }> }).error
+              : "状態の変更に失敗しました";
+          const valid = err && typeof err === "object" && "valid_transitions" in err && Array.isArray((err as { valid_transitions?: unknown }).valid_transitions)
+            ? (err as { valid_transitions: Array<{ label: string }> }).valid_transitions.map((t) => t.label).join("、")
+            : "";
+          setQuickSwitchError(valid ? `${msg}（遷移可能：${valid}）` : msg);
         });
     },
     [selected, displayStatus, refreshDashboard]
@@ -1234,6 +1241,7 @@ export default function DashboardPage() {
                 </div>
                 <StatusQuickSwitch
                   currentStatus={displayStatus(selected)}
+                  validTransitions={getValidTransitions(displayStatus(selected) as import("@/lib/stateMachine").Status)}
                   onStatusClick={handleQuickSwitchClick}
                 />
                 {quickSwitchError && (
