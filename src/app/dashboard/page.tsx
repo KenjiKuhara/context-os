@@ -158,6 +158,25 @@ function formatRelativeTime(isoString: string | null | undefined): string {
   }
 }
 
+/** 最終更新表示用：日付・時刻と相対時間を組み合わせて「2026/2/14 16:32:10（11分前）」形式で返す */
+function formatLastUpdated(isoString: string | null | undefined): string {
+  if (!isoString) return "（不明）";
+  try {
+    const d = new Date(isoString);
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    const h = d.getHours();
+    const min = String(d.getMinutes()).padStart(2, "0");
+    const sec = String(d.getSeconds()).padStart(2, "0");
+    const absolute = `${y}/${m}/${day} ${h}:${min}:${sec}`;
+    const relative = formatRelativeTime(isoString);
+    return `${absolute}（${relative}）`;
+  } catch {
+    return "（不明）";
+  }
+}
+
 /** Phase10-A: 履歴 1 件の種別ラベル（102 設計 §4） */
 function getRelatedHistoryTypeLabel(pc: Record<string, unknown>): string {
   const t = typeof pc?.type === "string" ? pc.type : "";
@@ -328,6 +347,17 @@ export default function DashboardPage() {
   const [relatedRecentHistoryLoading, setRelatedRecentHistoryLoading] = useState(false);
   const [relatedRecentHistoryError, setRelatedRecentHistoryError] = useState<string | null>(null);
 
+  /** ステータス・メモログ（推定するボタン下）。node_status_history を新しい順で表示 */
+  const [statusLog, setStatusLog] = useState<Array<{
+    from_status: string;
+    to_status: string;
+    reason: string;
+    consumed_at: string | null;
+  }>>([]);
+  const [statusLogLoading, setStatusLogLoading] = useState(false);
+  const [statusLogError, setStatusLogError] = useState<string | null>(null);
+  const [statusLogRefreshKey, setStatusLogRefreshKey] = useState(0);
+
   // ─── Data fetch ─────────────────────────────────────────
 
   const refreshDashboard = useCallback(async () => {
@@ -463,6 +493,43 @@ export default function DashboardPage() {
     };
   }, [selected?.id]);
 
+  // ステータス・メモログ（node_status_history）を取得。選択変更 or 更新後に再取得
+  useEffect(() => {
+    const nodeId = selected?.id;
+    if (!nodeId) {
+      setStatusLog([]);
+      setStatusLogLoading(false);
+      setStatusLogError(null);
+      return;
+    }
+    let cancelled = false;
+    setStatusLogLoading(true);
+    setStatusLogError(null);
+    fetch(`/api/nodes/${encodeURIComponent(nodeId)}/history`, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data: { ok?: boolean; error?: string; items?: Array<{ from_status: string; to_status: string; reason: string; consumed_at: string | null }> }) => {
+        if (cancelled) return;
+        setStatusLogLoading(false);
+        if (!data.ok) {
+          setStatusLogError(data.error ?? "取得できませんでした");
+          setStatusLog([]);
+          return;
+        }
+        setStatusLog(Array.isArray(data.items) ? data.items : []);
+        setStatusLogError(null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStatusLogLoading(false);
+          setStatusLogError("取得できませんでした");
+          setStatusLog([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.id, statusLogRefreshKey]);
+
   // Phase14-QuickAdd / Phase15-P0: 親選択中は parent_id 付与で子として追加。二重送信は300ms連打のみ防止。
   const handleQuickAddSubmit = useCallback(() => {
     const title = quickAddValue.trim();
@@ -553,6 +620,7 @@ export default function DashboardPage() {
                 delete next[nodeId];
                 return next;
               });
+              setStatusLogRefreshKey((k) => k + 1);
             });
           }
           const confirmationId = confirmationIdOrSentinel as string;
@@ -585,6 +653,7 @@ export default function DashboardPage() {
                 delete next[nodeId];
                 return next;
               });
+              setStatusLogRefreshKey((k) => k + 1);
             });
         })
         .catch((err: unknown) => {
@@ -925,6 +994,7 @@ export default function DashboardPage() {
           setEstimatePhase("idle");
           setShowCandidates(false);
           setResultMessage(`${toLabel} に変更しました（既にその状態でした）`);
+          setStatusLogRefreshKey((k) => k + 1);
           return;
         }
         throw new Error(confJson.error || "confirmation failed");
@@ -963,6 +1033,7 @@ export default function DashboardPage() {
       setEstimateResult(null);
       setEstimatePhase("idle");
       setShowCandidates(false);
+      setStatusLogRefreshKey((k) => k + 1);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "unknown error");
       setEstimatePhase("idle");
@@ -1426,7 +1497,7 @@ export default function DashboardPage() {
                 )}
                 <div style={{ marginTop: 4 }} suppressHydrationWarning>
                   <b>最終更新：</b>{" "}
-                  {formatRelativeTime(selected.last_memo_at ?? selected.updated_at)}
+                  {formatLastUpdated(selected.last_memo_at ?? selected.updated_at)}
                 </div>
               </div>
 
@@ -1550,6 +1621,54 @@ export default function DashboardPage() {
                 >
                   {estimatePhase === "loading" ? "推定中…" : "推定する"}
                 </button>
+              </div>
+
+              {/* ステータス・メモログ（一番上が最新） */}
+              <div
+                style={{
+                  marginTop: 14,
+                  paddingTop: 12,
+                  borderTop: "1px solid var(--border-subtle)",
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                  ステータス・メモログ
+                </div>
+                {statusLogLoading && (
+                  <div style={{ color: "var(--text-secondary)" }}>取得中…</div>
+                )}
+                {!statusLogLoading && statusLogError && (
+                  <div style={{ color: "var(--text-danger)" }}>{statusLogError}</div>
+                )}
+                {!statusLogLoading && !statusLogError && statusLog.length === 0 && (
+                  <div style={{ color: "var(--text-secondary)" }}>まだ履歴はありません</div>
+                )}
+                {!statusLogLoading && !statusLogError && statusLog.length > 0 && (
+                  <ul style={{ margin: 0, paddingLeft: 18, listStyle: "disc" }}>
+                    {statusLog.map((entry, i) => {
+                      const isStatusChange = entry.from_status !== entry.to_status;
+                      const timeStr = formatLastUpdated(entry.consumed_at);
+                      const label = isStatusChange
+                        ? `ステータス更新: ${getStatusLabel(entry.from_status)} → ${getStatusLabel(entry.to_status)}`
+                        : "メモ";
+                      const reasonTrim = typeof entry.reason === "string" ? entry.reason.trim() : "";
+                      return (
+                        <li key={i} style={{ marginTop: 6 }}>
+                          <span style={{ color: "var(--text-muted)" }}>{timeStr}</span>
+                          <div style={{ marginTop: 2, color: "var(--text-primary)" }}>
+                            {label}
+                            {reasonTrim && (
+                              <span style={{ marginLeft: 6, color: "var(--text-secondary)" }}>
+                                {reasonTrim}
+                              </span>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
 
               {/* ─── Estimate results ─────────────────── */}
