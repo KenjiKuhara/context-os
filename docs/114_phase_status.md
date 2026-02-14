@@ -11,7 +11,8 @@
 | **Phase11-E** | **CLOSED（DONE）** | 112, 113 | 実装変更なし、手動E2E結果でクローズ。再出現制御（同 kind 抑制・状態改善で lastHandled 削除・localStorage 異常時も落ちない）を 111 の DoD #1〜#5 および影響なし確認で検証済み。 |
 | **Phase11-B** | **CLOSED（DONE）** | 108, 115, 116 | 表示文言全面見直し。Block A/B/C 実装完了。最終横断チェック（116）合格。クローズ根拠: 116 + 115 + 108。 |
 | **Phase12-Dark** | **CLOSED（DONE）** | 117, 118, 119 | ダークモード導入。採用案 C: prefers-color-scheme + 手動切替。MVP は /dashboard のみ。Block A〜B（118）完了後、Block C 最終確認（119）で C1〜C5 すべて ✅、MVP 合格。クローズ根拠: 119 + 118 + 117。 |
-| **Phase13-UX評価** | **IN_PROGRESS（実施フェーズ）** | 120 | ダークモード導入後の UX・判断速度・疲労軽減の実証。120 に Exit Criteria（§8）・検証記入欄（§4〜§6）・判定フロー（§9）を整備済み。20 分以上使用で検証実施し、Exit Criteria 満足で DONE／未達で Phase14 等を起票。 |
+| **Phase13-UX評価** | **CLOSED（DONE）** | 120 | ダークモード導入後の UX 検証を実施。120 §4〜§6 記入・§8 Exit Criteria 照合で 5 条件すべて満足。違和感 2 件（3 件以下）、誤認 0・誤クリック 0・読みにくい 1 箇所・改善は軽微修正のみ。クローズ根拠: 120。 |
+| **Phase14-QuickAdd** | **IN_PROGRESS** | 121 | 超高速タスク追加UI/UXの設計と実装。「思考が浮かんだ瞬間に1秒以内でタスクを追加できる体験」を目的とする。 |
 
 ---
 
@@ -169,6 +170,7 @@ Phase11-E（大賢者助言の再出現制御）は、滞留検知のロジッ�
 | 118 | 118_dark_mode_impl_tasks.md |
 | 119 | 119_phase12_dark_final_check_result.md |
 | 120 | 120_phase13_dark_ux_validation.md |
+| 121 | 121_phase14_quick_add_design.md |
 
 ---
 

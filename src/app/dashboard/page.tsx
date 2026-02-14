@@ -23,6 +23,7 @@ import { STATUS_LABELS } from "@/lib/stateMachine";
 import { ProposalPanel } from "@/components/ProposalPanel";
 import { TreeList } from "@/components/TreeList";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
+import { QuickAdd } from "@/components/QuickAdd";
 import { buildTree, type TreeNode } from "@/lib/dashboardTree";
 import type { HistoryItemSelectPayload } from "@/components/ProposalPanel";
 
@@ -242,6 +243,13 @@ export default function DashboardPage() {
   );
   const [selected, setSelected] = useState<Node | null>(null);
 
+  // Phase14-QuickAdd
+  const [quickAddValue, setQuickAddValue] = useState("");
+  const [optimisticNodes, setOptimisticNodes] = useState<Node[]>([]);
+  const [quickAddSending, setQuickAddSending] = useState(false);
+  const quickAddInputRef = useRef<HTMLInputElement>(null);
+  const quickAddLastSentAtRef = useRef(0);
+
   // Estimate flow state
   // 03_Non_Goals.md §2.2: status を人に選ばせない
   // → intent テキスト入力 → 推定 → 確認/指摘
@@ -422,21 +430,63 @@ export default function DashboardPage() {
     };
   }, [selected?.id]);
 
+  // Phase14-QuickAdd: 二重送信は300ms連打のみ防止。inputは止めない。ボタンのみ送信中非活性。
+  const handleQuickAddSubmit = useCallback(() => {
+    const title = quickAddValue.trim();
+    if (!title) return;
+    const now = Date.now();
+    if (quickAddSending && now - quickAddLastSentAtRef.current < 300) return;
+    setQuickAddSending(true);
+    quickAddLastSentAtRef.current = now;
+    setQuickAddValue("");
+    const tempId = `quickadd-${now}`;
+    const tempNode: Node = {
+      id: tempId,
+      title,
+      status: "READY",
+      context: null,
+      parent_id: null,
+      sibling_order: null,
+      updated_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+    setOptimisticNodes((prev) => [tempNode, ...prev]);
+    quickAddInputRef.current?.focus();
+    fetch("/api/nodes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, status: "READY", parent_id: null }),
+    })
+      .then((res) => res.json())
+      .then((json: { ok?: boolean; error?: string }) => {
+        if (json.ok) return refreshDashboard();
+        throw new Error(json.error ?? "failed");
+      })
+      .then(() => setOptimisticNodes((prev) => prev.filter((n) => n.id !== tempId)))
+      .catch(() => setOptimisticNodes((prev) => prev.filter((n) => n.id !== tempId)))
+      .finally(() => setQuickAddSending(false));
+  }, [quickAddValue, quickAddSending, refreshDashboard]);
+
   // ─── Computed ───────────────────────────────────────────
 
   const visibleNodes = useMemo(() => {
-    if (!trays) return [];
-    if (activeTrayKey === "all") {
-      return [
-        ...trays.in_progress,
-        ...trays.needs_decision,
-        ...trays.waiting_external,
-        ...trays.cooling,
-        ...trays.other_active,
-      ];
+    const base =
+      !trays
+        ? []
+        : activeTrayKey === "all"
+          ? [
+              ...trays.in_progress,
+              ...trays.needs_decision,
+              ...trays.waiting_external,
+              ...trays.cooling,
+              ...trays.other_active,
+            ]
+          : trays[activeTrayKey];
+    if (activeTrayKey === "all" || activeTrayKey === "other_active") {
+      return [...optimisticNodes, ...base];
     }
-    return trays[activeTrayKey];
-  }, [trays, activeTrayKey]);
+    return base;
+  }, [trays, activeTrayKey, optimisticNodes]);
 
   // Phase6-A: ツリー表示用ルート（node_children 優先・循環検知・深さ5まで）
   const treeRoots = useMemo(() => {
@@ -797,6 +847,20 @@ export default function DashboardPage() {
         </div>
         <ThemeSwitcher />
       </div>
+
+      {/* Phase14-QuickAdd: 1行input+送信ボタン。Enter/ボタンで送信。ボタンのみ送信中非活性。inputは止めない。 */}
+      {!loading && (
+        <div style={{ marginTop: 12 }}>
+          <QuickAdd
+            value={quickAddValue}
+            onChange={setQuickAddValue}
+            onSubmit={handleQuickAddSubmit}
+            onClear={() => setQuickAddValue("")}
+            inputRef={quickAddInputRef}
+            buttonDisabled={quickAddSending}
+          />
+        </div>
+      )}
 
       {/* Loading */}
       {loading && <div style={{ marginTop: 16 }}>読み込み中…</div>}
