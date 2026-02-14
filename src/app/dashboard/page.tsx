@@ -1164,9 +1164,47 @@ export default function DashboardPage() {
         <ThemeSwitcher />
       </div>
 
-      {/* Phase14-QuickAdd: 1行input+送信ボタン。Enter/ボタンで送信。ボタンのみ送信中非活性。inputは止めない。 */}
+      {/* Phase12-B: 追加モード可視化。Phase14-QuickAdd: 1行input+送信ボタン。 */}
       {!loading && (
         <div style={{ marginTop: 12 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 6,
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid var(--border-default)",
+              background: "var(--bg-card)",
+              color: "var(--text-secondary)",
+              fontSize: 12,
+            }}
+          >
+            {selected ? (
+              <>
+                <span>子タスクとして追加します：{getNodeTitle(selected)}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: "1px solid var(--border-default)",
+                    background: "var(--bg-card)",
+                    color: "var(--text-primary)",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  親なしで追加
+                </button>
+              </>
+            ) : (
+              <span>新しい仕事として追加します</span>
+            )}
+          </div>
           <QuickAdd
             value={quickAddValue}
             onChange={setQuickAddValue}
