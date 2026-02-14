@@ -904,7 +904,7 @@ export default function DashboardPage() {
       if (!aDue && !bDue) {
         return (b.updated_at ?? "").localeCompare(a.updated_at ?? "");
       }
-      if (aDue !== bDue) return aDue.localeCompare(bDue);
+      if (aDue && bDue && aDue !== bDue) return aDue.localeCompare(bDue);
       return (b.updated_at ?? "").localeCompare(a.updated_at ?? "");
     });
     return list;
