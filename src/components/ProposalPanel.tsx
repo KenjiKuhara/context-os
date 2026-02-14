@@ -888,7 +888,13 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
         <textarea
           value={userIntent}
           onChange={(e) => setUserIntent(e.target.value)}
-          placeholder="例: 大きなタスクを分解して / このタスクの選択肢が知りたい"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (dashboardPayload && !organizerLoading) runOrganizer();
+            }
+          }}
+          placeholder="例: 大きなタスクを分解して / このタスクの選択肢が知りたい（Enterで構成案を生成 / Shift+Enterで改行）"
           rows={2}
           style={{
             width: "100%",
