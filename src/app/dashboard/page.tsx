@@ -27,6 +27,7 @@ import { QuickAdd } from "@/components/QuickAdd";
 import { StatusQuickSwitch } from "@/components/StatusQuickSwitch";
 import { buildTree, type TreeNode } from "@/lib/dashboardTree";
 import { getDueStatus } from "@/lib/dueDateUtils";
+import { withMutation } from "@/lib/mutationFavicon";
 import type { HistoryItemSelectPayload } from "@/components/ProposalPanel";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -417,44 +418,46 @@ export default function DashboardPage() {
       if (!parent || parent.status !== "READY") return;
       if (parentAutoProgressInFlightRef.current) return;
       parentAutoProgressInFlightRef.current = true;
-      fetch("/api/confirmations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          node_id: parentId,
-          ui_action: "dashboard_parent_auto_in_progress",
-          proposed_change: { type: "status_change", from: "READY", to: "IN_PROGRESS" },
-        }),
-      })
-        .then((res) => res.json())
-        .then((confJson: { ok?: boolean; confirmation?: { confirmation_id?: string }; error?: string }) => {
-          if (!confJson.ok || !confJson.confirmation?.confirmation_id)
-            throw new Error(confJson.error ?? "confirmation failed");
-          return confJson.confirmation!.confirmation_id as string;
+      withMutation(() =>
+        fetch("/api/confirmations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            node_id: parentId,
+            ui_action: "dashboard_parent_auto_in_progress",
+            proposed_change: { type: "status_change", from: "READY", to: "IN_PROGRESS" },
+          }),
         })
-        .then((confirmationId) =>
-          fetch(`/api/nodes/${parentId}/estimate-status`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              intent: "子タスクの更新に伴い実施中へ",
-              confirm_status: "IN_PROGRESS",
-              reason: "子タスクの更新に伴い実施中へ",
-              source: "human_ui",
-              confirmation_id: confirmationId,
-            }),
-          }).then((res) => res.json())
-        )
-        .then((json: { ok?: boolean; error?: string }) => {
-          if (!json.ok) throw new Error(json.error ?? "apply failed");
-          return refreshDashboard();
-        })
-        .catch((err) => {
-          console.warn("[Phase12-D] ensureParentInProgress failed", err);
-        })
-        .finally(() => {
-          parentAutoProgressInFlightRef.current = false;
-        });
+          .then((res) => res.json())
+          .then((confJson: { ok?: boolean; confirmation?: { confirmation_id?: string }; error?: string }) => {
+            if (!confJson.ok || !confJson.confirmation?.confirmation_id)
+              throw new Error(confJson.error ?? "confirmation failed");
+            return confJson.confirmation!.confirmation_id as string;
+          })
+          .then((confirmationId) =>
+            fetch(`/api/nodes/${parentId}/estimate-status`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                intent: "子タスクの更新に伴い実施中へ",
+                confirm_status: "IN_PROGRESS",
+                reason: "子タスクの更新に伴い実施中へ",
+                source: "human_ui",
+                confirmation_id: confirmationId,
+              }),
+            }).then((res) => res.json())
+          )
+          .then((json: { ok?: boolean; error?: string }) => {
+            if (!json.ok) throw new Error(json.error ?? "apply failed");
+            return refreshDashboard();
+          })
+          .catch((err) => {
+            console.warn("[Phase12-D] ensureParentInProgress failed", err);
+            throw err;
+          })
+      ).finally(() => {
+        parentAutoProgressInFlightRef.current = false;
+      });
     },
     [refreshDashboard]
   );
@@ -655,19 +658,20 @@ export default function DashboardPage() {
     };
     setOptimisticNodes((prev) => [tempNode, ...prev]);
     quickAddInputRef.current?.focus();
-    fetch("/api/nodes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, status: "READY", parent_id: parentId }),
-    })
-      .then((res) => res.json())
-      .then((json: { ok?: boolean; error?: string }) => {
-        if (json.ok) return refreshDashboard();
-        throw new Error(json.error ?? "failed");
+    withMutation(() =>
+      fetch("/api/nodes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, status: "READY", parent_id: parentId }),
       })
-      .then(() => setOptimisticNodes((prev) => prev.filter((n) => n.id !== tempId)))
-      .catch(() => setOptimisticNodes((prev) => prev.filter((n) => n.id !== tempId)))
-      .finally(() => setQuickAddSending(false));
+        .then((res) => res.json())
+        .then((json: { ok?: boolean; error?: string }) => {
+          if (json.ok) return refreshDashboard();
+          throw new Error(json.error ?? "failed");
+        })
+        .then(() => setOptimisticNodes((prev) => prev.filter((n) => n.id !== tempId)))
+        .catch(() => setOptimisticNodes((prev) => prev.filter((n) => n.id !== tempId)))
+    ).finally(() => setQuickAddSending(false));
   }, [quickAddValue, quickAddSending, selected?.id, refreshDashboard]);
 
   // Phase15-StatusQuickSwitch: 表示用 status（optimistic 上書きあり）
@@ -703,83 +707,86 @@ export default function DashboardPage() {
             return confJson.confirmation.confirmation_id as string;
           });
       const ALREADY_IN_TARGET = { _alreadyInTarget: true } as const;
-      createConfirmation()
-        .catch((confErr: { ok?: boolean; error?: string; current_status?: string }) => {
-          // 既に DB が目標状態の場合は成功扱い（二重クリックや他タブで更新済み）
-          if (requestId !== lastQuickSwitchRequestIdRef.current) throw confErr;
-          if (confErr?.current_status === targetStatus) return ALREADY_IN_TARGET;
-          throw confErr;
-        })
-        .then((confirmationIdOrSentinel) => {
-          if (confirmationIdOrSentinel === ALREADY_IN_TARGET) {
-            return refreshDashboard().then((newTrays) => {
-              if (requestId !== lastQuickSwitchRequestIdRef.current) return;
-              setQuickSwitchInFlightNodeId(null);
-              if (newTrays) {
-                const latest = findNodeInTrays(newTrays, nodeId);
-                if (latest) setSelected(latest);
-                ensureParentInProgress(nodeId, newTrays, nodeChildren, selected?.parent_id ?? undefined);
-              }
-              setOptimisticStatusOverrides((prev) => {
-                const next = { ...prev };
-                delete next[nodeId];
-                return next;
-              });
-              setStatusLogRefreshKey((k) => k + 1);
-            });
-          }
-          const confirmationId = confirmationIdOrSentinel as string;
-          return fetch(`/api/nodes/${nodeId}/estimate-status`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              intent: "クイック切替",
-              confirm_status: targetStatus,
-              reason: "クイック切替",
-              source: "human_ui",
-              confirmation_id: confirmationId,
-            }),
+      withMutation(() =>
+        createConfirmation()
+          .catch((confErr: { ok?: boolean; error?: string; current_status?: string }) => {
+            // 既に DB が目標状態の場合は成功扱い（二重クリックや他タブで更新済み）
+            if (requestId !== lastQuickSwitchRequestIdRef.current) throw confErr;
+            if (confErr?.current_status === targetStatus) return ALREADY_IN_TARGET;
+            throw confErr;
           })
-            .then((res) => res.json())
-            .then((json: { ok?: boolean; error?: string; valid_transitions?: Array<{ status: string; label: string }> }) => {
-              if (requestId !== lastQuickSwitchRequestIdRef.current) return;
-              if (!json.ok) throw json;
-              return refreshDashboard();
-            })
-            .then((newTrays) => {
-              if (requestId !== lastQuickSwitchRequestIdRef.current) return;
-              setQuickSwitchInFlightNodeId(null);
-              if (newTrays) {
-                const latest = findNodeInTrays(newTrays, nodeId);
-                if (latest) setSelected(latest);
-                else setSelected(null);
-                ensureParentInProgress(nodeId, newTrays, nodeChildren, selected?.parent_id ?? undefined);
-              }
-              setOptimisticStatusOverrides((prev) => {
-                const next = { ...prev };
-                delete next[nodeId];
-                return next;
+          .then((confirmationIdOrSentinel) => {
+            if (confirmationIdOrSentinel === ALREADY_IN_TARGET) {
+              return refreshDashboard().then((newTrays) => {
+                if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+                setQuickSwitchInFlightNodeId(null);
+                if (newTrays) {
+                  const latest = findNodeInTrays(newTrays, nodeId);
+                  if (latest) setSelected(latest);
+                  ensureParentInProgress(nodeId, newTrays, nodeChildren, selected?.parent_id ?? undefined);
+                }
+                setOptimisticStatusOverrides((prev) => {
+                  const next = { ...prev };
+                  delete next[nodeId];
+                  return next;
+                });
+                setStatusLogRefreshKey((k) => k + 1);
               });
-              setStatusLogRefreshKey((k) => k + 1);
+            }
+            const confirmationId = confirmationIdOrSentinel as string;
+            return fetch(`/api/nodes/${nodeId}/estimate-status`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                intent: "クイック切替",
+                confirm_status: targetStatus,
+                reason: "クイック切替",
+                source: "human_ui",
+                confirmation_id: confirmationId,
+              }),
+            })
+              .then((res) => res.json())
+              .then((json: { ok?: boolean; error?: string; valid_transitions?: Array<{ status: string; label: string }> }) => {
+                if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+                if (!json.ok) throw json;
+                return refreshDashboard();
+              })
+              .then((newTrays) => {
+                if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+                setQuickSwitchInFlightNodeId(null);
+                if (newTrays) {
+                  const latest = findNodeInTrays(newTrays, nodeId);
+                  if (latest) setSelected(latest);
+                  else setSelected(null);
+                  ensureParentInProgress(nodeId, newTrays, nodeChildren, selected?.parent_id ?? undefined);
+                }
+                setOptimisticStatusOverrides((prev) => {
+                  const next = { ...prev };
+                  delete next[nodeId];
+                  return next;
+                });
+                setStatusLogRefreshKey((k) => k + 1);
+              });
+          })
+          .catch((err: unknown) => {
+            if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+            setQuickSwitchInFlightNodeId(null);
+            setOptimisticStatusOverrides((prev) => {
+              const next = { ...prev };
+              delete next[nodeId];
+              return next;
             });
-        })
-        .catch((err: unknown) => {
-          if (requestId !== lastQuickSwitchRequestIdRef.current) return;
-          setQuickSwitchInFlightNodeId(null);
-          setOptimisticStatusOverrides((prev) => {
-            const next = { ...prev };
-            delete next[nodeId];
-            return next;
-          });
-          const msg =
-            err && typeof err === "object" && "error" in err && typeof (err as { error?: string }).error === "string"
-              ? (err as { error: string; valid_transitions?: Array<{ status: string; label: string }> }).error
-              : "状態の変更に失敗しました";
-          const valid = err && typeof err === "object" && "valid_transitions" in err && Array.isArray((err as { valid_transitions?: unknown }).valid_transitions)
-            ? (err as { valid_transitions: Array<{ label: string }> }).valid_transitions.map((t) => t.label).join("、")
-            : "";
-          setQuickSwitchError(valid ? `${msg}（遷移可能：${valid}）` : msg);
-        });
+            const msg =
+              err && typeof err === "object" && "error" in err && typeof (err as { error?: string }).error === "string"
+                ? (err as { error: string; valid_transitions?: Array<{ status: string; label: string }> }).error
+                : "状態の変更に失敗しました";
+            const valid = err && typeof err === "object" && "valid_transitions" in err && Array.isArray((err as { valid_transitions?: unknown }).valid_transitions)
+              ? (err as { valid_transitions: Array<{ label: string }> }).valid_transitions.map((t) => t.label).join("、")
+              : "";
+            setQuickSwitchError(valid ? `${msg}（遷移可能：${valid}）` : msg);
+            throw err;
+          })
+      );
     },
     [selected, displayStatus, refreshDashboard, ensureParentInProgress, nodeChildren]
   );
@@ -792,34 +799,36 @@ export default function DashboardPage() {
       if (selected?.id === nodeId && (selected.title ?? "").trim() === trimmed) return;
       setError(null);
       setTitleSaveInFlight(true);
-      fetch(`/api/nodes/${nodeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: trimmed, logChange: true }),
-      })
-        .then((res) => res.json())
-        .then((json: { ok?: boolean; error?: string; unchanged?: boolean }) => {
-          if (!json.ok) throw new Error(json.error ?? "保存に失敗しました");
-          setTitleEditingNodeId(null);
-          return refreshDashboard().then((newTrays) => ({ newTrays, unchanged: json.unchanged }));
+      withMutation(() =>
+        fetch(`/api/nodes/${nodeId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: trimmed, logChange: true }),
         })
-        .then(({ newTrays, unchanged }) => {
-          if (newTrays && selected?.id === nodeId) {
-            const latest = findNodeInTrays(newTrays, nodeId);
-            if (latest) setSelected(latest);
-          }
-          setStatusLogRefreshKey((k) => k + 1);
-          if (!unchanged) {
-            setResultMessage("タイトルを更新しました");
-            setTimeout(() => setResultMessage(null), 2500);
-          }
-        })
-        .catch((err: unknown) => {
-          setError(err instanceof Error ? err.message : "タイトルの保存に失敗しました");
-        })
-        .finally(() => {
-          setTitleSaveInFlight(false);
-        });
+          .then((res) => res.json())
+          .then((json: { ok?: boolean; error?: string; unchanged?: boolean }) => {
+            if (!json.ok) throw new Error(json.error ?? "保存に失敗しました");
+            setTitleEditingNodeId(null);
+            return refreshDashboard().then((newTrays) => ({ newTrays, unchanged: json.unchanged }));
+          })
+          .then(({ newTrays, unchanged }) => {
+            if (newTrays && selected?.id === nodeId) {
+              const latest = findNodeInTrays(newTrays, nodeId);
+              if (latest) setSelected(latest);
+            }
+            setStatusLogRefreshKey((k) => k + 1);
+            if (!unchanged) {
+              setResultMessage("タイトルを更新しました");
+              setTimeout(() => setResultMessage(null), 2500);
+            }
+          })
+          .catch((err: unknown) => {
+            setError(err instanceof Error ? err.message : "タイトルの保存に失敗しました");
+            throw err;
+          })
+      ).finally(() => {
+        setTitleSaveInFlight(false);
+      });
     },
     [selected, refreshDashboard]
   );
@@ -838,32 +847,34 @@ export default function DashboardPage() {
       if (currentNorm === newNorm) return;
       setError(null);
       setDueDateSaveInFlight(true);
-      fetch(`/api/nodes/${nodeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ due_date: newNorm, logChange: true }),
-      })
-        .then((res) => res.json())
-        .then((json: { ok?: boolean; error?: string; unchanged?: boolean }) => {
-          if (!json.ok) throw new Error(json.error ?? "保存に失敗しました");
-          setDueDateEditingNodeId(null);
-          return refreshDashboard().then((newTrays) => ({ newTrays, unchanged: json.unchanged }));
+      withMutation(() =>
+        fetch(`/api/nodes/${nodeId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ due_date: newNorm, logChange: true }),
         })
-        .then(({ newTrays, unchanged }) => {
-          if (newTrays && selected?.id === nodeId) {
-            const latest = findNodeInTrays(newTrays, nodeId);
-            if (latest) setSelected(latest);
-          }
-          setStatusLogRefreshKey((k) => k + 1);
-          if (!unchanged) {
-            setResultMessage("期日を更新しました");
-            setTimeout(() => setResultMessage(null), 2500);
-          }
-        })
-        .catch((err: unknown) => {
-          setError(err instanceof Error ? err.message : "期日の保存に失敗しました");
-        })
-        .finally(() => setDueDateSaveInFlight(false));
+          .then((res) => res.json())
+          .then((json: { ok?: boolean; error?: string; unchanged?: boolean }) => {
+            if (!json.ok) throw new Error(json.error ?? "保存に失敗しました");
+            setDueDateEditingNodeId(null);
+            return refreshDashboard().then((newTrays) => ({ newTrays, unchanged: json.unchanged }));
+          })
+          .then(({ newTrays, unchanged }) => {
+            if (newTrays && selected?.id === nodeId) {
+              const latest = findNodeInTrays(newTrays, nodeId);
+              if (latest) setSelected(latest);
+            }
+            setStatusLogRefreshKey((k) => k + 1);
+            if (!unchanged) {
+              setResultMessage("期日を更新しました");
+              setTimeout(() => setResultMessage(null), 2500);
+            }
+          })
+          .catch((err: unknown) => {
+            setError(err instanceof Error ? err.message : "期日の保存に失敗しました");
+            throw err;
+          })
+      ).finally(() => setDueDateSaveInFlight(false));
     },
     [selected, refreshDashboard]
   );
@@ -1251,6 +1262,7 @@ export default function DashboardPage() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "unknown error");
       setEstimatePhase("idle");
+      throw e;
     }
   };
 
@@ -1260,7 +1272,7 @@ export default function DashboardPage() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        doApplyStatus(confirmApply.targetStatus);
+        withMutation(() => doApplyStatus(confirmApply!.targetStatus));
       } else if (e.key === "Escape") {
         e.preventDefault();
         setConfirmApply(null);
@@ -1342,7 +1354,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 autoFocus
-                onClick={() => doApplyStatus(confirmApply.targetStatus)}
+                onClick={() => withMutation(() => doApplyStatus(confirmApply.targetStatus))}
                 style={{
                   padding: "8px 16px",
                   borderRadius: 8,
@@ -1642,18 +1654,20 @@ export default function DashboardPage() {
               highlightIds={highlightNodeIds}
               onTreeMove={
                 activeTrayKey === "all"
-                  ? async (movedNodeId, newParentId, orderedSiblingIds) => {
-                      const res = await fetch("/api/tree/move", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ movedNodeId, newParentId, orderedSiblingIds }),
+                  ? (movedNodeId, newParentId, orderedSiblingIds) => {
+                      withMutation(async () => {
+                        const res = await fetch("/api/tree/move", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ movedNodeId, newParentId, orderedSiblingIds }),
+                        });
+                        const json = await res.json();
+                        if (!json.ok) {
+                          setError(json.error ?? "ツリーの移動に失敗しました");
+                          throw new Error(json.error ?? "ツリーの移動に失敗しました");
+                        }
+                        await refreshDashboard();
                       });
-                      const json = await res.json();
-                      if (!json.ok) {
-                        setError(json.error ?? "ツリーの移動に失敗しました");
-                        return;
-                      }
-                      await refreshDashboard();
                     }
                   : undefined
               }

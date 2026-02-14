@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeRestore } from "@/components/ThemeRestore";
+import { FaviconUpdater } from "@/components/FaviconUpdater";
 
 /**
  * Phase12-Dark A2: 初回描画前に data-theme を確定（SSR 安全）。
@@ -46,6 +47,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
+        <FaviconUpdater />
         <ThemeRestore />
         {children}
       </body>

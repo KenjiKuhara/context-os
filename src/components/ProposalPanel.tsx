@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATUS_LABELS, getValidTransitions, isValidStatus, type Status } from "@/lib/status";
+import { withMutation } from "@/lib/mutationFavicon";
 
 // GET /api/dashboard の trays と同じ形
 type Trays = {
@@ -430,7 +431,7 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
     const toLabel = (STATUS_LABELS as Record<string, string>)[to] ?? to;
     setConfirmPending({
       message: `このタスクの状態を ${fromLabel} → ${toLabel} に変更します。よろしいですか？`,
-      onConfirm: async () => {
+      onConfirm: () => {
         setConfirmPending(null);
         applyInFlightRef.current = true;
         setApplyLoading(true);
@@ -439,6 +440,7 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
     setApplySuccessDetail(null);
     const confEndpoint = "/api/confirmations";
     const estEndpoint = `/api/nodes/${targetNodeId}/estimate-status`;
+    withMutation(async () => {
     try {
       let confRes: Response;
       try {
@@ -462,7 +464,7 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
             stack: err.stack,
           },
         });
-        return;
+        throw e;
       }
       const confJson = await confRes.json().catch(() => ({}));
       if (!confRes.ok || !confJson.ok || !confJson.confirmation?.confirmation_id) {
@@ -473,7 +475,7 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
           endpoint: confEndpoint,
           body: formatResponseBody(confJson),
         });
-        return;
+        throw new Error("確認の取得に失敗しました");
       }
       const confirmationId = confJson.confirmation.confirmation_id as string;
 
@@ -499,7 +501,7 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
             stack: err.stack,
           },
         });
-        return;
+        throw e;
       }
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.ok) {
@@ -510,7 +512,7 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
           endpoint: estEndpoint,
           body: formatResponseBody(json),
         });
-        return;
+        throw new Error("ステータス変更に失敗しました");
       }
 
       setApplySuccessDetail({ confirmation_id: confirmationId });
@@ -538,6 +540,7 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
       setApplyLoading(false);
       applyInFlightRef.current = false;
     }
+    });
       },
     });
   }, [advisorReport, applyTargetNode, applyToStatus, onRefreshDashboard]);
@@ -554,12 +557,13 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
       setConfirmPending({
         message: msg,
         onCancel: () => { relationApplyInFlightRef.current = false; },
-        onConfirm: async () => {
+        onConfirm: () => {
           setConfirmPending(null);
           relationApplyInFlightRef.current = true;
           setRelationApplyLoading(true);
       setRelationApplyError(null);
       setRelationApplySuccessMessage(null);
+      withMutation(async () => {
       try {
         const confRes = await fetch("/api/confirmations", {
           method: "POST",
@@ -598,10 +602,12 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
         fetchHistory(true);
       } catch (e) {
         setRelationApplyError(e instanceof Error ? e.message : String(e));
+        throw e;
       } finally {
         setRelationApplyLoading(false);
         relationApplyInFlightRef.current = false;
       }
+      });
         },
       });
     },
@@ -618,12 +624,13 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
       setConfirmPending({
         message: msg,
         onCancel: () => { groupingApplyInFlightRef.current = false; },
-        onConfirm: async () => {
+        onConfirm: () => {
           setConfirmPending(null);
           groupingApplyInFlightRef.current = true;
           setGroupingApplyLoading(true);
       setGroupingApplyError(null);
       setGroupingApplySuccessMessage(null);
+      withMutation(async () => {
       try {
         const confRes = await fetch("/api/confirmations", {
           method: "POST",
@@ -658,10 +665,12 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
         fetchHistory(true);
       } catch (e) {
         setGroupingApplyError(e instanceof Error ? e.message : String(e));
+        throw e;
       } finally {
         setGroupingApplyLoading(false);
         groupingApplyInFlightRef.current = false;
       }
+      });
         },
       });
     },
@@ -678,12 +687,13 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
       setConfirmPending({
         message: msg,
         onCancel: () => { decompositionApplyInFlightRef.current = false; },
-        onConfirm: async () => {
+        onConfirm: () => {
           setConfirmPending(null);
           decompositionApplyInFlightRef.current = true;
           setDecompositionApplyLoading(true);
       setDecompositionApplyError(null);
       setDecompositionApplySuccessMessage(null);
+      withMutation(async () => {
       try {
         const confRes = await fetch("/api/confirmations", {
           method: "POST",
@@ -722,10 +732,12 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
         fetchHistory(true);
       } catch (e) {
         setDecompositionApplyError(e instanceof Error ? e.message : String(e));
+        throw e;
       } finally {
         setDecompositionApplyLoading(false);
         decompositionApplyInFlightRef.current = false;
       }
+      });
         },
       });
     },
@@ -891,7 +903,7 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              if (dashboardPayload && !organizerLoading) runOrganizer();
+              if (dashboardPayload && !organizerLoading) withMutation(() => runOrganizer());
             }
           }}
           placeholder="例: 大きなタスクを分解して / このタスクの選択肢が知りたい（Enterで構成案を生成 / Shift+Enterで改行）"
@@ -915,7 +927,7 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
           <div style={{ marginBottom: 8 }}>
             <button
               type="button"
-              onClick={runOrganizer}
+              onClick={() => withMutation(() => runOrganizer())}
               disabled={organizerLoading}
               style={{
                 padding: "10px 20px",
@@ -1667,7 +1679,7 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
           <div style={{ marginBottom: 8 }}>
             <button
               type="button"
-              onClick={runAdvisor}
+              onClick={() => withMutation(() => runAdvisor())}
               disabled={advisorLoading}
               style={{
                 padding: "10px 20px",
