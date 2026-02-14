@@ -24,8 +24,9 @@ const MAX_DEPTH = 5;
 /**
  * 親→子のマップを構築する。
  * 優先: node_children。無い場合は nodes の parent_id から補完。
+ * Tree D&D の isDescendant 用に export。
  */
-function buildParentToChildren(
+export function buildParentToChildrenMap(
   nodeIds: Set<string>,
   nodeChildren: NodeChildLink[],
   nodes: Array<{ id: string; parent_id?: string | null }>
@@ -102,7 +103,12 @@ function buildTreeRec(
     };
   }
 
-  const childIds = parentToChildren.get(nodeId) ?? [];
+  const childIdsRaw = parentToChildren.get(nodeId) ?? [];
+  const childIds = [...childIdsRaw].sort((a, b) => {
+    const orderA = (nodeMap.get(a) as { sibling_order?: number } | undefined)?.sibling_order ?? 999;
+    const orderB = (nodeMap.get(b) as { sibling_order?: number } | undefined)?.sibling_order ?? 999;
+    return orderA - orderB;
+  });
   if (childIds.length > 0) {
     visited.add(nodeId);
     for (const cid of childIds) {
@@ -119,6 +125,30 @@ function buildTreeRec(
     children,
     depth,
   };
+}
+
+/**
+ * Tree D&D: nodeId が ancestorId の子孫（子・孫・…）なら true。
+ * 循環防止に使用。parentToChildren は parent_id -> child_id[] のマップ。
+ */
+export function isDescendant(
+  ancestorId: string,
+  nodeId: string,
+  parentToChildren: Map<string, string[]>
+): boolean {
+  if (ancestorId === nodeId) return false;
+  const seen = new Set<string>();
+  const stack: string[] = [ancestorId];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    if (id === nodeId) return true;
+    for (const cid of parentToChildren.get(id) ?? []) {
+      stack.push(cid);
+    }
+  }
+  return false;
 }
 
 /**
@@ -153,7 +183,7 @@ export function buildTree(
   const nodeIds = new Set(nodes.map((n) => n.id));
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
-  const parentToChildren = buildParentToChildren(
+  const parentToChildren = buildParentToChildrenMap(
     nodeIds,
     nodeChildren,
     nodes as Array<{ id: string; parent_id?: string | null }>

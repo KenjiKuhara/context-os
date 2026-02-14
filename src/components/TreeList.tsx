@@ -4,9 +4,20 @@
  * Phase6-A: ツリー表示リスト
  * buildTree で組み立てた TreeNode を開閉付きで表示。詳細パネル連携用に onSelectNode を呼ぶ。
  * キーボード: → で展開、← で閉じる（選択中ノードにのみ反応、ツリー領域フォーカス時のみ）。
+ * Tree D&D: オプションで onTreeMove を渡すとドラッグ＆ドロップで並び替え・親変更・ルート化。
  */
 
 import { useMemo, useCallback, useState } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { useDraggable } from "@dnd-kit/core";
+import { useDroppable } from "@dnd-kit/core";
 import type { TreeNode } from "@/lib/dashboardTree";
 
 const INDENT_PX = 20;
@@ -28,14 +39,18 @@ function walkTree(
 function buildTreeMaps(roots: TreeNode[]): {
   parentById: Map<string, string>;
   treeNodeById: Map<string, TreeNode>;
+  orderedChildrenByParentId: Map<string | null, string[]>;
 } {
   const parentById = new Map<string, string>();
   const treeNodeById = new Map<string, TreeNode>();
+  const orderedChildrenByParentId = new Map<string | null, string[]>();
+  orderedChildrenByParentId.set(null, roots.map((r) => r.id));
   walkTree(roots, (tn, parentId) => {
     if (parentId != null) parentById.set(tn.id, parentId);
     treeNodeById.set(tn.id, tn);
+    orderedChildrenByParentId.set(tn.id, tn.children.map((c) => c.id));
   });
-  return { parentById, treeNodeById };
+  return { parentById, treeNodeById, orderedChildrenByParentId };
 }
 
 /**
@@ -97,6 +112,22 @@ export interface TreeListProps {
   getStatusLabel?: (node: Record<string, unknown>) => string;
   /** Phase9-A: 履歴クリック連動でハイライトするノード ID の集合 */
   highlightIds?: Set<string> | null;
+  /** Tree D&D: 移動完了時。movedNodeId, newParentId (null=ルート), orderedSiblingIds */
+  onTreeMove?: (movedNodeId: string, newParentId: string | null, orderedSiblingIds: string[]) => void;
+}
+
+const DROP_ID_PREFIX = "drop-";
+const ROOT_KEY = "root";
+
+function parseDropId(id: string): { parentId: string | null; siblingIndex: number } | null {
+  if (!id.startsWith(DROP_ID_PREFIX)) return null;
+  const rest = id.slice(DROP_ID_PREFIX.length);
+  const lastDash = rest.lastIndexOf("-");
+  if (lastDash < 0) return null;
+  const parentKey = rest.slice(0, lastDash);
+  const index = parseInt(rest.slice(lastDash + 1), 10);
+  if (Number.isNaN(index) || index < 0) return null;
+  return { parentId: parentKey === ROOT_KEY ? null : parentKey, siblingIndex: index };
 }
 
 function TreeRow({
@@ -112,6 +143,7 @@ function TreeRow({
   getTitle,
   getSubtext,
   statusLabel,
+  dragHandleProps,
 }: {
   node: Record<string, unknown>;
   depth: number;
@@ -125,6 +157,7 @@ function TreeRow({
   getTitle: (n: Record<string, unknown>) => string;
   getSubtext: (n: Record<string, unknown>) => string;
   statusLabel: string;
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
 }) {
   const nodeId = node.id as string;
   const bg = isHighlighted ? "var(--bg-highlight)" : isSelected ? "var(--bg-selected)" : "var(--bg-card)";
@@ -145,6 +178,7 @@ function TreeRow({
         marginLeft: depth > 0 ? 0 : undefined,
       }}
       onClick={onSelect}
+      {...dragHandleProps}
     >
       <button
         type="button"
@@ -206,17 +240,150 @@ function TreeRow({
   );
 }
 
-function renderNode(
+function DropSlot({
+  parentId,
+  siblingIndex,
+  canDrop,
+  activeId,
+  children,
+}: {
+  parentId: string | null;
+  siblingIndex: number;
+  canDrop: (movedId: string, targetParentId: string | null) => boolean;
+  activeId: string | null;
+  children: React.ReactNode;
+}) {
+  const parentKey = parentId ?? ROOT_KEY;
+  const dropId = `${DROP_ID_PREFIX}${parentKey}-${siblingIndex}`;
+  const allowed = !activeId || canDrop(activeId, parentId);
+  const { setNodeRef, isOver } = useDroppable({ id: dropId, data: { parentId, siblingIndex }, disabled: !allowed });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        minHeight: 4,
+        background: isOver && allowed ? "var(--border-focus)" : undefined,
+        borderRadius: 2,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function DraggableTreeRow({
+  nodeId,
+  tn,
+  props,
+  depth,
+  parentId,
+  siblingIndex,
+  orderedChildrenByParentId,
+  descendantIdsOfDragged,
+}: {
+  nodeId: string;
+  tn: TreeNode;
+  props: TreeListProps;
+  depth: number;
+  parentId: string | null;
+  siblingIndex: number;
+  orderedChildrenByParentId: Map<string | null, string[]>;
+  descendantIdsOfDragged: (id: string) => Set<string>;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: nodeId,
+    data: { nodeId },
+  });
+  const hasChildren = tn.children.length > 0;
+  const isExpanded = props.expandedSet.has(nodeId);
+  const isHighlighted = (props.highlightIds?.has(nodeId)) ?? false;
+  const statusLabel = props.getStatusLabel ? props.getStatusLabel(tn.node) : "";
+  return (
+    <div ref={setNodeRef} style={{ opacity: isDragging ? 0.5 : 1 }}>
+      <TreeRow
+        node={tn.node}
+        depth={depth}
+        isExpanded={isExpanded}
+        hasChildren={hasChildren}
+        childCount={tn.children.length}
+        onToggle={() => props.onToggleExpand(nodeId)}
+        onSelect={() => props.onSelectNode(tn.node)}
+        isSelected={props.selectedId === nodeId}
+        isHighlighted={isHighlighted}
+        getTitle={props.getNodeTitle}
+        getSubtext={props.getNodeSubtext}
+        statusLabel={statusLabel}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
+      {hasChildren && isExpanded && (
+        <div>
+          {tn.children.map((c, i) =>
+            c.cycleDetected ? (
+              <div
+                key={c.id}
+                style={{
+                  paddingLeft: (depth + 1) * INDENT_PX + 22,
+                  paddingTop: 4,
+                  paddingBottom: 4,
+                  fontSize: 12,
+                  color: "var(--text-danger)",
+                }}
+              >
+                （循環のため表示を打ち切り）
+              </div>
+            ) : (
+              renderNodeInner(c, props, depth + 1, tn.id, i, orderedChildrenByParentId, descendantIdsOfDragged, null)
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderNodeInner(
   tn: TreeNode,
   props: TreeListProps,
-  depth: number
+  depth: number,
+  parentId: string | null,
+  siblingIndex: number,
+  orderedChildrenByParentId: Map<string | null, string[]>,
+  descendantIdsOfDragged: (id: string) => Set<string>,
+  activeDragId: string | null
 ): React.ReactNode {
   const id = tn.id;
   const hasChildren = tn.children.length > 0;
   const isExpanded = props.expandedSet.has(id);
-
   const isHighlighted = (props.highlightIds?.has(id)) ?? false;
   const statusLabel = props.getStatusLabel ? props.getStatusLabel(tn.node) : "";
+  const canDrop = (movedId: string, targetParentId: string | null) => {
+    if (targetParentId === movedId) return false;
+    const descendants = descendantIdsOfDragged(movedId);
+    return !descendants.has(targetParentId ?? "");
+  };
+  if (props.onTreeMove) {
+    return (
+      <div key={id}>
+        <DropSlot
+          parentId={parentId}
+          siblingIndex={siblingIndex}
+          canDrop={canDrop}
+          activeId={activeDragId}
+        >
+          <DraggableTreeRow
+            nodeId={id}
+            tn={tn}
+            props={props}
+            depth={depth}
+            parentId={parentId}
+            siblingIndex={siblingIndex}
+            orderedChildrenByParentId={orderedChildrenByParentId}
+            descendantIdsOfDragged={descendantIdsOfDragged}
+          />
+        </DropSlot>
+      </div>
+    );
+  }
   return (
     <div key={id}>
       <TreeRow
@@ -235,7 +402,7 @@ function renderNode(
       />
       {hasChildren && isExpanded && (
         <div>
-          {tn.children.map((c) =>
+          {tn.children.map((c, i) =>
             c.cycleDetected ? (
               <div
                 key={c.id}
@@ -250,7 +417,7 @@ function renderNode(
                 （循環のため表示を打ち切り）
               </div>
             ) : (
-              renderNode(c, props, depth + 1)
+              renderNodeInner(c, props, depth + 1, tn.id, i, orderedChildrenByParentId, descendantIdsOfDragged, activeDragId)
             )
           )}
         </div>
@@ -259,10 +426,51 @@ function renderNode(
   );
 }
 
+function renderNode(
+  tn: TreeNode,
+  props: TreeListProps,
+  depth: number,
+  parentId: string | null,
+  siblingIndex: number,
+  orderedChildrenByParentId: Map<string | null, string[]>,
+  descendantIdsOfDragged: (id: string) => Set<string>,
+  activeDragId: string | null
+): React.ReactNode {
+  return renderNodeInner(tn, props, depth, parentId, siblingIndex, orderedChildrenByParentId, descendantIdsOfDragged, activeDragId);
+}
+
 export function TreeList(props: TreeListProps) {
-  const { parentById, treeNodeById } = useMemo(
+  const { parentById, treeNodeById, orderedChildrenByParentId } = useMemo(
     () => buildTreeMaps(props.roots),
     [props.roots]
+  );
+
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const descendantIdsOfDragged = useCallback(
+    (id: string) => new Set(collectDescendantIds(id, treeNodeById)),
+    [treeNodeById]
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setActiveDragId(null);
+      const { active, over } = event;
+      if (!over || !props.onTreeMove) return;
+      const movedNodeId = active.id as string;
+      const parsed = parseDropId(over.id as string);
+      if (!parsed) return;
+      const { parentId, siblingIndex } = parsed;
+      const siblings = orderedChildrenByParentId.get(parentId) ?? [];
+      const without = siblings.filter((id) => id !== movedNodeId);
+      const orderedSiblingIds = [...without.slice(0, siblingIndex), movedNodeId, ...without.slice(siblingIndex)];
+      props.onTreeMove(movedNodeId, parentId, orderedSiblingIds);
+    },
+    [props.onTreeMove, orderedChildrenByParentId]
+  );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor)
   );
 
   const visibleIds = useMemo(
@@ -367,7 +575,7 @@ export function TreeList(props: TreeListProps) {
 
   const [focused, setFocused] = useState(false);
 
-  return (
+  const treeContent = (
     <div
       tabIndex={0}
       role="tree"
@@ -382,7 +590,22 @@ export function TreeList(props: TreeListProps) {
         boxShadow: focused ? "inset 0 0 0 1px var(--focus-ring)" : undefined,
       }}
     >
-      {props.roots.map((root) => renderNode(root, props, 0))}
+      {props.roots.map((root, i) =>
+        renderNode(root, props, 0, null, i, orderedChildrenByParentId, descendantIdsOfDragged, activeDragId)
+      )}
     </div>
   );
+
+  if (props.onTreeMove) {
+    return (
+      <DndContext
+        sensors={sensors}
+        onDragStart={({ active }) => setActiveDragId(active.id as string)}
+        onDragEnd={handleDragEnd}
+      >
+        {treeContent}
+      </DndContext>
+    );
+  }
+  return treeContent;
 }
