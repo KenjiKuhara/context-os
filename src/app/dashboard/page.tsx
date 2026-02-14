@@ -43,6 +43,8 @@ type Node = {
   parent_id?: string | null; // Phase6-A ツリー用
   sibling_order?: number | null;
   created_at?: string | null;
+  /** 最後に追加したメモ（node_status_history の最新 reason）。一覧サブテキストで優先表示 */
+  last_memo?: string | null;
 };
 
 type Trays = {
@@ -134,8 +136,8 @@ function getStatusBadgeStyle(status: string): { background: string; color: strin
 }
 
 function getNodeSubtext(n: Node): string {
-  // 04_Domain_Model: context が第一級。note はフォールバック。
-  return n.context ?? n.note ?? "";
+  // 最後に追加したメモ（推定する／この状態にするで記録）を優先。なければ途中内容・note
+  return n.last_memo ?? n.context ?? n.note ?? "";
 }
 
 /** Phase10-A: 履歴 1 件の種別ラベル（102 設計 §4） */

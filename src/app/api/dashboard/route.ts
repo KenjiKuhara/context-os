@@ -37,6 +37,27 @@ export async function GET() {
     const { data: nodeData, error } = nodesRes;
     if (error) throw error;
 
+    const nodeIds = (nodeData ?? []).map((n) => n.id as string);
+    let lastMemoByNodeId: Record<string, string> = {};
+    if (nodeIds.length > 0) {
+      const { data: historyRows } = await supabaseAdmin
+        .from("node_status_history")
+        .select("node_id, reason, consumed_at")
+        .in("node_id", nodeIds)
+        .order("consumed_at", { ascending: false })
+        .limit(500);
+      const seen = new Set<string>();
+      for (const row of historyRows ?? []) {
+        const id = row.node_id as string;
+        if (seen.has(id)) continue;
+        const reason = typeof row.reason === "string" ? row.reason.trim() : "";
+        if (reason) {
+          seen.add(id);
+          lastMemoByNodeId[id] = reason;
+        }
+      }
+    }
+
     // node_children は存在しないテーブルの場合があるためエラーを無視（Phase5-C 未適用環境）
     const nodeChildren =
       childrenRes.error == null && Array.isArray(childrenRes.data)
@@ -58,23 +79,22 @@ export async function GET() {
     };
 
     for (const n of nodeData ?? []) {
+      const nodeWithMemo = { ...n, last_memo: lastMemoByNodeId[n.id as string] ?? null };
       switch (n.status) {
         case "IN_PROGRESS":
-          trays.in_progress.push(n);
+          trays.in_progress.push(nodeWithMemo);
           break;
         case "NEEDS_DECISION":
-          trays.needs_decision.push(n);
+          trays.needs_decision.push(nodeWithMemo);
           break;
         case "WAITING_EXTERNAL":
-          trays.waiting_external.push(n);
+          trays.waiting_external.push(nodeWithMemo);
           break;
         case "COOLING":
-          trays.cooling.push(n);
+          trays.cooling.push(nodeWithMemo);
           break;
         default:
-          // CAPTURED, CLARIFYING, READY, DELEGATED, SCHEDULED,
-          // BLOCKED, NEEDS_REVIEW, REACTIVATED
-          trays.other_active.push(n);
+          trays.other_active.push(nodeWithMemo);
           break;
       }
     }
