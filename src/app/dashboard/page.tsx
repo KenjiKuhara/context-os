@@ -362,6 +362,12 @@ export default function DashboardPage() {
   const [statusLogError, setStatusLogError] = useState<string | null>(null);
   const [statusLogRefreshKey, setStatusLogRefreshKey] = useState(0);
 
+  /** タスクタイトル インライン編集: 編集中のノード ID。null のときは表示モード */
+  const [titleEditingNodeId, setTitleEditingNodeId] = useState<string | null>(null);
+  /** タイトル保存中フラグ。Enter 保存直後の blur で二重保存しないため */
+  const [titleSaveInFlight, setTitleSaveInFlight] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
   // ─── Data fetch ─────────────────────────────────────────
 
   const refreshDashboard = useCallback(async () => {
@@ -599,6 +605,12 @@ export default function DashboardPage() {
     };
   }, [selected?.id, statusLogRefreshKey]);
 
+  useEffect(() => {
+    if (titleEditingNodeId && titleInputRef.current) {
+      titleInputRef.current.focus();
+    }
+  }, [titleEditingNodeId]);
+
   // Phase14-QuickAdd / Phase15-P0: 親選択中は parent_id 付与で子として追加。二重送信は300ms連打のみ防止。
   const handleQuickAddSubmit = useCallback(() => {
     const title = quickAddValue.trim();
@@ -750,6 +762,51 @@ export default function DashboardPage() {
     },
     [selected, displayStatus, refreshDashboard, ensureParentInProgress, nodeChildren]
   );
+
+  /** タスクタイトル インライン編集: 保存（Enter / blur）。二重保存防止のため isSaving 中は blur 側でスキップする */
+  const handleTitleSave = useCallback(
+    (nodeId: string, value: string) => {
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      if (selected?.id === nodeId && (selected.title ?? "").trim() === trimmed) return;
+      setError(null);
+      setTitleSaveInFlight(true);
+      fetch(`/api/nodes/${nodeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: trimmed, logChange: true }),
+      })
+        .then((res) => res.json())
+        .then((json: { ok?: boolean; error?: string; unchanged?: boolean }) => {
+          if (!json.ok) throw new Error(json.error ?? "保存に失敗しました");
+          setTitleEditingNodeId(null);
+          return refreshDashboard().then((newTrays) => ({ newTrays, unchanged: json.unchanged }));
+        })
+        .then(({ newTrays, unchanged }) => {
+          if (newTrays && selected?.id === nodeId) {
+            const latest = findNodeInTrays(newTrays, nodeId);
+            if (latest) setSelected(latest);
+          }
+          setStatusLogRefreshKey((k) => k + 1);
+          if (!unchanged) {
+            setResultMessage("タイトルを更新しました");
+            setTimeout(() => setResultMessage(null), 2500);
+          }
+        })
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : "タイトルの保存に失敗しました");
+        })
+        .finally(() => {
+          setTitleSaveInFlight(false);
+        });
+    },
+    [selected, refreshDashboard]
+  );
+
+  /** タスクタイトル インライン編集: キャンセル（ESC） */
+  const handleTitleCancel = useCallback(() => {
+    setTitleEditingNodeId(null);
+  }, []);
 
   // ─── Computed ───────────────────────────────────────────
 
@@ -1588,9 +1645,64 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div style={{ marginTop: 10 }}>
-              {/* Node info */}
-              <div style={{ fontWeight: 800, fontSize: 16 }}>
-                {getNodeTitle(selected)}
+              {/* Node info: タイトル + インライン編集（ペン → input） */}
+              <div style={{ fontWeight: 800, fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                {titleEditingNodeId === selected.id ? (
+                  <input
+                    ref={titleInputRef}
+                    type="text"
+                    defaultValue={selected.title ?? ""}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleTitleSave(selected.id, (e.target as HTMLInputElement).value);
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        handleTitleCancel();
+                      }
+                    }}
+                    onBlur={(e) => {
+                      if (titleSaveInFlight) return;
+                      const v = (e.target as HTMLInputElement).value.trim();
+                      if (v) handleTitleSave(selected.id, v);
+                      else handleTitleCancel();
+                    }}
+                    style={{
+                      flex: 1,
+                      fontSize: 16,
+                      fontWeight: 800,
+                      padding: "4px 8px",
+                      border: "1px solid var(--border-focus)",
+                      borderRadius: 4,
+                      background: "var(--bg-card)",
+                      color: "var(--text-primary)",
+                    }}
+                    data-testid="detail-title-input"
+                  />
+                ) : (
+                  <>
+                    <span>{getNodeTitle(selected)}</span>
+                    <button
+                      type="button"
+                      onClick={() => setTitleEditingNodeId(selected.id)}
+                      style={{
+                        padding: 4,
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        color: "var(--text-muted)",
+                        fontSize: 14,
+                      }}
+                      title="タイトルを編集"
+                      aria-label="タイトルを編集"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                  </>
+                )}
               </div>
 
               <div style={{ marginTop: 8, fontSize: 13 }}>
@@ -1777,10 +1889,13 @@ export default function DashboardPage() {
                   <ul style={{ margin: 0, paddingLeft: 18, listStyle: "disc" }}>
                     {statusLog.map((entry, i) => {
                       const isStatusChange = entry.from_status !== entry.to_status;
+                      const isTitleChange = typeof entry.reason === "string" && entry.reason.startsWith("タイトル変更:");
                       const timeStr = formatLastUpdated(entry.consumed_at);
-                      const label = isStatusChange
-                        ? `ステータス更新: ${getStatusLabel(entry.from_status)} → ${getStatusLabel(entry.to_status)}`
-                        : "メモ";
+                      const label = isTitleChange
+                        ? "タイトル変更"
+                        : isStatusChange
+                          ? `ステータス更新: ${getStatusLabel(entry.from_status)} → ${getStatusLabel(entry.to_status)}`
+                          : "メモ";
                       const reasonTrim = typeof entry.reason === "string" ? entry.reason.trim() : "";
                       return (
                         <li key={i} style={{ marginTop: 6 }}>
