@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Dashboard — 「机の上（アクティブ）」を一望するページ
+ * Dashboard — 「進行中の仕事」を一望するページ
  *
  * Based on:
  *   00_Vision_NorthStar.md §4 — 「今なにやる？」の材料を一覧化
@@ -105,7 +105,7 @@ function getAncestorIds(nodeId: string, parentById: Map<string, string>): string
 }
 
 const TRAY_LABEL: Record<keyof Trays | "all", string> = {
-  all: "全て（机の上）",
+  all: "全て（進行中の仕事）",
   in_progress: "実施中",
   needs_decision: "判断待ち",
   waiting_external: "外部待ち",
@@ -1071,7 +1071,7 @@ export default function DashboardPage() {
           状態が見えるダッシュボード
         </h1>
         <div style={{ color: "var(--text-secondary)", marginTop: 4 }}>
-          「机の上（アクティブ）」だけをトレーに分けて表示します
+          「進行中の仕事」をトレーに分けて表示します
         </div>
         <div style={{ marginTop: 16 }}>読み込み中…</div>
       </div>
@@ -1158,7 +1158,7 @@ export default function DashboardPage() {
             状態が見えるダッシュボード
           </h1>
           <div style={{ color: "var(--text-secondary)", marginTop: 4 }}>
-            「机の上（アクティブ）」だけをトレーに分けて表示します
+            「進行中の仕事」をトレーに分けて表示します
           </div>
         </div>
         <ThemeSwitcher />
