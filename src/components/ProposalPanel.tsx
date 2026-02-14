@@ -430,7 +430,7 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
     const toLabel = (STATUS_LABELS as Record<string, string>)[to] ?? to;
     setConfirmPending({
       message: `このタスクの状態を ${fromLabel} → ${toLabel} に変更します。よろしいですか？`,
-      onConfirm: () => {
+      onConfirm: async () => {
         setConfirmPending(null);
         applyInFlightRef.current = true;
         setApplyLoading(true);
