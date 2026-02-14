@@ -293,6 +293,8 @@ export default function DashboardPage() {
   // Phase15-StatusQuickSwitch: optimistic 表示 + last-write-wins
   const [optimisticStatusOverrides, setOptimisticStatusOverrides] = useState<Record<string, string>>({});
   const [quickSwitchError, setQuickSwitchError] = useState<string | null>(null);
+  /** Phase12-A: 更新中は全状態ボタン非活性（エラーは出さない） */
+  const [quickSwitchInFlightNodeId, setQuickSwitchInFlightNodeId] = useState<string | null>(null);
   const lastQuickSwitchRequestIdRef = useRef(0);
 
   // Estimate flow state
@@ -581,6 +583,7 @@ export default function DashboardPage() {
       if (targetStatus === currentDisplay) return;
       const nodeId = selected.id;
       setQuickSwitchError(null);
+      setQuickSwitchInFlightNodeId(nodeId);
       setOptimisticStatusOverrides((prev) => ({ ...prev, [nodeId]: targetStatus }));
       const requestId = ++lastQuickSwitchRequestIdRef.current;
       // Phase 2-γ: confirmation_events に先に 1 件挿入し、返却された confirmation_id で estimate-status を呼ぶ
@@ -611,6 +614,7 @@ export default function DashboardPage() {
           if (confirmationIdOrSentinel === ALREADY_IN_TARGET) {
             return refreshDashboard().then((newTrays) => {
               if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+              setQuickSwitchInFlightNodeId(null);
               if (newTrays) {
                 const latest = findNodeInTrays(newTrays, nodeId);
                 if (latest) setSelected(latest);
@@ -643,6 +647,7 @@ export default function DashboardPage() {
             })
             .then((newTrays) => {
               if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+              setQuickSwitchInFlightNodeId(null);
               if (newTrays) {
                 const latest = findNodeInTrays(newTrays, nodeId);
                 if (latest) setSelected(latest);
@@ -658,6 +663,7 @@ export default function DashboardPage() {
         })
         .catch((err: unknown) => {
           if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+          setQuickSwitchInFlightNodeId(null);
           setOptimisticStatusOverrides((prev) => {
             const next = { ...prev };
             delete next[nodeId];
@@ -1472,6 +1478,7 @@ export default function DashboardPage() {
                 <StatusQuickSwitch
                   currentStatus={displayStatus(selected)}
                   validTransitions={getValidTransitions(displayStatus(selected) as import("@/lib/stateMachine").Status)}
+                  buttonsDisabled={quickSwitchInFlightNodeId === selected.id}
                   onStatusClick={handleQuickSwitchClick}
                 />
                 {quickSwitchError && (

@@ -145,11 +145,18 @@ export function isValidStatus(s: unknown): s is Status {
 
 export function isValidTransition(from: Status, to: Status): boolean {
   if (from === to) return true; // 同じ状態への「遷移」は常に許可（status unchanged）
+  // Phase12-A: 任意の非終了状態から「完了」へ直接遷移可能（例外）
+  if (to === "DONE" && from !== "DONE" && from !== "CANCELLED") return true;
   return TRANSITIONS[from]?.includes(to) ?? false;
 }
 
 export function getValidTransitions(from: Status): readonly Status[] {
-  return TRANSITIONS[from] ?? [];
+  const base = TRANSITIONS[from] ?? [];
+  // Phase12-A: 非終了状態では「完了」を常に選択可能に
+  if (from !== "DONE" && from !== "CANCELLED" && !base.includes("DONE")) {
+    return [...base, "DONE"];
+  }
+  return base;
 }
 
 // ─── アクティブ状態（机の上に載っている Node） ──────────────

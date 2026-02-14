@@ -19,10 +19,12 @@ type StatusQuickSwitchProps = {
   currentStatus: string;
   /** 遷移可能な状態のみ押せる。未指定の場合は全ボタン押下可（API で 422 になる可能性あり） */
   validTransitions?: readonly string[];
+  /** true のときは全ボタンを非活性（更新中など）。Phase12-A: 更新中はエラー表示せずボタンのみ非活性。 */
+  buttonsDisabled?: boolean;
   onStatusClick: (status: string) => void;
 };
 
-export function StatusQuickSwitch({ currentStatus, validTransitions, onStatusClick }: StatusQuickSwitchProps) {
+export function StatusQuickSwitch({ currentStatus, validTransitions, buttonsDisabled, onStatusClick }: StatusQuickSwitchProps) {
   return (
     <div
       style={{
@@ -37,7 +39,7 @@ export function StatusQuickSwitch({ currentStatus, validTransitions, onStatusCli
       {(ALL_STATUSES as readonly string[]).map((status) => {
         const isCurrent = status === currentStatus;
         const canTransition = validTransitions == null || validTransitions.includes(status);
-        const disabled = isCurrent || !canTransition;
+        const disabled = buttonsDisabled || isCurrent || !canTransition;
         const style = getButtonStyle(status);
         return (
           <button
