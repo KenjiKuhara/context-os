@@ -336,6 +336,8 @@ export default function DashboardPage() {
   const [highlightNodeIds, setHighlightNodeIds] = useState<Set<string> | null>(null);
   /** Phase11-D: 大賢者アクションクリック後、トレー切替完了時にフォーカスするノード ID */
   const pendingSageFocusNodeIdRef = useRef<string | null>(null);
+  /** Phase12-D: 親 READY→IN_PROGRESS 自動遷移の二重実行防止 */
+  const parentAutoProgressInFlightRef = useRef(false);
 
   /** Phase10-A: ノード詳細に関連する直近履歴 1 件 */
   const [relatedRecentHistory, setRelatedRecentHistory] = useState<{
@@ -370,6 +372,71 @@ export default function DashboardPage() {
     setNodeChildren(Array.isArray(json.node_children) ? json.node_children : []);
     return json.trays as Trays;
   }, []);
+
+  /** Phase12-D: 子更新後に親が READY なら自動で IN_PROGRESS へ。既存 API/履歴使用。二重実行防止あり。 */
+  const ensureParentInProgress = useCallback(
+    (
+      childNodeId: string,
+      newTrays: Trays | null,
+      links: Array<{ parent_id: string; child_id: string }>,
+      parentIdFromNode?: string | null
+    ) => {
+      if (!newTrays) return;
+      const link = links.find((l) => l.child_id === childNodeId);
+      const parentId = link?.parent_id ?? parentIdFromNode ?? null;
+      if (!parentId) return;
+      const allNodes: Node[] = [
+        ...newTrays.in_progress,
+        ...newTrays.needs_decision,
+        ...newTrays.waiting_external,
+        ...newTrays.cooling,
+        ...newTrays.other_active,
+      ];
+      const parent = allNodes.find((n) => n.id === parentId) as Node | undefined;
+      if (!parent || parent.status !== "READY") return;
+      if (parentAutoProgressInFlightRef.current) return;
+      parentAutoProgressInFlightRef.current = true;
+      fetch("/api/confirmations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: parentId,
+          ui_action: "dashboard_parent_auto_in_progress",
+          proposed_change: { type: "status_change", from: "READY", to: "IN_PROGRESS" },
+        }),
+      })
+        .then((res) => res.json())
+        .then((confJson: { ok?: boolean; confirmation?: { confirmation_id?: string }; error?: string }) => {
+          if (!confJson.ok || !confJson.confirmation?.confirmation_id)
+            throw new Error(confJson.error ?? "confirmation failed");
+          return confJson.confirmation!.confirmation_id as string;
+        })
+        .then((confirmationId) =>
+          fetch(`/api/nodes/${parentId}/estimate-status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              intent: "子タスクの更新に伴い実施中へ",
+              confirm_status: "IN_PROGRESS",
+              reason: "子タスクの更新に伴い実施中へ",
+              source: "human_ui",
+              confirmation_id: confirmationId,
+            }),
+          }).then((res) => res.json())
+        )
+        .then((json: { ok?: boolean; error?: string }) => {
+          if (!json.ok) throw new Error(json.error ?? "apply failed");
+          return refreshDashboard();
+        })
+        .catch((err) => {
+          console.warn("[Phase12-D] ensureParentInProgress failed", err);
+        })
+        .finally(() => {
+          parentAutoProgressInFlightRef.current = false;
+        });
+    },
+    [refreshDashboard]
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -618,6 +685,7 @@ export default function DashboardPage() {
               if (newTrays) {
                 const latest = findNodeInTrays(newTrays, nodeId);
                 if (latest) setSelected(latest);
+                ensureParentInProgress(nodeId, newTrays, nodeChildren, selected?.parent_id ?? undefined);
               }
               setOptimisticStatusOverrides((prev) => {
                 const next = { ...prev };
@@ -652,6 +720,7 @@ export default function DashboardPage() {
                 const latest = findNodeInTrays(newTrays, nodeId);
                 if (latest) setSelected(latest);
                 else setSelected(null);
+                ensureParentInProgress(nodeId, newTrays, nodeChildren, selected?.parent_id ?? undefined);
               }
               setOptimisticStatusOverrides((prev) => {
                 const next = { ...prev };
@@ -679,7 +748,7 @@ export default function DashboardPage() {
           setQuickSwitchError(valid ? `${msg}（遷移可能：${valid}）` : msg);
         });
     },
-    [selected, displayStatus, refreshDashboard]
+    [selected, displayStatus, refreshDashboard, ensureParentInProgress, nodeChildren]
   );
 
   // ─── Computed ───────────────────────────────────────────
@@ -1040,6 +1109,7 @@ export default function DashboardPage() {
       setEstimatePhase("idle");
       setShowCandidates(false);
       setStatusLogRefreshKey((k) => k + 1);
+      ensureParentInProgress(selected.id, newTrays, nodeChildren, selected?.parent_id ?? undefined);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "unknown error");
       setEstimatePhase("idle");

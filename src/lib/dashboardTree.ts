@@ -122,10 +122,27 @@ function buildTreeRec(
 }
 
 /**
+ * Phase12-D: サブツリー内の最新活動日時（max updated_at）を取得。
+ * ルート自身と配下全ノードの updated_at の最大値。無い場合は '' でソート時に末尾へ。
+ */
+function getMaxUpdatedAtInSubtree(tn: TreeNode): string {
+  const selfAt =
+    tn.node && typeof tn.node.updated_at === "string" && tn.node.updated_at.trim() !== ""
+      ? tn.node.updated_at
+      : "";
+  let max = selfAt;
+  for (const child of tn.children) {
+    const childAt = getMaxUpdatedAtInSubtree(child);
+    if (childAt && (!max || childAt > max)) max = childAt;
+  }
+  return max;
+}
+
+/**
  * 表示用ツリーを組み立てる。
  * @param nodes - 表示対象ノード一覧（トレーでフィルタ済み想定）
  * @param nodeChildren - API から返る node_children（parent_id, child_id, created_at）
- * @returns ルートから並んだ TreeNode の配列。循環は検知して打ち切り。
+ * @returns ルートから並んだ TreeNode の配列。Phase12-D: ルートは「最新活動日時」降順。
  */
 export function buildTree(
   nodes: Array<Record<string, unknown> & { id: string; parent_id?: string | null }>,
@@ -156,6 +173,15 @@ export function buildTree(
       buildTreeRec(rid, nodeMap, parentToChildren, visited, 0)
     );
   }
+
+  // Phase12-D: ルートを「最新活動日時」降順で並べ替え
+  result.sort((a, b) => {
+    const at = getMaxUpdatedAtInSubtree(a);
+    const bt = getMaxUpdatedAtInSubtree(b);
+    if (!bt) return -1;
+    if (!at) return 1;
+    return bt > at ? 1 : bt < at ? -1 : 0;
+  });
 
   return result;
 }
