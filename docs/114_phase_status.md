@@ -12,7 +12,8 @@
 | **Phase11-B** | **CLOSED（DONE）** | 108, 115, 116 | 表示文言全面見直し。Block A/B/C 実装完了。最終横断チェック（116）合格。クローズ根拠: 116 + 115 + 108。 |
 | **Phase12-Dark** | **CLOSED（DONE）** | 117, 118, 119 | ダークモード導入。採用案 C: prefers-color-scheme + 手動切替。MVP は /dashboard のみ。Block A〜B（118）完了後、Block C 最終確認（119）で C1〜C5 すべて ✅、MVP 合格。クローズ根拠: 119 + 118 + 117。 |
 | **Phase13-UX評価** | **CLOSED（DONE）** | 120 | ダークモード導入後の UX 検証を実施。120 §4〜§6 記入・§8 Exit Criteria 照合で 5 条件すべて満足。違和感 2 件（3 件以下）、誤認 0・誤クリック 0・読みにくい 1 箇所・改善は軽微修正のみ。クローズ根拠: 120。 |
-| **Phase14-QuickAdd** | **IN_PROGRESS** | 121 | 超高速タスク追加UI/UXの設計と実装。「思考が浮かんだ瞬間に1秒以内でタスクを追加できる体験」を目的とする。 |
+| **Phase14-QuickAdd** | **CLOSED（DONE）** | 121, 122 | 超高速タスク追加UX。1行input+送信ボタン・Enter/ボタン送信・optimistic・二重送信防止（300ms・ボタンのみ非活性）。122で実機体感チェック全項目✅、速度体験の完了条件を満たしたためクローズ。 |
+| **Phase15-StatusQuickSwitch** | **CLOSED（DONE）** | 124, 125, 126 | 詳細画面：状態クイック切替ボタン群。全状態常時表示・optimistic・last-write-wins・確認ダイアログなし。126で Exit Criteria 5 項目 ✅、実装完了。 |
 
 ---
 
@@ -22,6 +23,23 @@
 - C1（3 モード切替）・C2（選択保持）・C3（コントラスト）・C4（状態色）・C5（回帰なし）すべて ✅
 - MVP 合格とし、Phase12-Dark を CLOSED（DONE）とした
 - クローズ根拠ドキュメント: **119（最終確認結果）+ 118（実装タスク・契約・Block ゲート報告）+ 117（設計）**
+
+---
+
+## 2.1 クローズ根拠（Phase14-QuickAdd）
+
+- docs/122_phase14_quick_add_final_check_result.md にて実機体感チェックを実施
+- 連続10件マウスなし・ボタン送信・送信中ボタン非活性・二重送信防止・Escクリアの 5 項目を ✅ で記録
+- 速度体験の完了条件（待ち感ゼロ・入力が止まらない）を満たしたため、Phase14-QuickAdd を CLOSED（DONE）とした
+- クローズ根拠ドキュメント: **122（実機体感チェック結果）+ 121（設計）+ 123（クローズアウト）**
+
+---
+
+## 2.2 クローズ根拠（Phase15-StatusQuickSwitch）
+
+- docs/126_phase15_status_quick_switch_final_check_result.md にて Exit Criteria 5 項目を確認
+- 全状態ボタン群常時表示・optimistic・last-write-wins・失敗時ロールバック・既存導線変更なしを実装で満たした
+- クローズ根拠ドキュメント: **126（最終確認結果）+ 125（実装タスク）+ 124（設計）**
 
 ---
 
@@ -171,6 +189,11 @@ Phase11-E（大賢者助言の再出現制御）は、滞留検知のロジッ�
 | 119 | 119_phase12_dark_final_check_result.md |
 | 120 | 120_phase13_dark_ux_validation.md |
 | 121 | 121_phase14_quick_add_design.md |
+| 122 | 122_phase14_quick_add_final_check_result.md |
+| 123 | 123_phase14_quick_add_closeout.md |
+| 124 | 124_phase15_status_quick_switch_design.md |
+| 125 | 125_phase15_status_quick_switch_impl_tasks.md |
+| 126 | 126_phase15_status_quick_switch_final_check_result.md |
 
 ---
 
@@ -183,6 +206,18 @@ Phase12-Dark は /dashboard のみを MVP とした。未対応の拡張は次�
 | **全ページ展開** | 他ルート（/ 等）へテーマ切替を展開。localStorage は既に共有のため、layout と各ページのトークン適用が主な作業。 |
 | **high-contrast テーマ** | 117・118 で data-theme 拡張可能と設計済み。必要に応じて theme-tokens.css に `html[data-theme="high-contrast"]` を追加。 |
 | **キー操作・アクセシビリティ** | テーマ切替のキーボード操作や prefers-reduced-motion 等の配慮は本 MVP では未実施。 |
+
+---
+
+## 9. 次フェーズ候補（Phase14-QuickAdd クローズ時点）— 入力導線の拡張
+
+Phase14 の速度体験は壊さない前提で、以下を優先度順に提案する。
+
+| 優先度 | 候補 | 内容 |
+|--------|------|------|
+| **P0** | **「子として追加」を 1 秒で** | 親選択中なら parent_id を自動付与し、QuickAdd から子ノードを 1 秒で追加できる導線。 |
+| **P1** | **インボックス/下書き概念** | READY 以外の CAPTURED 導線の整理（インボックス・下書きなどの整理 UX）。 |
+| **P2** | **QuickAdd 履歴** | 直近追加 5 件の Undo / 再編集。Phase14 の連続入力体験を損なわない範囲で。 |
 
 ---
 

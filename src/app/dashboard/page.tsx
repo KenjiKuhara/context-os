@@ -24,6 +24,7 @@ import { ProposalPanel } from "@/components/ProposalPanel";
 import { TreeList } from "@/components/TreeList";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { QuickAdd } from "@/components/QuickAdd";
+import { StatusQuickSwitch } from "@/components/StatusQuickSwitch";
 import { buildTree, type TreeNode } from "@/lib/dashboardTree";
 import type { HistoryItemSelectPayload } from "@/components/ProposalPanel";
 
@@ -250,6 +251,11 @@ export default function DashboardPage() {
   const quickAddInputRef = useRef<HTMLInputElement>(null);
   const quickAddLastSentAtRef = useRef(0);
 
+  // Phase15-StatusQuickSwitch: optimistic 表示 + last-write-wins
+  const [optimisticStatusOverrides, setOptimisticStatusOverrides] = useState<Record<string, string>>({});
+  const [quickSwitchError, setQuickSwitchError] = useState<string | null>(null);
+  const lastQuickSwitchRequestIdRef = useRef(0);
+
   // Estimate flow state
   // 03_Non_Goals.md §2.2: status を人に選ばせない
   // → intent テキスト入力 → 推定 → 確認/指摘
@@ -375,6 +381,7 @@ export default function DashboardPage() {
     setEstimatePhase("idle");
     setShowCandidates(false);
     setResultMessage(null);
+    setQuickSwitchError(null);
   }, [selected]);
 
   // Phase10-A: 選択ノードに関連する直近履歴 1 件を取得
@@ -430,12 +437,13 @@ export default function DashboardPage() {
     };
   }, [selected?.id]);
 
-  // Phase14-QuickAdd: 二重送信は300ms連打のみ防止。inputは止めない。ボタンのみ送信中非活性。
+  // Phase14-QuickAdd / Phase15-P0: 親選択中は parent_id 付与で子として追加。二重送信は300ms連打のみ防止。
   const handleQuickAddSubmit = useCallback(() => {
     const title = quickAddValue.trim();
     if (!title) return;
     const now = Date.now();
     if (quickAddSending && now - quickAddLastSentAtRef.current < 300) return;
+    const parentId = selected?.id ?? null;
     setQuickAddSending(true);
     quickAddLastSentAtRef.current = now;
     setQuickAddValue("");
@@ -445,7 +453,7 @@ export default function DashboardPage() {
       title,
       status: "READY",
       context: null,
-      parent_id: null,
+      parent_id: parentId,
       sibling_order: null,
       updated_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
@@ -455,7 +463,7 @@ export default function DashboardPage() {
     fetch("/api/nodes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, status: "READY", parent_id: null }),
+      body: JSON.stringify({ title, status: "READY", parent_id: parentId }),
     })
       .then((res) => res.json())
       .then((json: { ok?: boolean; error?: string }) => {
@@ -465,7 +473,72 @@ export default function DashboardPage() {
       .then(() => setOptimisticNodes((prev) => prev.filter((n) => n.id !== tempId)))
       .catch(() => setOptimisticNodes((prev) => prev.filter((n) => n.id !== tempId)))
       .finally(() => setQuickAddSending(false));
-  }, [quickAddValue, quickAddSending, refreshDashboard]);
+  }, [quickAddValue, quickAddSending, selected?.id, refreshDashboard]);
+
+  // Phase15-StatusQuickSwitch: 表示用 status（optimistic 上書きあり）
+  const displayStatus = useCallback(
+    (node: Node | null) => (node ? optimisticStatusOverrides[node.id] ?? node.status : ""),
+    [optimisticStatusOverrides]
+  );
+
+  const handleQuickSwitchClick = useCallback(
+    (targetStatus: string) => {
+      if (!selected) return;
+      const currentDisplay = displayStatus(selected);
+      if (targetStatus === currentDisplay) return;
+      const nodeId = selected.id;
+      setQuickSwitchError(null);
+      setOptimisticStatusOverrides((prev) => ({ ...prev, [nodeId]: targetStatus }));
+      const requestId = ++lastQuickSwitchRequestIdRef.current;
+      const confirmation = {
+        confirmation_id: crypto.randomUUID(),
+        confirmed_by: "human" as const,
+        confirmed_at: new Date().toISOString(),
+        ui_action: "dashboard_status_quick_switch",
+        proposed_change: { type: "status_change", from: selected.status, to: targetStatus },
+      };
+      fetch(`/api/nodes/${nodeId}/estimate-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          intent: "クイック切替",
+          confirm_status: targetStatus,
+          reason: "クイック切替",
+          source: "human_ui",
+          confirmation,
+        }),
+      })
+        .then((res) => res.json())
+        .then((json: { ok?: boolean; error?: string; status_changed?: boolean; from_status?: string; to_status?: string }) => {
+          if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+          if (!json.ok) throw new Error(json.error ?? "failed");
+          return refreshDashboard();
+        })
+        .then((newTrays) => {
+          if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+          if (newTrays) {
+            const latest = findNodeInTrays(newTrays, nodeId);
+            if (latest) setSelected(latest);
+            else setSelected(null);
+          }
+          setOptimisticStatusOverrides((prev) => {
+            const next = { ...prev };
+            delete next[nodeId];
+            return next;
+          });
+        })
+        .catch(() => {
+          if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+          setOptimisticStatusOverrides((prev) => {
+            const next = { ...prev };
+            delete next[nodeId];
+            return next;
+          });
+          setQuickSwitchError("状態の変更に失敗しました");
+        });
+    },
+    [selected, displayStatus, refreshDashboard]
+  );
 
   // ─── Computed ───────────────────────────────────────────
 
@@ -1079,7 +1152,7 @@ export default function DashboardPage() {
               selectedId={selected?.id ?? null}
               getNodeTitle={(n) => getNodeTitle(n as Node)}
               getNodeSubtext={(n) => getNodeSubtext(n as Node)}
-              getStatusLabel={(n) => getStatusLabel((n as { status?: string }).status ?? "")}
+              getStatusLabel={(n) => getStatusLabel(optimisticStatusOverrides[(n as Node).id] ?? (n as { status?: string }).status ?? "")}
               highlightIds={highlightNodeIds}
             />
           ) : (
@@ -1132,7 +1205,7 @@ export default function DashboardPage() {
                   <div
                     style={{ fontSize: 12, color: "var(--text-primary)", whiteSpace: "nowrap" }}
                   >
-                    {getStatusLabel(n.status)}
+                    {getStatusLabel(optimisticStatusOverrides[n.id] ?? n.status)}
                   </div>
                 </div>
               );
@@ -1157,8 +1230,17 @@ export default function DashboardPage() {
 
               <div style={{ marginTop: 8, fontSize: 13 }}>
                 <div>
-                  <b>状態：</b> <StatusBadge status={selected.status} />
+                  <b>状態：</b> <StatusBadge status={displayStatus(selected)} />
                 </div>
+                <StatusQuickSwitch
+                  currentStatus={displayStatus(selected)}
+                  onStatusClick={handleQuickSwitchClick}
+                />
+                {quickSwitchError && (
+                  <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-danger)" }}>
+                    {quickSwitchError}
+                  </div>
+                )}
                 {selected.temperature != null && (
                   <div style={{ marginTop: 4 }}>
                     <b>温度：</b> {selected.temperature}
