@@ -148,6 +148,7 @@ export async function PATCH(
         from_status: currentStatus,
         to_status: currentStatus,
         reason,
+        consumed_at: now,
       });
     }
     if (logChange && dueDateChanged) {
@@ -159,6 +160,7 @@ export async function PATCH(
         from_status: currentStatus,
         to_status: currentStatus,
         reason,
+        consumed_at: now,
       });
       if (histErr) console.warn("[nodes PATCH] due_date history insert failed:", histErr.message);
     }

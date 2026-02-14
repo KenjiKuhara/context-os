@@ -25,7 +25,7 @@ export async function GET(
       .from("node_status_history")
       .select("from_status, to_status, reason, consumed_at")
       .eq("node_id", id.trim())
-      .order("consumed_at", { ascending: false })
+      .order("consumed_at", { ascending: false, nullsFirst: false })
       .limit(100);
 
     if (error) {

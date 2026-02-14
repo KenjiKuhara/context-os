@@ -45,7 +45,7 @@ export async function GET() {
         .from("node_status_history")
         .select("node_id, reason, consumed_at")
         .in("node_id", nodeIds)
-        .order("consumed_at", { ascending: false })
+        .order("consumed_at", { ascending: false, nullsFirst: false })
         .limit(500);
       const seen = new Set<string>();
       for (const row of historyRows ?? []) {
