@@ -268,6 +268,12 @@ export default function DashboardPage() {
   >("idle");
   const [showCandidates, setShowCandidates] = useState(false);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
+  /** 「この状態にする」押下後の確認モーダル。Enter→OK / Escape→キャンセル を効かせるため window.confirm の代わりに使用 */
+  const [confirmApply, setConfirmApply] = useState<{
+    targetStatus: string;
+    fromLabel: string;
+    toLabel: string;
+  } | null>(null);
 
   // Observer report state (Phase 3-0〜3-4)
   // 19_SubAgent_Observer.md §6: 人間 UI との関係
@@ -863,30 +869,48 @@ export default function DashboardPage() {
     }
   };
 
-  const applyStatus = async (targetStatus: string) => {
+  const applyStatus = (targetStatus: string) => {
     if (!selected) return;
     const fromLabel = getStatusLabel(selected.status);
     const toLabel = getStatusLabel(targetStatus);
-    if (!window.confirm(`このタスクの状態を ${fromLabel} → ${toLabel} に変更します。よろしいですか？`)) {
-      return;
-    }
+    setConfirmApply({ targetStatus, fromLabel, toLabel });
+  };
+
+  const doApplyStatus = async (targetStatus: string) => {
+    if (!selected) return;
+    const toLabel = getStatusLabel(targetStatus);
+    setConfirmApply(null);
     setEstimatePhase("applying");
     setError(null);
 
     try {
-      // Phase 2-β: Confirmation Object を自動生成（23_Human_Confirmation_Model §2.1）
-      // human_ui では UI 操作そのものが承認行為（23 §4.3）
-      const confirmation = {
-        confirmation_id: crypto.randomUUID(),
-        confirmed_by: "human" as const,
-        confirmed_at: new Date().toISOString(),
-        ui_action: "dashboard_apply_button",
-        proposed_change: {
-          type: "status_change",
-          from: selected.status,
-          to: targetStatus,
-        },
-      };
+      const confRes = await fetch("/api/confirmations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          node_id: selected.id,
+          ui_action: "dashboard_apply_button",
+          proposed_change: { type: "status_change", from: selected.status, to: targetStatus },
+        }),
+      });
+      const confJson = await confRes.json();
+      if (!confJson.ok) {
+        if (confJson.current_status === targetStatus) {
+          const newTrays = await refreshDashboard();
+          const latestNode = findNodeInTrays(newTrays, selected.id);
+          if (latestNode) setSelected(latestNode);
+          else setSelected(null);
+          setIntentDraft("");
+          setEstimateResult(null);
+          setEstimatePhase("idle");
+          setShowCandidates(false);
+          setResultMessage(`${toLabel} に変更しました（既にその状態でした）`);
+          return;
+        }
+        throw new Error(confJson.error || "confirmation failed");
+      }
+      const confirmationId = confJson.confirmation?.confirmation_id;
+      if (!confirmationId) throw new Error("confirmation_id not returned");
 
       const res = await fetch(
         `/api/nodes/${selected.id}/estimate-status`,
@@ -898,7 +922,7 @@ export default function DashboardPage() {
             confirm_status: targetStatus,
             reason: intentDraft.trim(),
             source: "human_ui",
-            confirmation,
+            confirmation_id: confirmationId,
           }),
         }
       );
@@ -911,17 +935,10 @@ export default function DashboardPage() {
           : "メモを記録しました（状態は変更なし）"
       );
 
-      // Refresh & re-select
       const newTrays = await refreshDashboard();
       const latestNode = findNodeInTrays(newTrays, selected.id);
-      if (latestNode) {
-        setSelected(latestNode);
-      } else {
-        // DONE / CANCELLED に遷移した場合、机の上から消える
-        setSelected(null);
-      }
-
-      // Reset estimate flow
+      if (latestNode) setSelected(latestNode);
+      else setSelected(null);
       setIntentDraft("");
       setEstimateResult(null);
       setEstimatePhase("idle");
@@ -931,6 +948,22 @@ export default function DashboardPage() {
       setEstimatePhase("idle");
     }
   };
+
+  // 確認モーダル表示中: Enter → OK、Escape → キャンセル
+  useEffect(() => {
+    if (!confirmApply) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        doApplyStatus(confirmApply.targetStatus);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setConfirmApply(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirmApply]);
 
   // ─── Render ─────────────────────────────────────────────
 
@@ -950,6 +983,78 @@ export default function DashboardPage() {
 
   return (
     <div style={{ padding: 24, fontFamily: "sans-serif", background: "var(--bg-page)", color: "var(--text-primary)", minHeight: "100vh" }}>
+      {/* 「この状態にする」確認モーダル。Enter→OK / Escape→キャンセル */}
+      {confirmApply && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-apply-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setConfirmApply(null);
+            }
+          }}
+        >
+          <div
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-primary)",
+              padding: 20,
+              borderRadius: 12,
+              border: "1px solid var(--border-default)",
+              maxWidth: 400,
+              boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div id="confirm-apply-title" style={{ fontWeight: 700, marginBottom: 12 }}>
+              このタスクの状態を {confirmApply.fromLabel} → {confirmApply.toLabel} に変更します。よろしいですか？
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => setConfirmApply(null)}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-muted)",
+                  background: "var(--bg-card)",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                }}
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => doApplyStatus(confirmApply.targetStatus)}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-focus)",
+                  background: "var(--color-info)",
+                  color: "var(--text-on-primary)",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800 }}>
@@ -1376,6 +1481,12 @@ export default function DashboardPage() {
                 <textarea
                   value={intentDraft}
                   onChange={(e) => setIntentDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      if (intentDraft.trim() && estimatePhase === "idle") requestEstimate();
+                    }
+                  }}
                   rows={3}
                   style={{
                     width: "100%",
@@ -1390,7 +1501,7 @@ export default function DashboardPage() {
                     estimatePhase === "loading" ||
                     estimatePhase === "applying"
                   }
-                  placeholder="例：「返信待ちになった」「もう完了した」「判断に迷っている」"
+                  placeholder="例：「返信待ちになった」「もう完了した」「判断に迷っている」（Enterで推定 / Shift+Enterで改行）"
                 />
                 <button
                   onClick={requestEstimate}
