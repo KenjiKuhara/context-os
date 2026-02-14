@@ -1888,6 +1888,7 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
         </div>
       )}
     </div>
+    </>
   );
 }
 
@@ -2119,6 +2120,5 @@ function AdvisorResultBlock({
         </div>
       )}
     </div>
-    </>
   );
 }
