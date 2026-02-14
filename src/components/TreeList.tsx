@@ -309,9 +309,12 @@ function NestDropZone({
     <div
       ref={setNodeRef}
       style={{
+        position: "absolute",
+        right: 0,
+        top: 0,
+        bottom: 0,
         width: "20%",
-        minWidth: 32,
-        flexShrink: 0,
+        pointerEvents: "auto",
       }}
     />
   );
@@ -355,12 +358,11 @@ function DraggableTreeRow({
     <div
       ref={setNodeRef}
       style={{
-        display: "flex",
         position: "relative",
         opacity: isDragging ? 0.5 : 1,
       }}
     >
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div>
         <TreeRow
           node={tn.node}
           depth={depth}
