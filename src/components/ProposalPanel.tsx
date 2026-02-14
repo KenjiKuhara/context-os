@@ -296,6 +296,13 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
   const [decompositionApplyReason, setDecompositionApplyReason] = useState("");
   const [restoredApplyReason, setRestoredApplyReason] = useState("");
 
+  /** 確認ダイアログ（ダーク・中央表示。window.confirm の代わり） */
+  const [confirmPending, setConfirmPending] = useState<{
+    message: string;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  } | null>(null);
+
   const allNodes = useMemo(() => (trays ? flattenTrays(trays) : []), [trays]);
   const dashboardPayload = useMemo(
     () => (trays ? { trays } : null),
@@ -418,18 +425,15 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
     const validNext = isValidStatus(from) ? getValidTransitions(from) : [];
     const to = applyToStatus.trim() || validNext[0];
     if (!to) return;
-    applyInFlightRef.current = true;
     const targetNodeId = advisorReport.targetNodeId;
     const fromLabel = (STATUS_LABELS as Record<string, string>)[from] ?? from;
     const toLabel = (STATUS_LABELS as Record<string, string>)[to] ?? to;
-    const ok = window.confirm(
-      `このタスクの状態を ${fromLabel} → ${toLabel} に変更します。よろしいですか？`
-    );
-    if (!ok) {
-      applyInFlightRef.current = false;
-      return;
-    }
-    setApplyLoading(true);
+    setConfirmPending({
+      message: `このタスクの状態を ${fromLabel} → ${toLabel} に変更します。よろしいですか？`,
+      onConfirm: () => {
+        setConfirmPending(null);
+        applyInFlightRef.current = true;
+        setApplyLoading(true);
     setApplyError(null);
     setApplySuccessMessage(null);
     setApplySuccessDetail(null);
@@ -534,6 +538,8 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
       setApplyLoading(false);
       applyInFlightRef.current = false;
     }
+      },
+    });
   }, [advisorReport, applyTargetNode, applyToStatus, onRefreshDashboard]);
 
   const applyRelationDiff = useCallback(
@@ -544,14 +550,14 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
       const fromShort = from_node_id.slice(0, 8);
       const toShort = to_node_id.slice(0, 8);
       const msg = `タスク「${fromShort}…」と「${toShort}…」の間に ${relation_type} を 1 本追加します。よろしいですか？`;
-      relationApplyInFlightRef.current = true;
-      const ok = window.confirm(msg);
-      if (!ok) {
-        relationApplyInFlightRef.current = false;
-        return;
-      }
       const reasonValue = reasonOverride !== undefined ? reasonOverride : relationApplyReason;
-      setRelationApplyLoading(true);
+      setConfirmPending({
+        message: msg,
+        onCancel: () => { relationApplyInFlightRef.current = false; },
+        onConfirm: async () => {
+          setConfirmPending(null);
+          relationApplyInFlightRef.current = true;
+          setRelationApplyLoading(true);
       setRelationApplyError(null);
       setRelationApplySuccessMessage(null);
       try {
@@ -596,6 +602,8 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
         setRelationApplyLoading(false);
         relationApplyInFlightRef.current = false;
       }
+        },
+      });
     },
     [onRefreshDashboard, fetchHistory, relationApplyReason]
   );
@@ -606,14 +614,14 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
       if (diff.type !== "grouping" || !diff.change) return;
       const { group_label, node_ids } = diff.change;
       const msg = `「${group_label}」で ${node_ids.length} 件のタスクをグループ化します。よろしいですか？`;
-      groupingApplyInFlightRef.current = true;
-      const ok = window.confirm(msg);
-      if (!ok) {
-        groupingApplyInFlightRef.current = false;
-        return;
-      }
       const reasonValue = reasonOverride !== undefined ? reasonOverride : groupingApplyReason;
-      setGroupingApplyLoading(true);
+      setConfirmPending({
+        message: msg,
+        onCancel: () => { groupingApplyInFlightRef.current = false; },
+        onConfirm: async () => {
+          setConfirmPending(null);
+          groupingApplyInFlightRef.current = true;
+          setGroupingApplyLoading(true);
       setGroupingApplyError(null);
       setGroupingApplySuccessMessage(null);
       try {
@@ -654,6 +662,8 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
         setGroupingApplyLoading(false);
         groupingApplyInFlightRef.current = false;
       }
+        },
+      });
     },
     [onRefreshDashboard, fetchHistory, groupingApplyReason]
   );
@@ -664,14 +674,14 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
       if (diff.type !== "decomposition" || !diff.change) return;
       const { parent_node_id, add_children } = diff.change;
       const msg = `親タスクに、子タスクを ${add_children.length} 件追加して紐づけます。よろしいですか？`;
-      decompositionApplyInFlightRef.current = true;
-      const ok = window.confirm(msg);
-      if (!ok) {
-        decompositionApplyInFlightRef.current = false;
-        return;
-      }
       const reasonValue = reasonOverride !== undefined ? reasonOverride : decompositionApplyReason;
-      setDecompositionApplyLoading(true);
+      setConfirmPending({
+        message: msg,
+        onCancel: () => { decompositionApplyInFlightRef.current = false; },
+        onConfirm: async () => {
+          setConfirmPending(null);
+          decompositionApplyInFlightRef.current = true;
+          setDecompositionApplyLoading(true);
       setDecompositionApplyError(null);
       setDecompositionApplySuccessMessage(null);
       try {
@@ -716,9 +726,27 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
         setDecompositionApplyLoading(false);
         decompositionApplyInFlightRef.current = false;
       }
+        },
+      });
     },
     [onRefreshDashboard, fetchHistory, decompositionApplyReason]
   );
+
+  useEffect(() => {
+    if (!confirmPending) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        confirmPending.onConfirm();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        confirmPending.onCancel?.();
+        setConfirmPending(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirmPending]);
 
   if (!trays) {
     return (
@@ -739,6 +767,84 @@ export function ProposalPanel({ trays, selectedNodeId, onRefreshDashboard, onHis
   }
 
   return (
+    <>
+      {/* 確認ダイアログ（ダーク・中央表示。トンマナに合わせる） */}
+      {confirmPending && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              confirmPending.onCancel?.();
+              setConfirmPending(null);
+            }
+          }}
+        >
+          <div
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-primary)",
+              padding: 20,
+              borderRadius: 12,
+              border: "1px solid var(--border-default)",
+              maxWidth: 420,
+              boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 12 }}>
+              {confirmPending.message}
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  confirmPending.onCancel?.();
+                  setConfirmPending(null);
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-muted)",
+                  background: "var(--bg-card)",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                }}
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => {
+                  confirmPending.onConfirm();
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-focus)",
+                  background: "var(--color-info)",
+                  color: "var(--text-on-primary)",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     <div
       style={{
         marginTop: 24,
@@ -2013,5 +2119,6 @@ function AdvisorResultBlock({
         </div>
       )}
     </div>
+    </>
   );
 }
