@@ -7,6 +7,9 @@ let pendingCount = 0;
 let lastFailure = false;
 const listeners = new Set<() => void>();
 
+/** useSyncExternalStore は参照が同じなら「変更なし」とみなすため、同じ値のときは同じ配列を返す */
+let cachedSnapshot: [number, boolean] = [0, false];
+
 function notify() {
   listeners.forEach((cb) => cb());
 }
@@ -18,7 +21,11 @@ export function subscribe(callback: () => void): () => void {
 
 export function getSnapshot(): [number, boolean] {
   if (typeof window === "undefined") return [0, false];
-  return [pendingCount, lastFailure];
+  if (cachedSnapshot[0] === pendingCount && cachedSnapshot[1] === lastFailure) {
+    return cachedSnapshot;
+  }
+  cachedSnapshot = [pendingCount, lastFailure];
+  return cachedSnapshot;
 }
 
 export function increment(): void {
