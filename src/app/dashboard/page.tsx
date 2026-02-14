@@ -26,6 +26,7 @@ import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { QuickAdd } from "@/components/QuickAdd";
 import { StatusQuickSwitch } from "@/components/StatusQuickSwitch";
 import { buildTree, type TreeNode } from "@/lib/dashboardTree";
+import { getDueStatus } from "@/lib/dueDateUtils";
 import type { HistoryItemSelectPayload } from "@/components/ProposalPanel";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -892,6 +893,23 @@ export default function DashboardPage() {
     return base;
   }, [trays, activeTrayKey, optimisticNodes]);
 
+  /** 133: フラット表示用ソート。期日あり→期日昇順→updated_at 降順。ツリー表示は変更しない */
+  const flatSortedNodes = useMemo(() => {
+    const list = [...visibleNodes];
+    list.sort((a, b) => {
+      const aDue = (a.due_date ?? "").toString().trim() || null;
+      const bDue = (b.due_date ?? "").toString().trim() || null;
+      if (aDue && !bDue) return -1;
+      if (!aDue && bDue) return 1;
+      if (!aDue && !bDue) {
+        return (b.updated_at ?? "").localeCompare(a.updated_at ?? "");
+      }
+      if (aDue !== bDue) return aDue.localeCompare(bDue);
+      return (b.updated_at ?? "").localeCompare(a.updated_at ?? "");
+    });
+    return list;
+  }, [visibleNodes]);
+
   // Phase6-A: ツリー表示用ルート（node_children 優先・循環検知・深さ5まで）
   const treeRoots = useMemo(() => {
     if (viewMode !== "tree" || visibleNodes.length === 0) return [];
@@ -1641,11 +1659,18 @@ export default function DashboardPage() {
               }
             />
           ) : (
-            visibleNodes.map((n) => {
+            flatSortedNodes.map((n) => {
               const title = getNodeTitle(n);
               const subtext = getNodeSubtext(n);
               const isSelected = selected?.id === n.id;
               const isHighlighted = highlightNodeIds?.has(n.id) ?? false;
+              const dueStatus = getDueStatus(n.due_date, new Date());
+              const leftBarColor =
+                dueStatus === "overdue"
+                  ? "var(--color-danger)"
+                  : dueStatus === "soon"
+                    ? "var(--color-warning)"
+                    : "transparent";
               return (
                 <div
                   key={n.id}
@@ -1656,6 +1681,9 @@ export default function DashboardPage() {
                   style={{
                     padding: 12,
                     borderTop: "1px solid var(--border-subtle)",
+                    borderLeftWidth: 4,
+                    borderLeftStyle: "solid",
+                    borderLeftColor: leftBarColor,
                     cursor: "pointer",
                     background: isHighlighted ? "var(--bg-highlight)" : isSelected ? "var(--bg-selected)" : "var(--bg-card)",
                     display: "flex",
