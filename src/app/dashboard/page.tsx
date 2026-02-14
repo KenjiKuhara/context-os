@@ -502,13 +502,35 @@ export default function DashboardPage() {
           }),
         })
           .then((res) => res.json())
-          .then((confJson: { ok?: boolean; confirmation?: { confirmation_id?: string }; error?: string }) => {
+          .then((confJson: { ok?: boolean; confirmation?: { confirmation_id?: string }; error?: string; current_status?: string }) => {
             if (!confJson.ok || !confJson.confirmation?.confirmation_id) throw confJson;
             return confJson.confirmation.confirmation_id as string;
           });
+      const ALREADY_IN_TARGET = { _alreadyInTarget: true } as const;
       createConfirmation()
-        .then((confirmationId) =>
-          fetch(`/api/nodes/${nodeId}/estimate-status`, {
+        .catch((confErr: { ok?: boolean; error?: string; current_status?: string }) => {
+          // 既に DB が目標状態の場合は成功扱い（二重クリックや他タブで更新済み）
+          if (requestId !== lastQuickSwitchRequestIdRef.current) throw confErr;
+          if (confErr?.current_status === targetStatus) return ALREADY_IN_TARGET;
+          throw confErr;
+        })
+        .then((confirmationIdOrSentinel) => {
+          if (confirmationIdOrSentinel === ALREADY_IN_TARGET) {
+            return refreshDashboard().then((newTrays) => {
+              if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+              if (newTrays) {
+                const latest = findNodeInTrays(newTrays, nodeId);
+                if (latest) setSelected(latest);
+              }
+              setOptimisticStatusOverrides((prev) => {
+                const next = { ...prev };
+                delete next[nodeId];
+                return next;
+              });
+            });
+          }
+          const confirmationId = confirmationIdOrSentinel as string;
+          return fetch(`/api/nodes/${nodeId}/estimate-status`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -519,25 +541,25 @@ export default function DashboardPage() {
               confirmation_id: confirmationId,
             }),
           })
-        )
-        .then((res) => res.json())
-        .then((json: { ok?: boolean; error?: string; valid_transitions?: Array<{ status: string; label: string }> }) => {
-          if (requestId !== lastQuickSwitchRequestIdRef.current) return;
-          if (!json.ok) throw json;
-          return refreshDashboard();
-        })
-        .then((newTrays) => {
-          if (requestId !== lastQuickSwitchRequestIdRef.current) return;
-          if (newTrays) {
-            const latest = findNodeInTrays(newTrays, nodeId);
-            if (latest) setSelected(latest);
-            else setSelected(null);
-          }
-          setOptimisticStatusOverrides((prev) => {
-            const next = { ...prev };
-            delete next[nodeId];
-            return next;
-          });
+            .then((res) => res.json())
+            .then((json: { ok?: boolean; error?: string; valid_transitions?: Array<{ status: string; label: string }> }) => {
+              if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+              if (!json.ok) throw json;
+              return refreshDashboard();
+            })
+            .then((newTrays) => {
+              if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+              if (newTrays) {
+                const latest = findNodeInTrays(newTrays, nodeId);
+                if (latest) setSelected(latest);
+                else setSelected(null);
+              }
+              setOptimisticStatusOverrides((prev) => {
+                const next = { ...prev };
+                delete next[nodeId];
+                return next;
+              });
+            });
         })
         .catch((err: unknown) => {
           if (requestId !== lastQuickSwitchRequestIdRef.current) return;

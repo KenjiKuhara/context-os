@@ -288,6 +288,7 @@ export async function POST(req: NextRequest) {
         {
           ok: false,
           error: `proposed_change.from ("${proposedChange.from}") does not match current node status ("${node.status}")`,
+          current_status: node.status,
         },
         { status: 400 }
       );
