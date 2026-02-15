@@ -3,7 +3,7 @@
  *
  * - レイヤー (a) ベース: --theme-* を data-theme ごとに定義
  * - レイヤー (b) コンポーネント利用: --bg-page 等は var(--theme-*) を参照
- * - data-theme="system" は JS で light/dark に解決する（このファイルでは定義しない）
+ * - data-theme は "light" または "dark" のみ（JS で付与）
  * - 将来 data-theme="high-contrast" を追加するときは同様のブロックを足すだけ
  *
  * 参照: docs/118_dark_mode_impl_tasks.md A1 設計、docs/117_dark_mode_design.md

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Phase12-Dark A3: ライト / ダーク / システムに合わせる の 3 択 UI。
+ * Phase12-Dark A3: ライト / ダーク の 2 択 UI。
  * /dashboard 上部に配置。色はトークンのみ使用（Block B 前でもテーマに追従するため）。
  */
 
@@ -16,22 +16,21 @@ import {
 const OPTIONS: { value: ThemeStored; label: string }[] = [
   { value: "light", label: "ライト" },
   { value: "dark", label: "ダーク" },
-  { value: "system", label: "システムに合わせる" },
 ];
 
 function getStoredTheme(): ThemeStored {
-  if (typeof window === "undefined") return "system";
+  if (typeof window === "undefined") return "dark";
   try {
     const v = localStorage.getItem(THEME_STORAGE_KEY);
-    if (v === "light" || v === "dark" || v === "system") return v;
+    if (v === "light" || v === "dark") return v;
   } catch {
     // ignore
   }
-  return "system";
+  return "dark";
 }
 
 export function ThemeSwitcher() {
-  const [selected, setSelected] = useState<ThemeStored>("system");
+  const [selected, setSelected] = useState<ThemeStored>("dark");
 
   // マウント時に localStorage から読み、選択状態を初期化し、data-theme を再適用（ハイドレーションで消えた場合の復元）
   useEffect(() => {
@@ -39,19 +38,6 @@ export function ThemeSwitcher() {
     setSelected(stored);
     applyResolvedTheme(resolveTheme(stored));
   }, []);
-
-  // "system" 選択時のみ OS テーマ変更に追従
-  useEffect(() => {
-    if (selected !== "system") return;
-    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
-    if (!media) return;
-    const apply = () => {
-      applyResolvedTheme(resolveTheme("system"));
-    };
-    apply();
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, [selected]);
 
   const handleSelect = (value: ThemeStored) => {
     try {
