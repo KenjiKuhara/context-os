@@ -1,0 +1,20 @@
+/**
+ * ダッシュボードメイン: 一覧＋詳細のレイアウト。
+ * モバイル（768px未満）は1列縦積み、PCは2カラム。
+ */
+.mainGrid {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+  grid-template-columns: 1fr;
+}
+
+.mainGrid > * {
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .mainGrid {
+    grid-template-columns: 1fr 420px;
+  }
+}

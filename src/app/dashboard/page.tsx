@@ -29,6 +29,7 @@ import { buildTree, type TreeNode } from "@/lib/dashboardTree";
 import { getDueStatus } from "@/lib/dueDateUtils";
 import { withMutation } from "@/lib/mutationFavicon";
 import type { HistoryItemSelectPayload } from "@/components/ProposalPanel";
+import styles from "./page.module.css";
 
 // ─── Types ──────────────────────────────────────────────────
 // Node attributes based on 04_Domain_Model.md §3
@@ -1545,14 +1546,7 @@ export default function DashboardPage() {
       )}
 
       {/* Main: list + detail */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 420px",
-          gap: 16,
-          marginTop: 16,
-        }}
-      >
+      <div className={styles.mainGrid}>
         {/* ─── Left: Node list ────────────────────────── */}
         <div
           style={{
