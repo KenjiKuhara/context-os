@@ -2437,7 +2437,10 @@ export default function DashboardPage() {
                                   href={link.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  style={{ color: "var(--link)" }}
+                                  style={{
+                                    color: "var(--color-info)",
+                                    textDecoration: "underline",
+                                  }}
                                 >
                                   {link.label}
                                 </a>
