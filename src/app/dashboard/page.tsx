@@ -418,6 +418,26 @@ export default function DashboardPage() {
   const [statusLogError, setStatusLogError] = useState<string | null>(null);
   const [statusLogRefreshKey, setStatusLogRefreshKey] = useState(0);
 
+  /** リンク/メモ（ノード詳細）。node_links 一覧・追加・編集・削除 */
+  const [nodeLinks, setNodeLinks] = useState<Array<{
+    id: string;
+    node_id: string;
+    label: string;
+    url: string | null;
+    created_at: string;
+    updated_at: string;
+  }>>([]);
+  const [nodeLinksLoading, setNodeLinksLoading] = useState(false);
+  const [nodeLinksError, setNodeLinksError] = useState<string | null>(null);
+  const [nodeLinksRefreshKey, setNodeLinksRefreshKey] = useState(0);
+  const [nodeLinkAdding, setNodeLinkAdding] = useState(false);
+  const [nodeLinkEditingId, setNodeLinkEditingId] = useState<string | null>(null);
+  const [newLinkLabel, setNewLinkLabel] = useState("");
+  const [newLinkUrl, setNewLinkUrl] = useState("");
+  const [editLinkLabel, setEditLinkLabel] = useState("");
+  const [editLinkUrl, setEditLinkUrl] = useState("");
+  const [nodeLinkDeletingId, setNodeLinkDeletingId] = useState<string | null>(null);
+
   /** タスクタイトル インライン編集: 編集中のノード ID。null のときは表示モード */
   const [titleEditingNodeId, setTitleEditingNodeId] = useState<string | null>(null);
   /** タイトル保存中フラグ。Enter 保存直後の blur で二重保存しないため */
@@ -704,6 +724,43 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, [selected?.id, statusLogRefreshKey]);
+
+  // リンク/メモ（node_links）を取得。選択変更 or 追加・編集・削除後に再取得
+  useEffect(() => {
+    const nodeId = selected?.id;
+    if (!nodeId) {
+      setNodeLinks([]);
+      setNodeLinksLoading(false);
+      setNodeLinksError(null);
+      return;
+    }
+    let cancelled = false;
+    setNodeLinksLoading(true);
+    setNodeLinksError(null);
+    fetch(`/api/nodes/${encodeURIComponent(nodeId)}/links`, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data: { ok?: boolean; error?: string; items?: Array<{ id: string; node_id: string; label: string; url: string | null; created_at: string; updated_at: string }> }) => {
+        if (cancelled) return;
+        setNodeLinksLoading(false);
+        if (!data.ok) {
+          setNodeLinksError(data.error ?? "取得できませんでした");
+          setNodeLinks([]);
+          return;
+        }
+        setNodeLinks(Array.isArray(data.items) ? data.items : []);
+        setNodeLinksError(null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setNodeLinksLoading(false);
+          setNodeLinksError("取得できませんでした");
+          setNodeLinks([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.id, nodeLinksRefreshKey]);
 
   useEffect(() => {
     if (titleEditingNodeId && titleInputRef.current) {
@@ -1448,6 +1505,89 @@ export default function DashboardPage() {
                 }}
               >
                 OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* リンク/メモ削除確認 */}
+      {nodeLinkDeletingId && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-link-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setNodeLinkDeletingId(null);
+            }
+          }}
+        >
+          <div
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-primary)",
+              padding: 20,
+              borderRadius: 12,
+              border: "1px solid var(--border-default)",
+              maxWidth: 400,
+              boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div id="delete-link-title" style={{ fontWeight: 700, marginBottom: 12 }}>
+              本当に削除しますか？
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => setNodeLinkDeletingId(null)}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-muted)",
+                  background: "var(--bg-card)",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                }}
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={async () => {
+                  const linkId = nodeLinkDeletingId;
+                  setNodeLinkDeletingId(null);
+                  if (!linkId) return;
+                  const res = await fetch(`/api/links/${encodeURIComponent(linkId)}`, { method: "DELETE" });
+                  const data = await res.json();
+                  if (!data.ok) {
+                    alert(data.error ?? "削除に失敗しました");
+                    return;
+                  }
+                  setNodeLinksRefreshKey((k) => k + 1);
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-focus)",
+                  background: "var(--color-info)",
+                  color: "var(--text-on-primary)",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                削除
               </button>
             </div>
           </div>
@@ -2199,6 +2339,221 @@ export default function DashboardPage() {
                       );
                     })}
                   </ul>
+                )}
+              </div>
+
+              {/* リンク/メモ */}
+              <div
+                style={{
+                  marginTop: 14,
+                  paddingTop: 12,
+                  borderTop: "1px solid var(--border-subtle)",
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                  リンク/メモ
+                </div>
+                {nodeLinksLoading && (
+                  <div style={{ color: "var(--text-secondary)" }}>取得中…</div>
+                )}
+                {!nodeLinksLoading && nodeLinksError && (
+                  <div style={{ color: "var(--text-danger)" }}>{nodeLinksError}</div>
+                )}
+                {!nodeLinksLoading && !nodeLinksError && (
+                  <>
+                    {nodeLinks.map((link) => (
+                      <div
+                        key={link.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 8,
+                          marginTop: 6,
+                          width: "100%",
+                        }}
+                      >
+                        {nodeLinkEditingId === link.id ? (
+                          <>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                              <input
+                                type="text"
+                                value={editLinkLabel}
+                                onChange={(e) => setEditLinkLabel(e.target.value)}
+                                placeholder="表示名"
+                                style={{ padding: 4, fontSize: 12 }}
+                              />
+                              <input
+                                type="text"
+                                value={editLinkUrl}
+                                onChange={(e) => setEditLinkUrl(e.target.value)}
+                                placeholder="URL（任意）"
+                                style={{ padding: 4, fontSize: 12 }}
+                              />
+                            </div>
+                            <div style={{ display: "flex", gap: 4 }}>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const label = editLinkLabel.trim();
+                                  const urlVal = editLinkUrl.trim();
+                                  const url = urlVal === "" ? null : urlVal;
+                                  if (url !== null && !/^https?:\/\//i.test(url)) {
+                                    alert("URL は http:// または https:// で始めてください");
+                                    return;
+                                  }
+                                  const res = await fetch(`/api/links/${encodeURIComponent(link.id)}`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ label, url }),
+                                  });
+                                  const data = await res.json();
+                                  if (!data.ok) {
+                                    alert(data.error ?? "更新に失敗しました");
+                                    return;
+                                  }
+                                  setNodeLinkEditingId(null);
+                                  setNodeLinksRefreshKey((k) => k + 1);
+                                }}
+                                style={{ padding: "4px 8px", fontSize: 11 }}
+                              >
+                                保存
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setNodeLinkEditingId(null)}
+                                style={{ padding: "4px 8px", fontSize: 11 }}
+                              >
+                                キャンセル
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              {link.url ? (
+                                <a
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ color: "var(--link)" }}
+                                >
+                                  {link.label}
+                                </a>
+                              ) : (
+                                <span style={{ color: "var(--text-muted)" }}>{link.label}</span>
+                              )}
+                            </div>
+                            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNodeLinkEditingId(link.id);
+                                  setEditLinkLabel(link.label);
+                                  setEditLinkUrl(link.url ?? "");
+                                }}
+                                title="編集"
+                                style={{ padding: 2, background: "none", border: "none", cursor: "pointer" }}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setNodeLinkDeletingId(link.id)}
+                                title="削除"
+                                style={{ padding: 2, background: "none", border: "none", cursor: "pointer" }}
+                              >
+                                🗑
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                    {nodeLinkAdding && (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 6,
+                        }}
+                      >
+                        <input
+                          type="text"
+                          value={newLinkLabel}
+                          onChange={(e) => setNewLinkLabel(e.target.value)}
+                          placeholder="表示名（必須）"
+                          style={{ padding: 4, fontSize: 12 }}
+                        />
+                        <input
+                          type="text"
+                          value={newLinkUrl}
+                          onChange={(e) => setNewLinkUrl(e.target.value)}
+                          placeholder="URL（任意）"
+                          style={{ padding: 4, fontSize: 12 }}
+                        />
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const label = newLinkLabel.trim();
+                              if (!label) {
+                                alert("表示名を入力してください");
+                                return;
+                              }
+                              const urlVal = newLinkUrl.trim();
+                              const url = urlVal === "" ? null : urlVal;
+                              if (url !== null && !/^https?:\/\//i.test(url)) {
+                                alert("URL は http:// または https:// で始めてください");
+                                return;
+                              }
+                              const nodeId = selected?.id;
+                              if (!nodeId) return;
+                              const res = await fetch(`/api/nodes/${encodeURIComponent(nodeId)}/links`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ label, url }),
+                              });
+                              const data = await res.json();
+                              if (!data.ok) {
+                                alert(data.error ?? "追加に失敗しました");
+                                return;
+                              }
+                              setNodeLinkAdding(false);
+                              setNewLinkLabel("");
+                              setNewLinkUrl("");
+                              setNodeLinksRefreshKey((k) => k + 1);
+                            }}
+                            style={{ padding: "4px 8px", fontSize: 11 }}
+                          >
+                            保存
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNodeLinkAdding(false);
+                              setNewLinkLabel("");
+                              setNewLinkUrl("");
+                            }}
+                            style={{ padding: "4px 8px", fontSize: 11 }}
+                          >
+                            キャンセル
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {!nodeLinkAdding && (
+                      <button
+                        type="button"
+                        onClick={() => setNodeLinkAdding(true)}
+                        style={{ marginTop: 8, padding: "4px 8px", fontSize: 11 }}
+                      >
+                        ＋追加
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
 
