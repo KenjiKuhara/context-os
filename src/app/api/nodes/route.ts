@@ -69,8 +69,19 @@ export async function POST(req: NextRequest) {
       ? body.parent_id.trim()
       : null;
 
-  const sibling_order =
-    typeof body?.sibling_order === "number" ? body.sibling_order : 0;
+  let sibling_order: number;
+  if (parent_id != null && (body?.sibling_order === undefined || body?.sibling_order === null)) {
+    const { data: siblings } = await supabase
+      .from("nodes")
+      .select("sibling_order")
+      .eq("parent_id", parent_id)
+      .order("sibling_order", { ascending: false })
+      .limit(1);
+    const maxOrder = siblings?.[0]?.sibling_order;
+    sibling_order = typeof maxOrder === "number" ? maxOrder + 1 : 0;
+  } else {
+    sibling_order = typeof body?.sibling_order === "number" ? body.sibling_order : 0;
+  }
 
   const status =
     typeof body?.status === "string" && body.status.trim() !== ""
