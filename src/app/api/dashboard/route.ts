@@ -15,21 +15,25 @@
  */
 
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 import { ACTIVE_STATUSES } from "@/lib/stateMachine";
 
 export async function GET() {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     // ACTIVE_STATUSES は stateMachine.ts で一元管理
     // DONE / CANCELLED / DORMANT を除いた12状態
     const [nodesRes, childrenRes] = await Promise.all([
-      supabaseAdmin
+      supabase
         .from("nodes")
         .select("*")
         .in("status", [...ACTIVE_STATUSES])
         .order("updated_at", { ascending: false })
         .limit(50),
-      supabaseAdmin
+      supabase
         .from("node_children")
         .select("parent_id, child_id, created_at"),
     ]);
@@ -41,7 +45,7 @@ export async function GET() {
     let lastMemoByNodeId: Record<string, string> = {};
     let lastMemoAtByNodeId: Record<string, string> = {};
     if (nodeIds.length > 0) {
-      const { data: historyRows } = await supabaseAdmin
+      const { data: historyRows } = await supabase
         .from("node_status_history")
         .select("node_id, reason, consumed_at")
         .in("node_id", nodeIds)

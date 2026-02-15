@@ -19,7 +19,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 
 type Status =
   | "CAPTURED"
@@ -76,8 +76,12 @@ export async function PATCH(
         ? noteRaw.trim()
         : null;
 
+    const { supabase, user } = await getSupabaseAndUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     // 1) 現在のnodeを取得（status が省略された場合はここで取った値を使う）
-    const { data: currentNode, error: selErr } = await supabaseAdmin
+    const { data: currentNode, error: selErr } = await supabase
       .from("nodes")
       .select("id,status")
       .eq("id", id)
@@ -112,7 +116,7 @@ export async function PATCH(
     if (note !== null) nodeUpdate.note = note;
 
     if (Object.keys(nodeUpdate).length > 0) {
-      const { error: updErr } = await supabaseAdmin
+      const { error: updErr } = await supabase
         .from("nodes")
         .update(nodeUpdate)
         .eq("id", id);
@@ -134,7 +138,7 @@ export async function PATCH(
       // note は reason に入れる（noteカラムは使わない）
       const reason = note ?? (statusChanged ? "status changed" : "memo");
 
-      const { error: histErr } = await supabaseAdmin
+      const { error: histErr } = await supabase
         .from("node_status_history")
         .insert({
           node_id: id,

@@ -10,9 +10,14 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 import { validateOrganizerReport, validateAdvisorReport } from "@/lib/proposalQuality/validator";
 
 export async function POST(req: NextRequest) {
+  const { user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {

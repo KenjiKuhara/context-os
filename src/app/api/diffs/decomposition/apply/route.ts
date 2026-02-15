@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -33,8 +33,11 @@ interface ConfirmationRow {
   expires_at: string;
 }
 
-async function consumeConfirmation(confirmationId: string): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabaseAdmin
+async function consumeConfirmation(
+  supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").getSupabaseAndUser>>["supabase"],
+  confirmationId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase
     .from("confirmation_events")
     .update({
       consumed: true,
@@ -46,6 +49,10 @@ async function consumeConfirmation(confirmationId: string): Promise<{ ok: boolea
 }
 
 export async function POST(req: NextRequest) {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
@@ -70,7 +77,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data, error: fetchErr } = await supabaseAdmin
+    const { data, error: fetchErr } = await supabase
       .from("confirmation_events")
       .select("confirmation_id, node_id, proposed_change, consumed, consumed_at, expires_at")
       .eq("confirmation_id", confirmationIdRaw)
@@ -138,9 +145,10 @@ export async function POST(req: NextRequest) {
           ? ch.suggested_status.trim()
           : "READY";
 
-      const { data: newNode, error: insErr } = await supabaseAdmin
+      const { data: newNode, error: insErr } = await supabase
         .from("nodes")
         .insert({
+          user_id: user.id,
           title,
           context: context || null,
           parent_id: parentNodeId,
@@ -163,7 +171,7 @@ export async function POST(req: NextRequest) {
       const childId = (newNode as { id: string; title: string }).id;
       createdChildren.push({ id: childId, title: (newNode as { id: string; title: string }).title });
 
-      const { error: linkErr } = await supabaseAdmin.from("node_children").insert({
+      const { error: linkErr } = await supabase.from("node_children").insert({
         parent_id: parentNodeId,
         child_id: childId,
       });
@@ -183,7 +191,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const consumeResult = await consumeConfirmation(confirmationIdRaw);
+    const consumeResult = await consumeConfirmation(supabase, confirmationIdRaw);
     if (!consumeResult.ok) {
       console.error("[diffs/decomposition/apply] consume failed:", consumeResult.error);
       return NextResponse.json(

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -27,6 +27,10 @@ export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const { id } = await context.params;
     if (!id?.trim()) {
@@ -98,7 +102,7 @@ export async function PATCH(
       }
     }
 
-    const { data: currentNode, error: selErr } = await supabaseAdmin
+    const { data: currentNode, error: selErr } = await supabase
       .from("nodes")
       .select("id, title, status, updated_at, due_date")
       .eq("id", id.trim())
@@ -128,7 +132,7 @@ export async function PATCH(
     if (titleChanged && newTitle !== undefined) update.title = newTitle;
     if (dueDateChanged && newDueNorm !== undefined) update.due_date = newDueNorm;
 
-    const { error: updErr } = await supabaseAdmin
+    const { error: updErr } = await supabase
       .from("nodes")
       .update(update)
       .eq("id", id.trim());
@@ -143,7 +147,7 @@ export async function PATCH(
     const currentStatus = (currentNode.status as string) ?? "";
     if (logChange && titleChanged) {
       const reason = `タイトル変更:\n「${currentTitle || "(なし)"}」\n↓\n「${newTitle}」`;
-      await supabaseAdmin.from("node_status_history").insert({
+      await supabase.from("node_status_history").insert({
         node_id: id.trim(),
         from_status: currentStatus,
         to_status: currentStatus,
@@ -155,7 +159,7 @@ export async function PATCH(
       const fromDisplay = dueDateToDisplay(currentDueNorm ?? null);
       const toDisplay = newDueNorm == null ? "未設定" : dueDateToDisplay(newDueNorm);
       const reason = `期日変更:\n「${fromDisplay}」\n↓\n「${toDisplay}」`;
-      const { error: histErr } = await supabaseAdmin.from("node_status_history").insert({
+      const { error: histErr } = await supabase.from("node_status_history").insert({
         node_id: id.trim(),
         from_status: currentStatus,
         to_status: currentStatus,

@@ -12,7 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 
 const DIFF_TYPES = ["relation", "grouping", "decomposition"] as const;
 const UUID_REGEX =
@@ -38,6 +38,10 @@ function matchesNodeFilter(
 }
 
 export async function GET(req: NextRequest) {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const { searchParams } = new URL(req.url);
     const typeParam = searchParams.get("type")?.trim();
@@ -85,7 +89,7 @@ export async function GET(req: NextRequest) {
     // consumed = true のみ取得。ソートは consumed_at DESC NULLS LAST, confirmed_at DESC
     // フィルタをメモリで行うため、多めに取得してからフィルタ・スライス（MVP では 500 件まで取得）
     const fetchLimit = 500;
-    const { data: rows, error } = await supabaseAdmin
+    const { data: rows, error } = await supabase
       .from("confirmation_events")
       .select("confirmation_id, node_id, confirmed_at, consumed_at, proposed_change, ui_action")
       .eq("consumed", true)

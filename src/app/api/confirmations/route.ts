@@ -25,12 +25,16 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 import { randomUUID } from "crypto";
 
 const EXPIRY_HOURS = 24;
 
 export async function POST(req: NextRequest) {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
@@ -91,7 +95,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      const { data: parentNode } = await supabaseAdmin
+      const { data: parentNode } = await supabase
         .from("nodes")
         .select("id")
         .eq("id", parentNodeId)
@@ -150,7 +154,7 @@ export async function POST(req: NextRequest) {
         consumed_at: null,
         expires_at: expiresAt.toISOString(),
       };
-      const { error: insErr } = await supabaseAdmin.from("confirmation_events").insert(record);
+      const { error: insErr } = await supabase.from("confirmation_events").insert(record);
       if (insErr) {
         return NextResponse.json({ ok: false, error: insErr.message }, { status: 500 });
       }
@@ -172,7 +176,7 @@ export async function POST(req: NextRequest) {
         );
       }
       for (const nid of nodeIds) {
-        const { data: node } = await supabaseAdmin.from("nodes").select("id").eq("id", nid).single();
+        const { data: node } = await supabase.from("nodes").select("id").eq("id", nid).single();
         if (!node) {
           return NextResponse.json(
             { ok: false, error: `node_id not found in nodes: ${nid}` },
@@ -200,7 +204,7 @@ export async function POST(req: NextRequest) {
         consumed_at: null,
         expires_at: expiresAt.toISOString(),
       };
-      const { error: insErr } = await supabaseAdmin.from("confirmation_events").insert(record);
+      const { error: insErr } = await supabase.from("confirmation_events").insert(record);
       if (insErr) {
         return NextResponse.json({ ok: false, error: insErr.message }, { status: 500 });
       }
@@ -219,8 +223,8 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      const { data: fromNode } = await supabaseAdmin.from("nodes").select("id").eq("id", fromNodeId).single();
-      const { data: toNode } = await supabaseAdmin.from("nodes").select("id").eq("id", toNodeId).single();
+      const { data: fromNode } = await supabase.from("nodes").select("id").eq("id", fromNodeId).single();
+      const { data: toNode } = await supabase.from("nodes").select("id").eq("id", toNodeId).single();
       if (!fromNode || !toNode) {
         return NextResponse.json(
           { ok: false, error: "from_node_id or to_node_id not found in nodes" },
@@ -248,7 +252,7 @@ export async function POST(req: NextRequest) {
         consumed_at: null,
         expires_at: expiresAt.toISOString(),
       };
-      const { error: insErr } = await supabaseAdmin.from("confirmation_events").insert(record);
+      const { error: insErr } = await supabase.from("confirmation_events").insert(record);
       if (insErr) {
         return NextResponse.json({ ok: false, error: insErr.message }, { status: 500 });
       }
@@ -270,7 +274,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: node, error: nodeErr } = await supabaseAdmin
+    const { data: node, error: nodeErr } = await supabase
       .from("nodes")
       .select("id, status")
       .eq("id", nodeId)
@@ -314,7 +318,7 @@ export async function POST(req: NextRequest) {
       expires_at: expiresAt.toISOString(),
     };
 
-    const { error: insErr } = await supabaseAdmin
+    const { error: insErr } = await supabase
       .from("confirmation_events")
       .insert(record);
 

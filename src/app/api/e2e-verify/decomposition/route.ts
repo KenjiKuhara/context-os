@@ -6,13 +6,17 @@
  */
 
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 
 export async function GET() {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const [nodesRes, childrenRes] = await Promise.all([
-      supabaseAdmin.from("nodes").select("id", { count: "exact", head: true }),
-      supabaseAdmin.from("node_children").select("parent_id", { count: "exact", head: true }),
+      supabase.from("nodes").select("id", { count: "exact", head: true }),
+      supabase.from("node_children").select("parent_id", { count: "exact", head: true }),
     ]);
     const nodesCount = nodesRes.count ?? 0;
     const nodeChildrenCount = childrenRes.count ?? 0;

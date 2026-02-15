@@ -29,6 +29,11 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## Database (Supabase)
+
+- **nodes.user_id NOT NULL への移行**: マイグレーション `supabase/migrations/20260213_nodes_user_id_not_null.sql` が、NULL 行を最初のユーザーに割り当ててから NOT NULL を付与する。RLS のため通常セッションでは `user_id IS NULL` の行は見えず 0 件に見えることがあるが、マイグレーション内で補正する。開発で NULL 行を削除したい場合は、マイグレーション前に RLS をバイパスする権限で `DELETE FROM public.nodes WHERE user_id IS NULL;` を実行する。
+- **認証・RLS の最終検証**: DB 確認用 SQL とアプリレベル検証手順は [docs/134_auth_rls_verification_checklist.md](docs/134_auth_rls_verification_checklist.md) にあり、`scripts/verify-auth-db.sql` で 1-1〜1-3 を一括実行できる。
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

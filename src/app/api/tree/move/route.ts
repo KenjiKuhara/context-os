@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 import { validateTreeMove, type NodeRow } from "./validate";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31,6 +31,10 @@ function buildParentToChildrenFromNodes(
 }
 
 export async function POST(req: NextRequest) {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const body = await req.json().catch(() => null);
     const logReject = (reason: string, movedNodeId: unknown, newParentId: unknown) => {
@@ -41,7 +45,7 @@ export async function POST(req: NextRequest) {
       });
     };
 
-    const { data: allNodes, error: fetchErr } = await supabaseAdmin
+    const { data: allNodes, error: fetchErr } = await supabase
       .from("nodes")
       .select("id, parent_id, sibling_order")
       .limit(2000);
@@ -131,7 +135,7 @@ export async function POST(req: NextRequest) {
     }
 
     for (const u of deduped.values()) {
-      const { error: upErr } = await supabaseAdmin
+      const { error: upErr } = await supabase
         .from("nodes")
         .update({ parent_id: u.parent_id, sibling_order: u.sibling_order, updated_at: new Date().toISOString() })
         .eq("id", u.id);
@@ -142,15 +146,15 @@ export async function POST(req: NextRequest) {
     if (oldParentId) affectedParentIds.add(oldParentId);
     if (newParentId) affectedParentIds.add(newParentId);
     for (const parentId of affectedParentIds) {
-      const { data: children } = await supabaseAdmin
+      const { data: children } = await supabase
         .from("nodes")
         .select("id")
         .eq("parent_id", parentId)
         .order("sibling_order", { ascending: true });
       const childIds = (children ?? []).map((r) => r.id as string);
-      await supabaseAdmin.from("node_children").delete().eq("parent_id", parentId);
+      await supabase.from("node_children").delete().eq("parent_id", parentId);
       for (const cid of childIds) {
-        const { error: insErr } = await supabaseAdmin.from("node_children").insert({
+        const { error: insErr } = await supabase.from("node_children").insert({
           parent_id: parentId,
           child_id: cid,
         });

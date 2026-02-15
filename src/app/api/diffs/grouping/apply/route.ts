@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -26,8 +26,11 @@ interface ConfirmationRow {
   expires_at: string;
 }
 
-async function consumeConfirmation(confirmationId: string): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabaseAdmin
+async function consumeConfirmation(
+  supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").getSupabaseAndUser>>["supabase"],
+  confirmationId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase
     .from("confirmation_events")
     .update({
       consumed: true,
@@ -39,6 +42,10 @@ async function consumeConfirmation(confirmationId: string): Promise<{ ok: boolea
 }
 
 export async function POST(req: NextRequest) {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
@@ -63,7 +70,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data, error: fetchErr } = await supabaseAdmin
+    const { data, error: fetchErr } = await supabase
       .from("confirmation_events")
       .select("confirmation_id, node_id, proposed_change, consumed, consumed_at, expires_at")
       .eq("confirmation_id", confirmationIdRaw)
@@ -114,7 +121,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: groupRow, error: groupInsErr } = await supabaseAdmin
+    const { data: groupRow, error: groupInsErr } = await supabase
       .from("groups")
       .insert({ group_label: groupLabel })
       .select("id")
@@ -130,7 +137,7 @@ export async function POST(req: NextRequest) {
     const groupId = (groupRow as { id: string }).id;
     const memberRows = nodeIds.map((node_id) => ({ group_id: groupId, node_id }));
 
-    const { error: membersErr } = await supabaseAdmin.from("group_members").insert(memberRows);
+    const { error: membersErr } = await supabase.from("group_members").insert(memberRows);
 
     if (membersErr) {
       if (membersErr.code === "23505") {
@@ -145,7 +152,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const consumeResult = await consumeConfirmation(confirmationIdRaw);
+    const consumeResult = await consumeConfirmation(supabase, confirmationIdRaw);
     if (!consumeResult.ok) {
       console.error("[diffs/grouping/apply] consume failed:", consumeResult.error);
     }

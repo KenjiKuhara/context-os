@@ -19,7 +19,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { STATUS_LABELS, getValidTransitions } from "@/lib/stateMachine";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { ProposalPanel } from "@/components/ProposalPanel";
 import { TreeList } from "@/components/TreeList";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
@@ -82,6 +84,10 @@ type EstimatePreview = {
 const TREE_EXPANDED_STORAGE_KEY = "kuharaos.tree.expanded.v1";
 /** Phase11-E: 大賢者メッセージ再出現制御（lastHandledSageKind + timestamp） */
 const SAGE_LAST_HANDLED_KEY = "kuharaos.sage.lastHandled";
+/** UI 状態の localStorage キー（プラン §8） */
+const STORAGE_ACTIVE_FILTER = "kuharaos.activeFilter";
+const STORAGE_VIEW_MODE = "kuharaos.viewMode";
+const STORAGE_SELECTED_NODE_ID = "kuharaos.selectedNodeId";
 
 /** Phase9-A: treeRoots から ノード→親 マップを構築 */
 function buildParentById(roots: TreeNode[]): Map<string, string> {
@@ -117,6 +123,35 @@ const TRAY_LABEL: Record<keyof Trays | "all", string> = {
   cooling: "冷却中",
   other_active: "その他",
 };
+
+/** ログアウトボタン（signOut 後 /login へ遷移） */
+function LogoutButton() {
+  const router = useRouter();
+  async function handleLogout() {
+    const supabase = createSupabaseClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
+  return (
+    <button
+      type="button"
+      onClick={handleLogout}
+      style={{
+        padding: "8px 14px",
+        borderRadius: 8,
+        border: "1px solid var(--border-default)",
+        background: "var(--bg-card)",
+        color: "var(--text-primary)",
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: "pointer",
+      }}
+    >
+      ログアウト
+    </button>
+  );
+}
 
 /** Phase11-D: 滞留検知メッセージの閾値 */
 const READY_THRESHOLD = 3;
@@ -289,9 +324,13 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Tray filter
+  // Tray filter（localStorage から復元）
   const [activeTrayKey, setActiveTrayKey] = useState<keyof Trays | "all">(
-    "all"
+    () => {
+      if (typeof window === "undefined") return "all";
+      const v = localStorage.getItem(STORAGE_ACTIVE_FILTER);
+      return (v === "all" || v === "in_progress" || v === "needs_decision" || v === "waiting_external" || v === "cooling" || v === "other_active") ? v : "all";
+    }
   );
   const [selected, setSelected] = useState<Node | null>(null);
 
@@ -341,9 +380,14 @@ export default function DashboardPage() {
 
   // Phase6-A: ツリー表示用
   const [nodeChildren, setNodeChildren] = useState<Array<{ parent_id: string; child_id: string; created_at?: string }>>([]);
-  const [viewMode, setViewMode] = useState<"flat" | "tree">("tree");
+  const [viewMode, setViewMode] = useState<"flat" | "tree">(() => {
+    if (typeof window === "undefined") return "tree";
+    const v = localStorage.getItem(STORAGE_VIEW_MODE);
+    return v === "flat" || v === "tree" ? v : "tree";
+  });
   const [expandedSet, setExpandedSet] = useState<Set<string>>(new Set());
   const hasRestoredExpandedRef = useRef(false);
+  const hasRestoredSelectedRef = useRef(false);
   /** Phase9-A: 履歴クリック連動でハイライトするノード ID の集合 */
   const [highlightNodeIds, setHighlightNodeIds] = useState<Set<string> | null>(null);
   /** Phase11-D: 大賢者アクションクリック後、トレー切替完了時にフォーカスするノード ID */
@@ -522,6 +566,43 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, [mounted, refreshDashboard, fetchObserverReport]);
+
+  // localStorage 永続化: activeTrayKey / viewMode / selected
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(STORAGE_ACTIVE_FILTER, activeTrayKey);
+  }, [activeTrayKey]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(STORAGE_VIEW_MODE, viewMode);
+  }, [viewMode]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (selected?.id) localStorage.setItem(STORAGE_SELECTED_NODE_ID, selected.id);
+    else localStorage.removeItem(STORAGE_SELECTED_NODE_ID);
+  }, [selected]);
+
+  // 再訪時: trays 取得後に selected を localStorage から復元（存在する場合のみ）
+  useEffect(() => {
+    if (!trays) return;
+    const allNodes: Node[] = [
+      ...trays.in_progress,
+      ...trays.needs_decision,
+      ...trays.waiting_external,
+      ...trays.cooling,
+      ...trays.other_active,
+    ];
+    if (!hasRestoredSelectedRef.current) {
+      hasRestoredSelectedRef.current = true;
+      const savedId = typeof window !== "undefined" ? localStorage.getItem(STORAGE_SELECTED_NODE_ID) : null;
+      if (savedId) {
+        const node = allNodes.find((n) => n.id === savedId) ?? null;
+        setSelected(node);
+      }
+    } else {
+      if (selected && !allNodes.some((n) => n.id === selected.id)) setSelected(null);
+    }
+  }, [trays, selected]);
 
   // ─── Reset estimate flow when selection changes ─────────
 
@@ -1382,7 +1463,10 @@ export default function DashboardPage() {
             「進行中の仕事」をトレーに分けて表示します
           </div>
         </div>
-        <ThemeSwitcher />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <ThemeSwitcher />
+          <LogoutButton />
+        </div>
       </div>
 
       {/* Phase12-B: 追加モード可視化。Phase14-QuickAdd: 1行input+送信ボタン。 */}

@@ -11,11 +11,15 @@
  */
 
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 
 export async function GET() {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("observer_reports")
       .select("report_id, created_at, generated_by, payload, node_count, source, received_at")
       .order("created_at", { ascending: false })

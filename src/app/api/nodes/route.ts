@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 
 /**
  * Nodes API
@@ -8,7 +8,11 @@ import { supabaseAdmin } from "@/lib/supabase";
  */
 
 export async function GET() {
-  const { data, error } = await supabaseAdmin
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const { data, error } = await supabase
     .from("nodes")
     .select("*")
     .order("updated_at", { ascending: false })
@@ -25,6 +29,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   let body: any = null;
 
   // 1) JSON parse
@@ -78,10 +86,11 @@ export async function POST(req: NextRequest) {
       ? body.tags
       : [];
 
-  // 3) Insert
-  const { data, error } = await supabaseAdmin
+  // 3) Insert（user_id を付与して RLS と整合）
+  const { data, error } = await supabase
     .from("nodes")
     .insert({
+      user_id: user.id,
       title,
       context: nodeContext,
       parent_id,

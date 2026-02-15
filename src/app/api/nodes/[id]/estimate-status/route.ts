@@ -28,7 +28,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 import {
   type Status,
   isValidStatus,
@@ -92,6 +92,7 @@ interface ConfirmationRow {
  * 成功時は ConfirmationRow を返す。失敗時は { error, httpStatus } を返す。
  */
 async function validateConfirmationFromDB(
+  supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").getSupabaseAndUser>>["supabase"],
   confirmationId: string,
   nodeId: string,
   confirmStatus: string,
@@ -110,7 +111,7 @@ async function validateConfirmationFromDB(
   }
 
   // Step 2: DB から取得
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("confirmation_events")
     .select("*")
     .eq("confirmation_id", confirmationId)
@@ -176,9 +177,10 @@ async function validateConfirmationFromDB(
  * confirmation_events を consumed=true に更新する。
  */
 async function consumeConfirmation(
+  supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").getSupabaseAndUser>>["supabase"],
   confirmationId: string
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabaseAdmin
+  const { error } = await supabase
     .from("confirmation_events")
     .update({
       consumed: true,
@@ -196,6 +198,10 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const { id } = await context.params;
 
@@ -253,7 +259,7 @@ export async function POST(
     // ──────────────────────────────────────────────
     // 1) 現在のノードを取得
     // ──────────────────────────────────────────────
-    const { data: node, error: selErr } = await supabaseAdmin
+    const { data: node, error: selErr } = await supabase
       .from("nodes")
       .select("id, status, title, context, temperature")
       .eq("id", id)
@@ -343,6 +349,7 @@ export async function POST(
       }
 
       const validation = await validateConfirmationFromDB(
+        supabase,
         confirmationId,
         id,
         confirmStatus as string,
@@ -389,7 +396,7 @@ export async function POST(
 
     // ── Node の status を更新（変更がある場合のみ）──
     if (statusChanged) {
-      const { error: updErr } = await supabaseAdmin
+      const { error: updErr } = await supabase
         .from("nodes")
         .update({ status: toStatus })
         .eq("id", id);
@@ -406,6 +413,7 @@ export async function POST(
     // 23 §3.3 / 24 §6.1: Apply 成功時（status_changed true/false 問わず）に consumed=true
     if (confirmedRow) {
       const consumeResult = await consumeConfirmation(
+        supabase,
         confirmedRow.confirmation_id
       );
       if (!consumeResult.ok) {
@@ -442,7 +450,7 @@ export async function POST(
       consumed_at: now,
     };
 
-    const { error: histErr } = await supabaseAdmin
+    const { error: histErr } = await supabase
       .from("node_status_history")
       .insert(historyRecord);
 
@@ -466,7 +474,7 @@ export async function POST(
         toStatus === "DONE"
           ? "親が完了になったため"
           : "親が中止になったため";
-      const { data: childRows } = await supabaseAdmin
+      const { data: childRows } = await supabase
         .from("node_children")
         .select("parent_id, child_id");
       const parentToChildren = new Map<string, string[]>();
@@ -493,7 +501,7 @@ export async function POST(
       }
       const nowCascade = new Date().toISOString();
       for (const childId of descendantIds) {
-        const { data: childNode } = await supabaseAdmin
+        const { data: childNode } = await supabase
           .from("nodes")
           .select("id, status")
           .eq("id", childId)
@@ -501,11 +509,11 @@ export async function POST(
         if (!childNode) continue;
         const childFrom = (childNode.status as string) ?? "";
         if (childFrom === toStatus) continue;
-        await supabaseAdmin
+        await supabase
           .from("nodes")
           .update({ status: toStatus })
           .eq("id", childId);
-        await supabaseAdmin.from("node_status_history").insert({
+        await supabase.from("node_status_history").insert({
           node_id: childId,
           from_status: childFrom,
           to_status: toStatus,

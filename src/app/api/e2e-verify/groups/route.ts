@@ -6,13 +6,17 @@
  */
 
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 
 export async function GET() {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const [groupsRes, membersRes] = await Promise.all([
-      supabaseAdmin.from("groups").select("id", { count: "exact", head: true }),
-      supabaseAdmin.from("group_members").select("group_id", { count: "exact", head: true }),
+      supabase.from("groups").select("id", { count: "exact", head: true }),
+      supabase.from("group_members").select("group_id", { count: "exact", head: true }),
     ]);
     const groupsCount = groupsRes.count ?? 0;
     const groupMembersCount = membersRes.count ?? 0;

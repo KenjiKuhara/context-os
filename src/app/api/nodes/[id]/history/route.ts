@@ -6,12 +6,16 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const { id } = await params;
     if (!id?.trim()) {
@@ -21,7 +25,7 @@ export async function GET(
       );
     }
 
-    const { data: rows, error } = await supabaseAdmin
+    const { data: rows, error } = await supabase
       .from("node_status_history")
       .select("from_status, to_status, reason, consumed_at")
       .eq("node_id", id.trim())

@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 import { runAdvisorPipeline } from "@/lib/proposalQuality/runPipeline";
 import { createServerLogContext } from "@/lib/proposalQuality/runPipelineLog";
 import type { RunInputDashboard } from "@/lib/proposalQuality/dashboard";
@@ -25,6 +26,10 @@ function isDashboardLike(body: unknown): body is { dashboard: RunInputDashboard 
 }
 
 export async function POST(req: NextRequest) {
+  const { user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   try {
     const body = await req.json().catch(() => null);
     if (!isDashboardLike(body)) {
