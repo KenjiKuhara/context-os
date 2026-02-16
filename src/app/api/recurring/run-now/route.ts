@@ -1,23 +1,20 @@
 /**
- * GET/POST /api/recurring/run — 定期ジョブ用。cron から Bearer CRON_SECRET で呼ぶ。
- * Vercel Cron は GET で呼ぶため GET も受け付ける。
- * service role で recurring_rules を走査し、条件を満たすルールごとに nodes に1件だけ挿入して next_run_at を更新する。
+ * POST /api/recurring/run-now — ログイン中のユーザーが「今すぐ実行」で自分のルールだけ処理する。
+ * RLS で自分の recurring_rules のみ取得し、条件を満たすものについて nodes に1件ずつ挿入して next_run_at を更新する。
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase";
+import { NextResponse } from "next/server";
+import { getSupabaseAndUser } from "@/lib/supabase/server";
 import { computeNextRunAt, toDateOnly } from "@/lib/recurringRun";
 
-function checkCronAuth(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  const auth = req.headers.get("authorization");
-  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
-  return !!secret && token === secret;
-}
+export async function POST() {
+  const { supabase, user } = await getSupabaseAndUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-async function executeRun() {
   const now = new Date().toISOString();
-  const { data: rules, error: selectError } = await supabaseAdmin
+  const { data: rules, error: selectError } = await supabase
     .from("recurring_rules")
     .select("id, user_id, title, schedule_type, time_of_day, start_at, end_at, next_run_at, is_active")
     .eq("is_active", true)
@@ -32,15 +29,14 @@ async function executeRun() {
 
   for (const rule of items) {
     const endAt = rule.end_at ? new Date(rule.end_at).toISOString() : null;
-    if (endAt && rule.next_run_at > endAt) continue;
-    if (new Date(rule.next_run_at) < new Date(rule.start_at)) continue;
+    if (endAt && (rule.next_run_at as string) > endAt) continue;
+    if (new Date(rule.next_run_at as string) < new Date(rule.start_at as string)) continue;
 
-    const userId = rule.user_id as string;
     const title = rule.title as string;
     const dueDate = toDateOnly(rule.next_run_at as string);
 
-    const { error: insertError } = await supabaseAdmin.from("nodes").insert({
-      user_id: userId,
+    const { error: insertError } = await supabase.from("nodes").insert({
+      user_id: user.id,
       title,
       context: null,
       parent_id: null,
@@ -62,7 +58,7 @@ async function executeRun() {
       (rule.time_of_day as string) || "00:00"
     );
     const exceedsEnd = endAt != null && nextRunAt > endAt;
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabase
       .from("recurring_rules")
       .update({
         next_run_at: nextRunAt,
@@ -78,19 +74,6 @@ async function executeRun() {
     }
   }
 
-  return NextResponse.json({ ok: true, processed: results.length, results });
-}
-
-export async function GET(req: NextRequest) {
-  if (!checkCronAuth(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  return executeRun();
-}
-
-export async function POST(req: NextRequest) {
-  if (!checkCronAuth(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  return executeRun();
+  const createdCount = results.filter((r) => r.created && !r.error).length;
+  return NextResponse.json({ ok: true, processed: results.length, created: createdCount, results });
 }

@@ -75,6 +75,8 @@ export default function RecurringPage() {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [runNowLoading, setRunNowLoading] = useState(false);
+  const [runNowMessage, setRunNowMessage] = useState<string | null>(null);
 
   const fetchRules = useCallback(async () => {
     setLoading(true);
@@ -201,6 +203,25 @@ export default function RecurringPage() {
     fetchRules();
   }
 
+  async function handleRunNow() {
+    setRunNowMessage(null);
+    setRunNowLoading(true);
+    const res = await fetch("/api/recurring/run-now", { method: "POST" });
+    const data = await res.json();
+    setRunNowLoading(false);
+    if (!data.ok) {
+      setRunNowMessage(data.error ?? "実行に失敗しました");
+      return;
+    }
+    const created = data.created ?? 0;
+    if (created > 0) {
+      setRunNowMessage(`${created} 件のタスクを生成しました。ダッシュボードで確認できます。`);
+    } else {
+      setRunNowMessage("対象のルールはありません（次回実行時刻がまだ先の場合は生成されません）");
+    }
+    fetchRules();
+  }
+
   const formBlock = (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 400 }}>
       <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -269,7 +290,24 @@ export default function RecurringPage() {
             ルールを保存し、実行日が来たらタスクを1件だけ自動生成します
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={handleRunNow}
+            disabled={runNowLoading}
+            style={{
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid var(--border-focus)",
+              background: "var(--color-info)",
+              color: "var(--text-on-primary)",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: runNowLoading ? "not-allowed" : "pointer",
+            }}
+          >
+            {runNowLoading ? "実行中…" : "今すぐ実行"}
+          </button>
           <Link
             href="/dashboard"
             style={{ color: "var(--color-info)", textDecoration: "underline" }}
@@ -281,6 +319,11 @@ export default function RecurringPage() {
         </div>
       </div>
 
+      {runNowMessage && (
+        <p style={{ marginTop: 12, padding: 10, background: "var(--bg-muted)", borderRadius: 8, color: "var(--text-primary)" }}>
+          {runNowMessage}
+        </p>
+      )}
       {loading && <p style={{ color: "var(--text-secondary)" }}>取得中…</p>}
       {error && <p style={{ color: "var(--text-danger)" }}>{error}</p>}
 
