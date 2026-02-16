@@ -1604,6 +1604,12 @@ export default function DashboardPage() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <a
+            href="/dashboard/recurring"
+            style={{ color: "var(--color-info)", textDecoration: "underline", fontSize: 14 }}
+          >
+            繰り返し
+          </a>
           <ThemeSwitcher />
           <LogoutButton />
         </div>
