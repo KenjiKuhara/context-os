@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const title = typeof body.title === "string" ? body.title.trim() : "";
     const schedule_type = typeof body.schedule_type === "string" ? body.schedule_type.trim().toLowerCase() : "";
-    const time_of_day = typeof body.time_of_day === "string" ? body.time_of_day.trim() : "";
+    const time_of_day = (typeof body.time_of_day === "string" ? body.time_of_day.trim() : "") || "00:00";
     const start_atRaw = body.start_at;
     const end_atRaw = body.end_at;
 

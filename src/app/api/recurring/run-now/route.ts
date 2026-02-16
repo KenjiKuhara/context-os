@@ -5,7 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { getSupabaseAndUser } from "@/lib/supabase/server";
-import { computeNextRunAt, toDateOnly } from "@/lib/recurringRun";
+import { computeNextRunAt, getEndOfTodayJSTUTC, getTodayJST, toDateOnly, toJSTDate } from "@/lib/recurringRun";
 
 export async function POST() {
   const { supabase, user } = await getSupabaseAndUser();
@@ -13,12 +13,13 @@ export async function POST() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const now = new Date().toISOString();
+  const todayJST = getTodayJST();
+  const endOfTodayJSTUTC = getEndOfTodayJSTUTC();
   const { data: rules, error: selectError } = await supabase
     .from("recurring_rules")
     .select("id, user_id, title, schedule_type, time_of_day, start_at, end_at, next_run_at, is_active")
     .eq("is_active", true)
-    .lte("next_run_at", now);
+    .lte("next_run_at", endOfTodayJSTUTC);
 
   if (selectError) {
     return NextResponse.json({ ok: false, error: selectError.message }, { status: 500 });
@@ -28,6 +29,7 @@ export async function POST() {
   const results: { id: string; created: boolean; error?: string }[] = [];
 
   for (const rule of items) {
+    if (toJSTDate(rule.next_run_at as string) > todayJST) continue;
     const endAt = rule.end_at ? new Date(rule.end_at).toISOString() : null;
     if (endAt && (rule.next_run_at as string) > endAt) continue;
     if (new Date(rule.next_run_at as string) < new Date(rule.start_at as string)) continue;

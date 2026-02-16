@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { computeNextRunAt, toDateOnly } from "@/lib/recurringRun";
+import { computeNextRunAt, getEndOfTodayJSTUTC, getTodayJST, toDateOnly, toJSTDate } from "@/lib/recurringRun";
 
 function checkCronAuth(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
@@ -16,12 +16,13 @@ function checkCronAuth(req: NextRequest): boolean {
 }
 
 async function executeRun() {
-  const now = new Date().toISOString();
+  const todayJST = getTodayJST();
+  const endOfTodayJSTUTC = getEndOfTodayJSTUTC();
   const { data: rules, error: selectError } = await supabaseAdmin
     .from("recurring_rules")
     .select("id, user_id, title, schedule_type, time_of_day, start_at, end_at, next_run_at, is_active")
     .eq("is_active", true)
-    .lte("next_run_at", now);
+    .lte("next_run_at", endOfTodayJSTUTC);
 
   if (selectError) {
     return NextResponse.json({ ok: false, error: selectError.message }, { status: 500 });
@@ -31,6 +32,7 @@ async function executeRun() {
   const results: { id: string; created: boolean; error?: string }[] = [];
 
   for (const rule of items) {
+    if (toJSTDate(rule.next_run_at as string) > todayJST) continue;
     const endAt = rule.end_at ? new Date(rule.end_at).toISOString() : null;
     if (endAt && rule.next_run_at > endAt) continue;
     if (new Date(rule.next_run_at) < new Date(rule.start_at)) continue;

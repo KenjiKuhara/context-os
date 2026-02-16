@@ -46,3 +46,21 @@ export function computeNextRunAt(
 export function toDateOnly(iso: string): string {
   return iso.slice(0, 10);
 }
+
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+/** 現在時刻の「今日」の日付を JST で YYYY-MM-DD で返す。例: 15:00 UTC = JST 0:00 のときは JST のその日。 */
+export function getTodayJST(): string {
+  return new Date(Date.now() + JST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** ISO 文字列（UTC）の「JST での日付」を YYYY-MM-DD で返す。 */
+export function toJSTDate(iso: string): string {
+  return new Date(new Date(iso).getTime() + JST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** JST の「今日」の終わり 23:59:59 を UTC にした ISO 文字列。next_run_at <= この値で「今日 JST まで」を取得する。 */
+export function getEndOfTodayJSTUTC(): string {
+  const todayJST = getTodayJST();
+  return `${todayJST}T14:59:59.999Z`;
+}

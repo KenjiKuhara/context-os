@@ -65,7 +65,7 @@ function formatDate(iso: string | null): string {
 
 function ruleSummary(r: Rule): string {
   const schedule = SCHEDULE_LABELS[r.schedule_type] ?? r.schedule_type;
-  return `🔁 ${schedule} ${r.time_of_day} / 開始: ${formatDate(r.start_at)} / 終了: ${formatDate(r.end_at)}`;
+  return `🔁 ${schedule} / 開始: ${formatDate(r.start_at)} / 終了: ${formatDate(r.end_at)}`;
 }
 
 export default function RecurringPage() {
@@ -98,14 +98,12 @@ export default function RecurringPage() {
 
   const [formTitle, setFormTitle] = useState("");
   const [formScheduleType, setFormScheduleType] = useState<"daily" | "weekly" | "monthly">("daily");
-  const [formTimeOfDay, setFormTimeOfDay] = useState("08:00");
   const [formStartAt, setFormStartAt] = useState("");
   const [formEndAt, setFormEndAt] = useState("");
 
   function resetForm() {
     setFormTitle("");
     setFormScheduleType("daily");
-    setFormTimeOfDay("08:00");
     const today = new Date().toISOString().slice(0, 10);
     setFormStartAt(today);
     setFormEndAt("");
@@ -115,7 +113,6 @@ export default function RecurringPage() {
     setEditingId(rule.id);
     setFormTitle(rule.title);
     setFormScheduleType((rule.schedule_type as "daily" | "weekly" | "monthly") || "daily");
-    setFormTimeOfDay(rule.time_of_day || "08:00");
     setFormStartAt(rule.start_at.slice(0, 10));
     setFormEndAt(rule.end_at ? rule.end_at.slice(0, 10) : "");
   }
@@ -133,7 +130,7 @@ export default function RecurringPage() {
       body: JSON.stringify({
         title: formTitle.trim(),
         schedule_type: formScheduleType,
-        time_of_day: formTimeOfDay,
+        time_of_day: "00:00",
         start_at: startAt,
         end_at: formEndAt.trim() || null,
       }),
@@ -162,7 +159,7 @@ export default function RecurringPage() {
       body: JSON.stringify({
         title: formTitle.trim(),
         schedule_type: formScheduleType,
-        time_of_day: formTimeOfDay,
+        time_of_day: "00:00",
         start_at: startAt,
         end_at: formEndAt.trim() || null,
       }),
@@ -246,16 +243,6 @@ export default function RecurringPage() {
           <option value="weekly">毎週</option>
           <option value="monthly">毎月</option>
         </select>
-      </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ width: 90 }}>時刻</span>
-        <input
-          type="text"
-          value={formTimeOfDay}
-          onChange={(e) => setFormTimeOfDay(e.target.value)}
-          placeholder="08:00"
-          style={{ padding: 6, width: 80 }}
-        />
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ width: 90 }}>開始日</span>
