@@ -85,11 +85,11 @@ def _check_http_error(resp: httpx.Response, method: str, path: str) -> None:
 
 
 async def fetch_dashboard(client: httpx.AsyncClient) -> dict[str, Any]:
-    """GET /api/dashboard — アクティブ Node 一覧を取得。"""
+    """GET /api/dashboard — アクティブ Node 一覧を取得。OBSERVER_TOKEN を Bearer で付与。"""
     path = "/api/dashboard"
     url = f"{BASE_URL.rstrip('/')}{path}"
     try:
-        resp = await client.get(url)
+        resp = await client.get(url, headers=_save_report_headers())
     except httpx.ConnectError as e:
         port_hint = ""
         try:
