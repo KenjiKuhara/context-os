@@ -13,7 +13,8 @@
 
 ## 方法 2: Vercel Cron（本番の自動実行）
 
-- `vercel.json` で 15 分ごとに `/api/recurring/run` を呼ぶように設定済み。
+- `vercel.json` で 1 日 1 回（毎日 0:00 UTC）`/api/recurring/run` を呼ぶように設定済み。
+- **Vercel Hobby プラン**では cron は 1 日 1 回まで。それより頻繁な式（例: 15 分ごと）にするとデプロイが失敗する。より頻繁に実行したい場合は **Pro プラン**が必要（[Usage & Pricing for Cron Jobs](https://vercel.com/docs/cron-jobs/usage-and-pricing) 参照）。
 - **Vercel にデプロイした環境**で、次を設定する。
 
 ### 環境変数（Vercel の Project Settings → Environment Variables）

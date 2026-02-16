@@ -2,6 +2,10 @@
 
 push しても Vercel にデプロイが作成されない場合、以下を順に確認してください。
 
+## ログイン / Supabase Auth を入れたあとにデプロイされなくなった場合
+
+**Supabase Auth / ログイン機能の追加そのものは「push でデプロイが作られなくなる」直接原因にはなりません。** デプロイが「作られるか」は、GitHub が push を検知して Vercel に webhook を送り、Vercel がデプロイを 1 件作ると判断する段階で決まります。その時点ではまだコードはビルドされておらず、middleware/proxy や getSupabaseAndUser、Cookie は実行されません。同じ時期に、Supabase の Vercel 連携の設定変更や GitHub の Vercel アプリ再認証をしていないか思い出し、下記の確認 1〜4 を優先してください。その後、この文書の「1. Vercel の Git 接続」以降をそのまま実行してください。
+
 ## 1. Vercel の Git 接続（いちばん多い原因）
 
 - **Vercel ダッシュボード** → 該当プロジェクト → **Settings** → **Git**
