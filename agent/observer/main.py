@@ -497,11 +497,11 @@ async def save_report(
 
 
 async def fetch_latest_report(client: httpx.AsyncClient) -> dict[str, Any]:
-    """GET /api/observer/reports/latest — Phase 3-2.1 本番スモーク用。"""
+    """GET /api/observer/reports/latest — Phase 3-2.1 本番スモーク用。Bearer で認証。"""
     path = "/api/observer/reports/latest"
     url = f"{BASE_URL.rstrip('/')}{path}"
     try:
-        resp = await client.get(url)
+        resp = await client.get(url, headers=_save_report_headers())
     except httpx.ConnectError as e:
         msg = f"{_call_desc('GET', path)} 接続できません。NEXT_BASE_URL を確認してください。"
         raise RuntimeError(msg) from e

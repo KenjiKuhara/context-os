@@ -28,7 +28,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 
 const OBSERVER_SOURCE = "observer_python";
 
-function getBearerToken(req: NextRequest): string | null {
+export function getBearerToken(req: NextRequest): string | null {
   const auth = req.headers.get("authorization");
   if (!auth || typeof auth !== "string") return null;
   const trimmed = auth.trim();
