@@ -17,6 +17,17 @@ export async function POST() {
   const todayJST = getTodayJST();
   const endOfTodayJSTUTC = getEndOfTodayJSTUTC();
 
+  const { count: activeCount } = await supabase
+    .from("recurring_rules")
+    .select("id", { count: "exact", head: true })
+    .eq("is_active", true);
+
+  const { count: inTimeRangeCount } = await supabase
+    .from("recurring_rules")
+    .select("id", { count: "exact", head: true })
+    .eq("is_active", true)
+    .lte("next_run_at", endOfTodayJSTUTC);
+
   const { data: rules, error: selectError } = await supabase
     .from("recurring_rules")
     .select("id, user_id, title, schedule_type, time_of_day, start_at, end_at, next_run_at, is_active, last_run_at, last_run_for_date")
@@ -29,13 +40,28 @@ export async function POST() {
   }
 
   const items = rules ?? [];
-  const results: { id: string; created: boolean; error?: string }[] = [];
+  const results: { id: string; created: boolean; error?: string; skipReason?: string; next_run_date_jst?: string }[] = [];
 
   for (const rule of items) {
-    if (toJSTDate(rule.next_run_at as string) > todayJST) continue;
+    const nextRunDateJST = toJSTDate(rule.next_run_at as string);
+    if (nextRunDateJST > todayJST) {
+      results.push({
+        id: rule.id,
+        created: false,
+        skipReason: "next_run_date_future",
+        next_run_date_jst: nextRunDateJST,
+      });
+      continue;
+    }
     const endAt = rule.end_at ? new Date(rule.end_at).toISOString() : null;
-    if (endAt && (rule.next_run_at as string) > endAt) continue;
-    if (new Date(rule.next_run_at as string) < new Date(rule.start_at as string)) continue;
+    if (endAt && (rule.next_run_at as string) > endAt) {
+      results.push({ id: rule.id, created: false, skipReason: "end_at_exceeded" });
+      continue;
+    }
+    if (new Date(rule.next_run_at as string) < new Date(rule.start_at as string)) {
+      results.push({ id: rule.id, created: false, skipReason: "before_start" });
+      continue;
+    }
 
     const nextRunAt = computeNextRunAt(
       rule.next_run_at as string,
@@ -62,6 +88,7 @@ export async function POST() {
       continue;
     }
     if (!updated || updated.length === 0) {
+      results.push({ id: rule.id, created: false, skipReason: "already_run_today" });
       continue;
     }
 
@@ -100,5 +127,17 @@ export async function POST() {
   }
 
   const createdCount = results.filter((r) => r.created && !r.error).length;
-  return NextResponse.json({ ok: true, processed: results.length, created: createdCount, results });
+  return NextResponse.json({
+    ok: true,
+    processed: results.length,
+    created: createdCount,
+    results,
+    debug: {
+      todayJST,
+      endOfTodayJSTUTC,
+      activeRuleCount: activeCount ?? 0,
+      inTimeRangeCount: inTimeRangeCount ?? 0,
+      selectedCount: items.length,
+    },
+  });
 }

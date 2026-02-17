@@ -91,7 +91,26 @@ export default function RecurringPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [runNowLoading, setRunNowLoading] = useState(false);
   const [runNowMessage, setRunNowMessage] = useState<string | null>(null);
+  const [runNowDebug, setRunNowDebug] = useState<{
+    todayJST: string;
+    endOfTodayJSTUTC: string;
+    activeRuleCount: number;
+    inTimeRangeCount: number;
+    selectedCount: number;
+  } | null>(null);
+  const [runNowResults, setRunNowResults] = useState<Array<{ id: string; created: boolean; error?: string; skipReason?: string; next_run_date_jst?: string }>>([]);
   const [clearingId, setClearingId] = useState<string | null>(null);
+  const [historyItems, setHistoryItems] = useState<Array<{
+    id: string;
+    rule_id: string | null;
+    run_at: string;
+    run_for_date: string | null;
+    trigger: string;
+    created_node_id: string | null;
+    processed_count: number | null;
+    created_count: number | null;
+  }>>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const fetchRules = useCallback(async () => {
     setLoading(true);
@@ -107,9 +126,23 @@ export default function RecurringPage() {
     setItems(Array.isArray(data.items) ? data.items : []);
   }, []);
 
+  const fetchHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    const res = await fetch("/api/recurring/history", { cache: "no-store" });
+    const data = await res.json();
+    setHistoryLoading(false);
+    if (data.ok && Array.isArray(data.items)) {
+      setHistoryItems(data.items);
+    }
+  }, []);
+
   useEffect(() => {
     fetchRules();
   }, [fetchRules]);
+
+  useEffect(() => {
+    if (!loading) fetchHistory();
+  }, [loading, fetchHistory]);
 
   const [formTitle, setFormTitle] = useState("");
   const [formScheduleType, setFormScheduleType] = useState<"daily" | "weekly" | "monthly">("daily");
@@ -217,6 +250,8 @@ export default function RecurringPage() {
 
   async function handleRunNow() {
     setRunNowMessage(null);
+    setRunNowDebug(null);
+    setRunNowResults([]);
     setRunNowLoading(true);
     const res = await fetch("/api/recurring/run-now", { method: "POST" });
     const data = await res.json();
@@ -226,12 +261,18 @@ export default function RecurringPage() {
       return;
     }
     const created = data.created ?? 0;
+    const debug = data.debug ?? null;
+    const results = Array.isArray(data.results) ? data.results : [];
+    setRunNowDebug(debug);
+    setRunNowResults(results);
+
     if (created > 0) {
       setRunNowMessage(`${created} 件のタスクを生成しました。ダッシュボードで確認できます。`);
     } else {
       setRunNowMessage("対象のルールはありません（今日分は実行済み、または次回実行時刻がまだ先の場合は生成されません）");
     }
     fetchRules();
+    fetchHistory();
   }
 
   async function handleClearHistory(ruleId: string) {
@@ -244,6 +285,7 @@ export default function RecurringPage() {
       return;
     }
     fetchRules();
+    fetchHistory();
   }
 
   const formBlock = (
@@ -338,6 +380,38 @@ export default function RecurringPage() {
           {runNowMessage}
         </p>
       )}
+      {runNowDebug && (
+        <div style={{ marginTop: 8, padding: 12, background: "var(--bg-card)", border: "1px solid var(--border-default)", borderRadius: 8, fontSize: 13 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>診断</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, color: "var(--text-secondary)" }}>
+            <span>今日(JST): {runNowDebug.todayJST} / 終了時刻(UTC): {runNowDebug.endOfTodayJSTUTC}</span>
+            <span>有効なルール: {runNowDebug.activeRuleCount}件 / 次回実行時刻が今日以内: {runNowDebug.inTimeRangeCount}件 / 今日分未実行で対象: {runNowDebug.selectedCount}件</span>
+            {runNowResults.some((r) => r.skipReason) && (
+              <div style={{ marginTop: 6 }}>
+                {runNowResults.map((r) => {
+                  const rule = items.find((x) => x.id === r.id);
+                  const label = rule?.title ?? r.id.slice(0, 8);
+                  const reason =
+                    r.skipReason === "next_run_date_future"
+                      ? `次回実行日(JST)が今日より先（${r.next_run_date_jst ?? "?"} > ${runNowDebug.todayJST}）`
+                      : r.skipReason === "already_run_today"
+                        ? "今日分は実行済み"
+                        : r.skipReason === "end_at_exceeded"
+                          ? "終了日を超過"
+                          : r.skipReason === "before_start"
+                            ? "開始日前"
+                            : r.skipReason ?? r.error ?? "—";
+                  return (
+                    <div key={r.id} style={{ fontSize: 12, marginTop: 2 }}>
+                      {label}: {reason}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {loading && <p style={{ color: "var(--text-secondary)" }}>取得中…</p>}
       {error && <p style={{ color: "var(--text-danger)" }}>{error}</p>}
 
@@ -425,6 +499,47 @@ export default function RecurringPage() {
               ＋ ルールを追加
             </button>
           )}
+
+          <div style={{ marginTop: 32, padding: 16, border: "1px solid var(--border-default)", borderRadius: 8, background: "var(--bg-card)" }}>
+            <div style={{ fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span>実行ログ</span>
+              <button type="button" onClick={fetchHistory} disabled={historyLoading} style={{ fontSize: 12, padding: "4px 8px", cursor: historyLoading ? "not-allowed" : "pointer" }}>
+                {historyLoading ? "再取得中…" : "再取得"}
+              </button>
+            </div>
+            {historyLoading && historyItems.length === 0 ? (
+              <p style={{ color: "var(--text-secondary)", fontSize: 13 }}>取得中…</p>
+            ) : historyItems.length === 0 ? (
+              <p style={{ color: "var(--text-muted)", fontSize: 13 }}>履歴はまだありません</p>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border-default)" }}>
+                      <th style={{ textAlign: "left", padding: "6px 8px" }}>実行日時</th>
+                      <th style={{ textAlign: "left", padding: "6px 8px" }}>ルール / ジョブ</th>
+                      <th style={{ textAlign: "left", padding: "6px 8px" }}>種別</th>
+                      <th style={{ textAlign: "left", padding: "6px 8px" }}>対象日</th>
+                      <th style={{ textAlign: "right", padding: "6px 8px" }}>処理数</th>
+                      <th style={{ textAlign: "right", padding: "6px 8px" }}>生成数</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyItems.map((row) => (
+                      <tr key={row.id} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{formatLastRun(row.run_at)}</td>
+                        <td style={{ padding: "6px 8px" }}>{row.rule_id ? items.find((r) => r.id === row.rule_id)?.title ?? row.rule_id.slice(0, 8) : "ジョブ"}</td>
+                        <td style={{ padding: "6px 8px" }}>{row.trigger === "cron" ? "自動" : row.trigger === "manual" ? "手動" : row.trigger === "clear" ? "クリア" : row.trigger}</td>
+                        <td style={{ padding: "6px 8px" }}>{row.run_for_date ? row.run_for_date.replace(/-/g, "/") : "—"}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{row.processed_count != null ? row.processed_count : "—"}</td>
+                        <td style={{ padding: "6px 8px", textAlign: "right" }}>{row.created_count != null ? row.created_count : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
