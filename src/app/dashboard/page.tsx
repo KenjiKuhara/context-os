@@ -119,7 +119,7 @@ function getAncestorIds(nodeId: string, parentById: Map<string, string>): string
 const CASCADE_TARGET_STATUSES = ["DONE", "COOLING", "DORMANT", "CANCELLED"] as const;
 
 const TRAY_LABEL: Record<keyof Trays | "all", string> = {
-  all: "全て（進行中の仕事）",
+  all: "進行中（冷却中以外）",
   in_progress: "実施中",
   needs_decision: "判断待ち",
   waiting_external: "外部待ち",
@@ -1101,7 +1101,7 @@ export default function DashboardPage() {
               ...trays.in_progress,
               ...trays.needs_decision,
               ...trays.waiting_external,
-              ...trays.cooling,
+              // trays.cooling は含めない
               ...trays.other_active,
             ]
           : trays[activeTrayKey];
@@ -1266,6 +1266,7 @@ export default function DashboardPage() {
         cooling: 0,
         other_active: 0,
         total: 0,
+        totalWithoutCooling: 0,
       };
     }
     const c = {
@@ -1275,6 +1276,7 @@ export default function DashboardPage() {
       cooling: trays.cooling.length,
       other_active: trays.other_active.length,
       total: 0,
+      totalWithoutCooling: 0,
     };
     c.total =
       c.in_progress +
@@ -1282,6 +1284,8 @@ export default function DashboardPage() {
       c.waiting_external +
       c.cooling +
       c.other_active;
+    c.totalWithoutCooling =
+      c.in_progress + c.needs_decision + c.waiting_external + c.other_active;
     return c;
   }, [trays]);
 
@@ -1932,7 +1936,7 @@ export default function DashboardPage() {
         >
           <SummaryCard
             title={TRAY_LABEL.all}
-            value={counts.total}
+            value={counts.totalWithoutCooling}
             onClick={() => setActiveTrayKey("all")}
             active={activeTrayKey === "all"}
           />
