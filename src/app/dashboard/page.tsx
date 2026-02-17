@@ -2755,7 +2755,17 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => setNodeLinkAdding(true)}
-                        style={{ marginTop: 8, padding: "4px 8px", fontSize: 11 }}
+                        style={{
+                          marginTop: 8,
+                          padding: "4px 10px",
+                          fontSize: 12,
+                          borderRadius: 6,
+                          border: "1px solid var(--border-default)",
+                          background: "var(--bg-card)",
+                          color: "var(--text-primary)",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
                       >
                         ＋追加
                       </button>
