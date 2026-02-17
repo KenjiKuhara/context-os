@@ -50,6 +50,8 @@ type Rule = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  last_run_at: string | null;
+  last_run_for_date: string | null;
 };
 
 const SCHEDULE_LABELS: Record<string, string> = {
@@ -61,6 +63,18 @@ const SCHEDULE_LABELS: Record<string, string> = {
 function formatDate(iso: string | null): string {
   if (!iso) return "なし";
   return iso.slice(0, 10).replace(/-/g, "/");
+}
+
+function formatLastRun(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${y}/${m}/${day} ${h}:${min}`;
 }
 
 function ruleSummary(r: Rule): string {
@@ -77,6 +91,7 @@ export default function RecurringPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [runNowLoading, setRunNowLoading] = useState(false);
   const [runNowMessage, setRunNowMessage] = useState<string | null>(null);
+  const [clearingId, setClearingId] = useState<string | null>(null);
 
   const fetchRules = useCallback(async () => {
     setLoading(true);
@@ -214,7 +229,19 @@ export default function RecurringPage() {
     if (created > 0) {
       setRunNowMessage(`${created} 件のタスクを生成しました。ダッシュボードで確認できます。`);
     } else {
-      setRunNowMessage("対象のルールはありません（次回実行時刻がまだ先の場合は生成されません）");
+      setRunNowMessage("対象のルールはありません（今日分は実行済み、または次回実行時刻がまだ先の場合は生成されません）");
+    }
+    fetchRules();
+  }
+
+  async function handleClearHistory(ruleId: string) {
+    setClearingId(ruleId);
+    const res = await fetch(`/api/recurring/${ruleId}/clear`, { method: "POST" });
+    const data = await res.json();
+    setClearingId(null);
+    if (!data.ok) {
+      alert(data.error ?? "クリアに失敗しました");
+      return;
     }
     fetchRules();
   }
@@ -352,7 +379,10 @@ export default function RecurringPage() {
               ) : (
                 <>
                   <div style={{ fontWeight: 600, marginBottom: 4 }}>{rule.title}</div>
-                  <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>{ruleSummary(rule)}</div>
+                  <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>{ruleSummary(rule)}</div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>
+                    最後に実行: {formatLastRun(rule.last_run_at)}
+                  </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <button
                       type="button"
@@ -370,6 +400,15 @@ export default function RecurringPage() {
                       {rule.is_active ? "有効" : "停止"}
                     </button>
                     <button type="button" onClick={() => openEdit(rule)} style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, cursor: "pointer" }}>編集</button>
+                    <button
+                      type="button"
+                      onClick={() => handleClearHistory(rule.id)}
+                      disabled={clearingId === rule.id}
+                      style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, cursor: clearingId === rule.id ? "not-allowed" : "pointer", color: "var(--text-secondary)" }}
+                      title="実行履歴をクリアすると、同じ日にもう一度「今すぐ実行」またはジョブでタスクを1件追加できます"
+                    >
+                      {clearingId === rule.id ? "クリア中…" : "実行履歴クリア"}
+                    </button>
                     <button type="button" onClick={() => setDeletingId(rule.id)} style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, cursor: "pointer", color: "var(--text-danger)" }}>削除</button>
                   </div>
                 </>

@@ -33,7 +33,7 @@ export async function GET() {
   try {
     const { data, error } = await supabase
       .from("recurring_rules")
-      .select("id, user_id, title, schedule_type, time_of_day, start_at, end_at, next_run_at, is_active, created_at, updated_at")
+      .select("id, user_id, title, schedule_type, time_of_day, start_at, end_at, next_run_at, is_active, created_at, updated_at, last_run_at, last_run_for_date")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
         is_active: true,
         updated_at: now,
       })
-      .select("id, user_id, title, schedule_type, time_of_day, start_at, end_at, next_run_at, is_active, created_at, updated_at")
+      .select("id, user_id, title, schedule_type, time_of_day, start_at, end_at, next_run_at, is_active, created_at, updated_at, last_run_at, last_run_for_date")
       .single();
 
     if (error) {
