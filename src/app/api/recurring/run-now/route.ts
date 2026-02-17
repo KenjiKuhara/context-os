@@ -70,18 +70,39 @@ export async function POST() {
     );
     const exceedsEnd = endAt != null && nextRunAt > endAt;
 
-    const { data: updated, error: updateError } = await supabase
-      .from("recurring_rules")
-      .update({
-        next_run_at: nextRunAt,
-        last_run_at: nowIso,
-        last_run_for_date: todayJST,
-        is_active: !exceedsEnd,
-        updated_at: nowIso,
-      })
-      .eq("id", rule.id)
-      .or(`last_run_for_date.is.null,last_run_for_date.lt."${todayJST}"`)
-      .select("id");
+    const updatePayload = {
+      next_run_at: nextRunAt,
+      last_run_at: nowIso,
+      last_run_for_date: todayJST,
+      is_active: !exceedsEnd,
+      updated_at: nowIso,
+    };
+
+    // UPDATE の .or() が効かない環境があるため、NULL と「今日より前」を別々に試す
+    let updated: { id: string }[] | null = null;
+    let updateError: { message: string } | null = null;
+
+    const lastRunForDate = rule.last_run_for_date as string | null;
+    if (lastRunForDate === null || lastRunForDate === undefined) {
+      const r = await supabase
+        .from("recurring_rules")
+        .update(updatePayload)
+        .eq("id", rule.id)
+        .is("last_run_for_date", null)
+        .select("id");
+      updateError = r.error;
+      updated = r.data;
+    }
+    if ((!updated || updated.length === 0) && updateError === null) {
+      const r = await supabase
+        .from("recurring_rules")
+        .update(updatePayload)
+        .eq("id", rule.id)
+        .lt("last_run_for_date", todayJST)
+        .select("id");
+      updateError = r.error;
+      updated = r.data;
+    }
 
     if (updateError) {
       results.push({ id: rule.id, created: false, error: updateError.message });
