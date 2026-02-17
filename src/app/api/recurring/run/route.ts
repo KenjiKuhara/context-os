@@ -26,7 +26,7 @@ async function executeRun() {
     .select("id, user_id, title, schedule_type, time_of_day, start_at, end_at, next_run_at, is_active, last_run_at, last_run_for_date")
     .eq("is_active", true)
     .lte("next_run_at", endOfTodayJSTUTC)
-    .or(`last_run_for_date.is.null,last_run_for_date.lt.${todayJST}`);
+    .or(`last_run_for_date.is.null,last_run_for_date.lt."${todayJST}"`);
 
   if (selectError) {
     return NextResponse.json({ ok: false, error: selectError.message }, { status: 500 });
@@ -59,7 +59,7 @@ async function executeRun() {
         updated_at: nowIso,
       })
       .eq("id", rule.id)
-      .or(`last_run_for_date.is.null,last_run_for_date.lt.${todayJST}`)
+      .or(`last_run_for_date.is.null,last_run_for_date.lt."${todayJST}"`)
       .select("id");
 
     if (updateError) {
