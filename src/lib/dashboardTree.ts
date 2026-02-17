@@ -129,17 +129,28 @@ function buildTreeRec(
 
 /**
  * 指定ノードの全子孫 ID を返す。nodeChildren から parent → children を組み、BFS で収集。
+ * nodes を渡すと nodes.parent_id をフォールバックでマップにマージする（parent_id のみの親子も含む）。
  * 親ステータス一括適用のモーダル表示条件（子孫の有無・異なるステータスの有無）に使用。
  */
 export function getDescendantIds(
   nodeId: string,
-  nodeChildren: Array<{ parent_id: string; child_id: string }>
+  nodeChildren: Array<{ parent_id: string; child_id: string }>,
+  nodes?: Array<{ id: string; parent_id?: string | null }>
 ): Set<string> {
   const parentToChildren = new Map<string, string[]>();
   for (const link of nodeChildren) {
     const list = parentToChildren.get(link.parent_id) ?? [];
     if (!list.includes(link.child_id)) list.push(link.child_id);
     parentToChildren.set(link.parent_id, list);
+  }
+  if (nodes?.length) {
+    for (const n of nodes) {
+      const parentId = n.parent_id?.trim();
+      if (!parentId || parentId === n.id) continue;
+      const list = parentToChildren.get(parentId) ?? [];
+      if (!list.includes(n.id)) list.push(n.id);
+      parentToChildren.set(parentId, list);
+    }
   }
   const result = new Set<string>();
   const queue: string[] = [nodeId];

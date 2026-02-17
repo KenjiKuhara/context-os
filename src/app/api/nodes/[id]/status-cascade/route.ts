@@ -19,24 +19,41 @@ function isCascadeTarget(s: string): s is (typeof CASCADE_TARGET_STATUSES)[numbe
   return (CASCADE_TARGET_STATUSES as readonly string[]).includes(s);
 }
 
-/** node_children から parent_id → child_id[] のマップを組み、nodeId から全子孫 ID を BFS で収集。同一 user_id のノードに限定。 */
+/** node_children と nodes.parent_id の両方から親子マップを組み、nodeId から全子孫 ID を BFS で収集。同一 user_id のノードに限定。 */
 async function getDescendantIdsOwnedByUser(
   supabase: Awaited<ReturnType<typeof getSupabaseAndUser>>["supabase"],
   nodeId: string,
   userId: string
 ): Promise<Set<string>> {
+  const parentToChildren = new Map<string, string[]>();
+
   const { data: links } = await supabase
     .from("node_children")
     .select("parent_id, child_id");
-  if (!links || links.length === 0) return new Set();
+  if (links?.length) {
+    for (const row of links) {
+      const p = row.parent_id as string;
+      const c = row.child_id as string;
+      const list = parentToChildren.get(p) ?? [];
+      if (!list.includes(c)) list.push(c);
+      parentToChildren.set(p, list);
+    }
+  }
 
-  const parentToChildren = new Map<string, string[]>();
-  for (const row of links) {
-    const p = row.parent_id as string;
-    const c = row.child_id as string;
-    const list = parentToChildren.get(p) ?? [];
-    if (!list.includes(c)) list.push(c);
-    parentToChildren.set(p, list);
+  const { data: nodesWithParent } = await supabase
+    .from("nodes")
+    .select("id, parent_id")
+    .eq("user_id", userId)
+    .not("parent_id", "is", null);
+  if (nodesWithParent?.length) {
+    for (const row of nodesWithParent) {
+      const parentId = (row.parent_id as string)?.trim();
+      const childId = row.id as string;
+      if (!parentId || parentId === childId) continue;
+      const list = parentToChildren.get(parentId) ?? [];
+      if (!list.includes(childId)) list.push(childId);
+      parentToChildren.set(parentId, list);
+    }
   }
 
   const result = new Set<string>();

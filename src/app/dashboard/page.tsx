@@ -839,7 +839,7 @@ export default function DashboardPage() {
 
       // 親ステータス一括適用: 対象4種（完了・冷却・休眠・中止）かつ子孫あり
       if ((CASCADE_TARGET_STATUSES as readonly string[]).includes(targetStatus)) {
-        const descendantIds = getDescendantIds(nodeId, nodeChildren);
+        const descendantIds = getDescendantIds(nodeId, nodeChildren, visibleNodesRef.current);
         if (descendantIds.size > 0) {
           const hasDescendantWithDifferentStatus = visibleNodesRef.current.some(
             (n) => descendantIds.has(n.id) && displayStatus(n) !== targetStatus
@@ -1653,7 +1653,7 @@ export default function DashboardPage() {
                   setCascadeInFlight(true);
                   setQuickSwitchError(null);
                   const nodeId = selected.id;
-                  const descendantIds = getDescendantIds(nodeId, nodeChildren);
+                  const descendantIds = getDescendantIds(nodeId, nodeChildren, visibleNodesRef.current);
                   withMutation(() =>
                     fetch(`/api/nodes/${nodeId}/status-cascade`, {
                       method: "POST",
