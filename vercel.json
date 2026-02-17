@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/recurring/run",
-      "schedule": "0 20 * * *"
+      "schedule": "0 21 * * *"
     }
   ]
 }
