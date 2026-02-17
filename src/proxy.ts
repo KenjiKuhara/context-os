@@ -9,7 +9,21 @@ import { createServerClient } from "@supabase/ssr";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+/** 認証をスキップするパス（静的アセット等）。/next.svg の 401 防止 */
+function isStaticAsset(pathname: string): boolean {
+  return (
+    pathname === "/next.svg" ||
+    pathname === "/favicon.ico" ||
+    pathname.startsWith("/_next/")
+  );
+}
+
 export async function proxy(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  if (isStaticAsset(path)) {
+    return NextResponse.next();
+  }
+
   let response = NextResponse.next({
     request: { headers: request.headers },
   });
@@ -35,7 +49,6 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const path = request.nextUrl.pathname;
   const isDashboard = path === "/dashboard" || path.startsWith("/dashboard/");
   const isLogin = path === "/login";
 
