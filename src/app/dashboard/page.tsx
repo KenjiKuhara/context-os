@@ -350,6 +350,7 @@ export default function DashboardPage() {
   /** Phase12-A: 更新中は全状態ボタン非活性（エラーは出さない） */
   const [quickSwitchInFlightNodeId, setQuickSwitchInFlightNodeId] = useState<string | null>(null);
   const lastQuickSwitchRequestIdRef = useRef(0);
+  const visibleNodesRef = useRef<Node[]>([]);
 
   // Estimate flow state
   // 03_Non_Goals.md §2.2: status を人に選ばせない
@@ -840,7 +841,7 @@ export default function DashboardPage() {
       if ((CASCADE_TARGET_STATUSES as readonly string[]).includes(targetStatus)) {
         const descendantIds = getDescendantIds(nodeId, nodeChildren);
         if (descendantIds.size > 0) {
-          const hasDescendantWithDifferentStatus = visibleNodes.some(
+          const hasDescendantWithDifferentStatus = visibleNodesRef.current.some(
             (n) => descendantIds.has(n.id) && displayStatus(n) !== targetStatus
           );
           if (hasDescendantWithDifferentStatus) {
@@ -994,7 +995,7 @@ export default function DashboardPage() {
           })
       );
     },
-    [selected, displayStatus, refreshDashboard, ensureParentInProgress, nodeChildren, visibleNodes]
+    [selected, displayStatus, refreshDashboard, ensureParentInProgress, nodeChildren]
   );
 
   /** タスクタイトル インライン編集: 保存（Enter / blur）。二重保存防止のため isSaving 中は blur 側でスキップする */
@@ -1109,6 +1110,10 @@ export default function DashboardPage() {
     }
     return base;
   }, [trays, activeTrayKey, optimisticNodes]);
+
+  useEffect(() => {
+    visibleNodesRef.current = visibleNodes;
+  }, [visibleNodes]);
 
   /** 133: フラット表示用ソート。期日あり→期日昇順→updated_at 降順。ツリー表示は変更しない */
   const flatSortedNodes = useMemo(() => {
