@@ -17,8 +17,8 @@ name: Observer Cron
 
 on:
   schedule:
-    # 1日1回 UTC 0:00（JST 9:00）
-    - cron: "0 0 * * *"
+    # 1日1回 UTC 4:00（JST 13:00）
+    - cron: "0 4 * * *"
   workflow_dispatch:
 
 jobs:

@@ -33,6 +33,14 @@
 - ヘッダーに `Authorization: Bearer <CRON_SECRET>` を付与する。
 - ローカルやオンプレではこの方法で cron を組む。
 
+## 0時にタスクが生まれないとき
+
+- トリガーは **Vercel Cron** のみ（GitHub Actions は不要）。手動で動くならロジックは問題ないので、Cron が動いていないか認証で弾かれている可能性が高い。
+- **確認すること（優先度順）**
+  1. **Vercel** → プロジェクト → **Settings** → **Environment Variables** に `CRON_SECRET`（16 文字以上）と `SUPABASE_SERVICE_ROLE_KEY` が設定されているか。未設定だと API が 401/500 になり何も実行されない。
+  2. 環境変数追加・変更後は **本番の再デプロイ** が必要（値はデプロイ時に取り込まれる）。
+  3. **Vercel** → プロジェクト → **Cron Jobs** タブで、JST 0 時（UTC 15:00）以降に実行履歴が出ているか確認する。
+
 ## 注意
 
 - **next_run_at は UTC** で比較される。ルールの「時刻」も UTC として解釈される。
