@@ -64,3 +64,10 @@ export function getEndOfTodayJSTUTC(): string {
   const todayJST = getTodayJST();
   return `${todayJST}T14:59:59.999Z`;
 }
+
+/** 指定日(JST)の指定時刻(time_of_day, HH:MM)を JST として解釈し、UTC の ISO 文字列で返す。クリア後に「今日」で再実行可能にする next_run_at に使う。 */
+export function getTodayJSTAtUTC(todayJST: string, timeOfDay: string): string {
+  const t = (timeOfDay || "00:00").trim();
+  const padded = t.length === 5 ? t : t.length === 4 ? `0${t}` : "00:00";
+  return new Date(`${todayJST}T${padded}:00+09:00`).toISOString();
+}

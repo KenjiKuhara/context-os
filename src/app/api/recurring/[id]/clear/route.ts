@@ -1,9 +1,11 @@
 /**
- * POST /api/recurring/[id]/clear — 対象ルールの実行履歴をクリア（last_run_at / last_run_for_date を NULL にし、run_history に clear を記録）
+ * POST /api/recurring/[id]/clear — 対象ルールの実行履歴をクリア（last_run_at / last_run_for_date を NULL にし、next_run_at を「今日」に戻す。run_history に clear を記録）
+ * next_run_at を今日に戻すことで、クリア直後の「今すぐ実行」でタスクが 1 件生成されるようになる。
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAndUser } from "@/lib/supabase/server";
+import { getTodayJST, getTodayJSTAtUTC } from "@/lib/recurringRun";
 
 export async function POST(
   _req: NextRequest,
@@ -21,7 +23,7 @@ export async function POST(
 
   const { data: rule, error: fetchError } = await supabase
     .from("recurring_rules")
-    .select("id")
+    .select("id, time_of_day")
     .eq("id", id.trim())
     .single();
 
@@ -30,12 +32,15 @@ export async function POST(
   }
 
   const nowIso = new Date().toISOString();
+  const todayJST = getTodayJST();
+  const nextRunAt = getTodayJSTAtUTC(todayJST, (rule.time_of_day as string) || "00:00");
 
   const { error: updateError } = await supabase
     .from("recurring_rules")
     .update({
       last_run_at: null,
       last_run_for_date: null,
+      next_run_at: nextRunAt,
       updated_at: nowIso,
     })
     .eq("id", id.trim());
