@@ -2692,14 +2692,30 @@ export default function DashboardPage() {
                           value={newLinkLabel}
                           onChange={(e) => setNewLinkLabel(e.target.value)}
                           placeholder="表示名（必須）"
-                          style={{ padding: 4, fontSize: 12 }}
+                          style={{
+                            padding: "7px 10px",
+                            fontSize: 12,
+                            borderRadius: 6,
+                            border: "1px solid var(--border-default)",
+                            background: "var(--bg-muted)",
+                            color: "var(--text-primary)",
+                            outline: "none",
+                          }}
                         />
                         <input
                           type="text"
                           value={newLinkUrl}
                           onChange={(e) => setNewLinkUrl(e.target.value)}
                           placeholder="URL（任意）"
-                          style={{ padding: 4, fontSize: 12 }}
+                          style={{
+                            padding: "7px 10px",
+                            fontSize: 12,
+                            borderRadius: 6,
+                            border: "1px solid var(--border-default)",
+                            background: "var(--bg-muted)",
+                            color: "var(--text-primary)",
+                            outline: "none",
+                          }}
                         />
                         <div style={{ display: "flex", gap: 8 }}>
                           <button
@@ -2733,7 +2749,16 @@ export default function DashboardPage() {
                               setNewLinkUrl("");
                               setNodeLinksRefreshKey((k) => k + 1);
                             }}
-                            style={{ padding: "4px 8px", fontSize: 11 }}
+                            style={{
+                              padding: "6px 14px",
+                              fontSize: 12,
+                              borderRadius: 6,
+                              border: "1px solid var(--border-focus)",
+                              background: "var(--color-info)",
+                              color: "var(--text-on-primary)",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
                           >
                             保存
                           </button>
@@ -2744,7 +2769,16 @@ export default function DashboardPage() {
                               setNewLinkLabel("");
                               setNewLinkUrl("");
                             }}
-                            style={{ padding: "4px 8px", fontSize: 11 }}
+                            style={{
+                              padding: "6px 14px",
+                              fontSize: 12,
+                              borderRadius: 6,
+                              border: "1px solid var(--border-muted)",
+                              background: "var(--bg-card)",
+                              color: "var(--text-primary)",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
                           >
                             キャンセル
                           </button>
@@ -2757,13 +2791,13 @@ export default function DashboardPage() {
                         onClick={() => setNodeLinkAdding(true)}
                         style={{
                           marginTop: 8,
-                          padding: "4px 10px",
+                          padding: "6px 14px",
                           fontSize: 12,
                           borderRadius: 6,
-                          border: "1px solid var(--border-default)",
+                          border: "1px solid var(--border-muted)",
                           background: "var(--bg-card)",
                           color: "var(--text-primary)",
-                          fontWeight: 600,
+                          fontWeight: 700,
                           cursor: "pointer",
                         }}
                       >
