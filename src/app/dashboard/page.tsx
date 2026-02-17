@@ -20,14 +20,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { STATUS_LABELS, getValidTransitions } from "@/lib/stateMachine";
+import { STATUS_LABELS, getValidTransitions, type Status } from "@/lib/stateMachine";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { ProposalPanel } from "@/components/ProposalPanel";
 import { TreeList } from "@/components/TreeList";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { QuickAdd } from "@/components/QuickAdd";
 import { StatusQuickSwitch } from "@/components/StatusQuickSwitch";
-import { buildTree, type TreeNode } from "@/lib/dashboardTree";
+import { buildTree, getDescendantIds, type TreeNode } from "@/lib/dashboardTree";
 import { getDueStatus } from "@/lib/dueDateUtils";
 import { withMutation } from "@/lib/mutationFavicon";
 import type { HistoryItemSelectPayload } from "@/components/ProposalPanel";
@@ -114,6 +114,9 @@ function getAncestorIds(nodeId: string, parentById: Map<string, string>): string
   }
   return out;
 }
+
+/** 親変更時に子孫へ一括適用する対象ステータス（完了・冷却・休眠・中止） */
+const CASCADE_TARGET_STATUSES = ["DONE", "COOLING", "DORMANT", "CANCELLED"] as const;
 
 const TRAY_LABEL: Record<keyof Trays | "all", string> = {
   all: "全て（進行中の仕事）",
@@ -366,6 +369,13 @@ export default function DashboardPage() {
     fromLabel: string;
     toLabel: string;
   } | null>(null);
+
+  /** 親ステータス一括適用: 子孫に異なる状態があるときの確認モーダル。はいで status-cascade、キャンセルで閉じる or ツリー遷移 */
+  const [confirmCascade, setConfirmCascade] = useState<{
+    targetStatus: string;
+    targetLabel: string;
+  } | null>(null);
+  const [cascadeInFlight, setCascadeInFlight] = useState(false);
 
   // Observer report state (Phase 3-0〜3-4)
   // 19_SubAgent_Observer.md §6: 人間 UI との関係
@@ -825,6 +835,63 @@ export default function DashboardPage() {
       const currentDisplay = displayStatus(selected);
       if (targetStatus === currentDisplay) return;
       const nodeId = selected.id;
+
+      // 親ステータス一括適用: 対象4種（完了・冷却・休眠・中止）かつ子孫あり
+      if ((CASCADE_TARGET_STATUSES as readonly string[]).includes(targetStatus)) {
+        const descendantIds = getDescendantIds(nodeId, nodeChildren);
+        if (descendantIds.size > 0) {
+          const hasDescendantWithDifferentStatus = visibleNodes.some(
+            (n) => descendantIds.has(n.id) && displayStatus(n) !== targetStatus
+          );
+          if (hasDescendantWithDifferentStatus) {
+            setConfirmCascade({
+              targetStatus,
+              targetLabel: STATUS_LABELS[targetStatus as Status] ?? targetStatus,
+            });
+            return;
+          }
+          // 子孫はいるがすべて同一状態 → モーダルなしで status-cascade
+          setQuickSwitchError(null);
+          setQuickSwitchInFlightNodeId(nodeId);
+          const requestId = ++lastQuickSwitchRequestIdRef.current;
+          withMutation(() =>
+            fetch(`/api/nodes/${nodeId}/status-cascade`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ target_status: targetStatus }),
+            })
+              .then((res) => res.json())
+              .then((json: { ok?: boolean; error?: string }) => {
+                if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+                if (!json.ok) throw new Error(json.error ?? "cascade failed");
+                return refreshDashboard();
+              })
+              .then((newTrays) => {
+                if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+                setQuickSwitchInFlightNodeId(null);
+                if (newTrays) {
+                  const latest = findNodeInTrays(newTrays, nodeId);
+                  if (latest) setSelected(latest);
+                  ensureParentInProgress(nodeId, newTrays, nodeChildren, selected?.parent_id ?? undefined);
+                }
+                setOptimisticStatusOverrides((prev) => {
+                  const next = { ...prev };
+                  delete next[nodeId];
+                  for (const id of descendantIds) delete next[id];
+                  return next;
+                });
+                setStatusLogRefreshKey((k) => k + 1);
+              })
+              .catch((err: unknown) => {
+                if (requestId !== lastQuickSwitchRequestIdRef.current) return;
+                setQuickSwitchInFlightNodeId(null);
+                setQuickSwitchError(err instanceof Error ? err.message : "一括更新に失敗しました");
+              })
+          );
+          return;
+        }
+      }
+
       setQuickSwitchError(null);
       setQuickSwitchInFlightNodeId(nodeId);
       setOptimisticStatusOverrides((prev) => ({ ...prev, [nodeId]: targetStatus }));
@@ -927,7 +994,7 @@ export default function DashboardPage() {
           })
       );
     },
-    [selected, displayStatus, refreshDashboard, ensureParentInProgress, nodeChildren]
+    [selected, displayStatus, refreshDashboard, ensureParentInProgress, nodeChildren, visibleNodes]
   );
 
   /** タスクタイトル インライン編集: 保存（Enter / blur）。二重保存防止のため isSaving 中は blur 側でスキップする */
@@ -1505,6 +1572,128 @@ export default function DashboardPage() {
                 }}
               >
                 OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 親ステータス一括適用確認モーダル（子孫に異なる状態があるとき） */}
+      {confirmCascade && selected && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-cascade-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setConfirmCascade(null);
+              if (viewMode === "flat") {
+                setViewMode("tree");
+                setExpandedSet((prev) => new Set([...prev, ...getAncestorIds(selected.id, parentById)]));
+              }
+            }
+          }}
+        >
+          <div
+            style={{
+              background: "var(--bg-card)",
+              color: "var(--text-primary)",
+              padding: 20,
+              borderRadius: 12,
+              border: "1px solid var(--border-default)",
+              maxWidth: 400,
+              boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div id="confirm-cascade-title" style={{ fontWeight: 700, marginBottom: 12 }}>
+              このタスクには状態が異なる子タスクが存在します。「{confirmCascade.targetLabel}」にすると、子タスクもすべて「{confirmCascade.targetLabel}」になります。よろしいですか？
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmCascade(null);
+                  if (viewMode === "flat") {
+                    setViewMode("tree");
+                    setExpandedSet((prev) => new Set([...prev, ...getAncestorIds(selected.id, parentById)]));
+                  }
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-muted)",
+                  background: "var(--bg-card)",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                }}
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                autoFocus
+                disabled={cascadeInFlight}
+                onClick={() => {
+                  if (cascadeInFlight || !selected) return;
+                  setCascadeInFlight(true);
+                  setQuickSwitchError(null);
+                  const nodeId = selected.id;
+                  const descendantIds = getDescendantIds(nodeId, nodeChildren);
+                  withMutation(
+                    fetch(`/api/nodes/${nodeId}/status-cascade`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ target_status: confirmCascade.targetStatus }),
+                    })
+                      .then((res) => res.json())
+                      .then((json: { ok?: boolean; error?: string }) => {
+                        if (!json.ok) throw new Error(json.error ?? "cascade failed");
+                        return refreshDashboard();
+                      })
+                      .then((newTrays) => {
+                        setConfirmCascade(null);
+                        setCascadeInFlight(false);
+                        if (newTrays) {
+                          const latest = findNodeInTrays(newTrays, nodeId);
+                          if (latest) setSelected(latest);
+                          ensureParentInProgress(nodeId, newTrays, nodeChildren, selected?.parent_id ?? undefined);
+                        }
+                        setOptimisticStatusOverrides((prev) => {
+                          const next = { ...prev };
+                          delete next[nodeId];
+                          for (const id of descendantIds) delete next[id];
+                          return next;
+                        });
+                        setStatusLogRefreshKey((k) => k + 1);
+                      })
+                      .catch((err: unknown) => {
+                        setCascadeInFlight(false);
+                        setConfirmCascade(null);
+                        setQuickSwitchError(err instanceof Error ? err.message : "一括更新に失敗しました");
+                      })
+                  );
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-focus)",
+                  background: "var(--color-info)",
+                  color: "var(--text-on-primary)",
+                  fontWeight: 700,
+                  cursor: cascadeInFlight ? "not-allowed" : "pointer",
+                }}
+              >
+                はい
               </button>
             </div>
           </div>

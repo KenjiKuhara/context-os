@@ -128,6 +128,35 @@ function buildTreeRec(
 }
 
 /**
+ * 指定ノードの全子孫 ID を返す。nodeChildren から parent → children を組み、BFS で収集。
+ * 親ステータス一括適用のモーダル表示条件（子孫の有無・異なるステータスの有無）に使用。
+ */
+export function getDescendantIds(
+  nodeId: string,
+  nodeChildren: Array<{ parent_id: string; child_id: string }>
+): Set<string> {
+  const parentToChildren = new Map<string, string[]>();
+  for (const link of nodeChildren) {
+    const list = parentToChildren.get(link.parent_id) ?? [];
+    if (!list.includes(link.child_id)) list.push(link.child_id);
+    parentToChildren.set(link.parent_id, list);
+  }
+  const result = new Set<string>();
+  const queue: string[] = [nodeId];
+  const visited = new Set<string>();
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    for (const cid of parentToChildren.get(id) ?? []) {
+      result.add(cid);
+      queue.push(cid);
+    }
+  }
+  return result;
+}
+
+/**
  * Tree D&D: nodeId が ancestorId の子孫（子・孫・…）なら true。
  * 循環防止に使用。parentToChildren は parent_id -> child_id[] のマップ。
  */
