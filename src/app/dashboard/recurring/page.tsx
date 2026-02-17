@@ -10,6 +10,68 @@ import { useRouter } from "next/navigation";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { createClient } from "@/lib/supabase/client";
 
+// ─── 共通ボタンスタイル ───────────────────────────────────────
+
+const btnBase: React.CSSProperties = {
+  borderRadius: 8,
+  fontWeight: 600,
+  cursor: "pointer",
+  border: "1px solid var(--border-default)",
+  background: "var(--bg-card)",
+  color: "var(--text-primary)",
+  fontSize: 13,
+};
+
+/** 主要アクション（保存・送信） */
+const btnPrimary = (disabled = false): React.CSSProperties => ({
+  ...btnBase,
+  padding: "8px 16px",
+  background: "var(--color-info)",
+  color: "var(--text-on-primary)",
+  border: "none",
+  opacity: disabled ? 0.6 : 1,
+  cursor: disabled ? "not-allowed" : "pointer",
+});
+
+/** 補助アクション（キャンセル・追加・再取得など） */
+const btnSecondary = (disabled = false): React.CSSProperties => ({
+  ...btnBase,
+  padding: "8px 16px",
+  opacity: disabled ? 0.6 : 1,
+  cursor: disabled ? "not-allowed" : "pointer",
+});
+
+/** 小サイズ補助（編集・有効切替など） */
+const btnSmall: React.CSSProperties = {
+  ...btnBase,
+  padding: "4px 10px",
+  fontSize: 12,
+  borderRadius: 6,
+};
+
+/** 危険操作（削除） */
+const btnDanger: React.CSSProperties = {
+  ...btnBase,
+  padding: "4px 10px",
+  fontSize: 12,
+  borderRadius: 6,
+  color: "var(--color-danger)",
+  border: "1px solid var(--border-danger)",
+  background: "transparent",
+};
+
+/** フォーム入力欄 */
+const inputStyle: React.CSSProperties = {
+  flex: 1,
+  padding: "7px 10px",
+  fontSize: 14,
+  borderRadius: 6,
+  border: "1px solid var(--border-default)",
+  background: "var(--bg-muted)",
+  color: "var(--text-primary)",
+  outline: "none",
+};
+
 function LogoutButton() {
   const router = useRouter();
   async function handleLogout() {
@@ -288,49 +350,55 @@ export default function RecurringPage() {
     fetchHistory();
   }
 
+  const labelSpan: React.CSSProperties = {
+    width: 72,
+    fontSize: 13,
+    color: "var(--text-secondary)",
+    flexShrink: 0,
+  };
+
   const formBlock = (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 400 }}>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ width: 90 }}>タイトル</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 420 }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={labelSpan}>タイトル</span>
         <input
           type="text"
           value={formTitle}
           onChange={(e) => setFormTitle(e.target.value)}
           placeholder="生成されるタスク名"
-          style={{ flex: 1, padding: 6 }}
+          style={inputStyle}
           required
         />
       </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ width: 90 }}>繰り返し</span>
+      <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={labelSpan}>繰り返し</span>
         <select
           value={formScheduleType}
           onChange={(e) => setFormScheduleType(e.target.value as "daily" | "weekly" | "monthly")}
-          style={{ padding: 6 }}
+          style={{ ...inputStyle, flex: "none", width: "auto" }}
         >
           <option value="daily">毎日</option>
           <option value="weekly">毎週</option>
           <option value="monthly">毎月</option>
         </select>
       </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ width: 90 }}>開始日</span>
+      <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={labelSpan}>開始日</span>
         <input
           type="date"
           value={formStartAt}
           onChange={(e) => setFormStartAt(e.target.value)}
-          style={{ padding: 6 }}
+          style={{ ...inputStyle, flex: "none", width: "auto" }}
           required
         />
       </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ width: 90 }}>終了日</span>
+      <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={labelSpan}>終了日</span>
         <input
           type="date"
           value={formEndAt}
           onChange={(e) => setFormEndAt(e.target.value)}
-          placeholder="未入力＝無期限"
-          style={{ padding: 6 }}
+          style={{ ...inputStyle, flex: "none", width: "auto" }}
         />
         <span style={{ fontSize: 12, color: "var(--text-muted)" }}>未入力＝無期限</span>
       </label>
@@ -418,13 +486,13 @@ export default function RecurringPage() {
       {!loading && !error && (
         <div style={{ marginTop: 24 }}>
           {adding && (
-            <div style={{ marginBottom: 24, padding: 16, border: "1px solid var(--border-default)", borderRadius: 8 }}>
+            <div style={{ marginBottom: 24, padding: 16, border: "1px solid var(--border-default)", borderRadius: 8, background: "var(--bg-card)" }}>
               <div style={{ fontWeight: 700, marginBottom: 12 }}>新規追加</div>
               <form onSubmit={handleSubmitNew}>
                 {formBlock}
-                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                  <button type="submit" style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer" }}>保存</button>
-                  <button type="button" onClick={() => { setAdding(false); resetForm(); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer" }}>キャンセル</button>
+                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                  <button type="submit" style={btnPrimary()}>保存</button>
+                  <button type="button" onClick={() => { setAdding(false); resetForm(); }} style={btnSecondary()}>キャンセル</button>
                 </div>
               </form>
             </div>
@@ -443,11 +511,11 @@ export default function RecurringPage() {
             >
               {editingId === rule.id ? (
                 <form onSubmit={handleSubmitEdit}>
-                  <div style={{ fontWeight: 700, marginBottom: 8 }}>編集</div>
+                  <div style={{ fontWeight: 700, marginBottom: 10 }}>編集</div>
                   {formBlock}
-                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    <button type="submit" style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer" }}>保存</button>
-                    <button type="button" onClick={() => { setEditingId(null); resetForm(); }} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer" }}>キャンセル</button>
+                  <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                    <button type="submit" style={btnPrimary()}>保存</button>
+                    <button type="button" onClick={() => { setEditingId(null); resetForm(); }} style={btnSecondary()}>キャンセル</button>
                   </div>
                 </form>
               ) : (
@@ -462,28 +530,25 @@ export default function RecurringPage() {
                       type="button"
                       onClick={() => toggleActive(rule)}
                       style={{
-                        padding: "4px 10px",
-                        fontSize: 12,
-                        borderRadius: 6,
-                        cursor: "pointer",
-                        border: "1px solid var(--border-default)",
-                        background: rule.is_active ? "var(--bg-card)" : "var(--bg-muted)",
-                        color: "var(--text-primary)",
+                        ...btnSmall,
+                        background: rule.is_active ? "var(--bg-success)" : "var(--bg-muted)",
+                        color: rule.is_active ? "var(--text-success)" : "var(--text-secondary)",
+                        border: rule.is_active ? "1px solid var(--color-success)" : "1px solid var(--border-default)",
                       }}
                     >
-                      {rule.is_active ? "有効" : "停止"}
+                      {rule.is_active ? "有効" : "停止中"}
                     </button>
-                    <button type="button" onClick={() => openEdit(rule)} style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, cursor: "pointer" }}>編集</button>
+                    <button type="button" onClick={() => openEdit(rule)} style={btnSmall}>編集</button>
                     <button
                       type="button"
                       onClick={() => handleClearHistory(rule.id)}
                       disabled={clearingId === rule.id}
-                      style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, cursor: clearingId === rule.id ? "not-allowed" : "pointer", color: "var(--text-secondary)" }}
+                      style={{ ...btnSmall, opacity: clearingId === rule.id ? 0.6 : 1, cursor: clearingId === rule.id ? "not-allowed" : "pointer" }}
                       title="実行履歴をクリアすると、同じ日にもう一度「今すぐ実行」またはジョブでタスクを1件追加できます"
                     >
-                      {clearingId === rule.id ? "クリア中…" : "実行履歴クリア"}
+                      {clearingId === rule.id ? "クリア中…" : "履歴クリア"}
                     </button>
-                    <button type="button" onClick={() => setDeletingId(rule.id)} style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, cursor: "pointer", color: "var(--text-danger)" }}>削除</button>
+                    <button type="button" onClick={() => setDeletingId(rule.id)} style={btnDanger}>削除</button>
                   </div>
                 </>
               )}
@@ -494,7 +559,7 @@ export default function RecurringPage() {
             <button
               type="button"
               onClick={() => { setAdding(true); resetForm(); setFormStartAt(new Date().toISOString().slice(0, 10)); }}
-              style={{ marginTop: 12, padding: "8px 16px", borderRadius: 8, cursor: "pointer" }}
+              style={{ ...btnSecondary(), marginTop: 12 }}
             >
               ＋ ルールを追加
             </button>
@@ -503,7 +568,7 @@ export default function RecurringPage() {
           <div style={{ marginTop: 32, padding: 16, border: "1px solid var(--border-default)", borderRadius: 8, background: "var(--bg-card)" }}>
             <div style={{ fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span>実行ログ</span>
-              <button type="button" onClick={fetchHistory} disabled={historyLoading} style={{ fontSize: 12, padding: "4px 8px", cursor: historyLoading ? "not-allowed" : "pointer" }}>
+              <button type="button" onClick={fetchHistory} disabled={historyLoading} style={{ ...btnSmall, opacity: historyLoading ? 0.6 : 1, cursor: historyLoading ? "not-allowed" : "pointer" }}>
                 {historyLoading ? "再取得中…" : "再取得"}
               </button>
             </div>
@@ -558,11 +623,12 @@ export default function RecurringPage() {
           }}
           onKeyDown={(e) => e.key === "Escape" && setDeletingId(null)}
         >
-          <div style={{ background: "var(--bg-card)", padding: 20, borderRadius: 12, maxWidth: 360 }}>
-            <div style={{ fontWeight: 700, marginBottom: 12 }}>本当に削除しますか？</div>
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-default)", padding: 20, borderRadius: 12, maxWidth: 360, width: "100%" }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>本当に削除しますか？</div>
+            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16 }}>この操作は取り消せません。</div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button type="button" onClick={() => setDeletingId(null)} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer" }}>キャンセル</button>
-              <button type="button" onClick={confirmDelete} style={{ padding: "8px 16px", borderRadius: 8, cursor: "pointer", background: "var(--color-info)", color: "var(--text-on-primary)" }}>削除</button>
+              <button type="button" onClick={() => setDeletingId(null)} style={btnSecondary()}>キャンセル</button>
+              <button type="button" onClick={confirmDelete} style={{ ...btnPrimary(), background: "var(--color-danger)", border: "none" }}>削除する</button>
             </div>
           </div>
         </div>
