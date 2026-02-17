@@ -1654,7 +1654,7 @@ export default function DashboardPage() {
                   setQuickSwitchError(null);
                   const nodeId = selected.id;
                   const descendantIds = getDescendantIds(nodeId, nodeChildren);
-                  withMutation(
+                  withMutation(() =>
                     fetch(`/api/nodes/${nodeId}/status-cascade`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
