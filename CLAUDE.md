@@ -51,7 +51,7 @@ For AI-proposed structural changes (relations, groupings, decomposition):
 
 - Supabase SSR with cookie-based sessions (`src/lib/supabase/server.ts` for API routes, `src/lib/supabase/client.ts` for browser)
 - Row-Level Security enforces `user_id` isolation at the DB level
-- Route protection in `src/proxy.ts`: `/dashboard` requires auth, redirects to `/login`
+- Route protection: logic in `src/proxy.ts` (redirects `/dashboard` to `/login` when unauthenticated). Next middleware that invokes it may not be wired; see docs/140 §10 and docs/134 for current state.
 - API routes use service role key for admin operations; most use `getSupabaseAndUser()` to enforce auth
 
 ### Key Database Tables
@@ -78,7 +78,7 @@ Dark/light mode via CSS custom properties in `src/app/theme-tokens.css`. Theme r
 ## Code Organization
 
 - `src/app/api/` — API routes (Next.js App Router)
-- `src/components/` — Client-side React components (6 files; `ProposalPanel.tsx` is the largest at ~97KB)
+- `src/components/` — Client-side React components (7 files; `ProposalPanel.tsx` is the largest at ~97KB)
 - `src/lib/` — Core business logic (state machine, tree, diff pipeline, recurring, theme)
 - `src/lib/supabase/` — Supabase client factories (server vs. browser)
 - `supabase/migrations/` — SQL migrations (applied manually via Supabase dashboard or CLI)
