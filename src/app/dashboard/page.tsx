@@ -88,6 +88,8 @@ const SAGE_LAST_HANDLED_KEY = "kuharaos.sage.lastHandled";
 const STORAGE_ACTIVE_FILTER = "kuharaos.activeFilter";
 const STORAGE_VIEW_MODE = "kuharaos.viewMode";
 const STORAGE_SELECTED_NODE_ID = "kuharaos.selectedNodeId";
+/** ホットタスク: 赤表示するノード ID の永続化 */
+const STORAGE_HOT_NODES = "kuharaos.hotNodes.v1";
 
 /** Phase9-A: treeRoots から ノード→親 マップを構築 */
 function buildParentById(roots: TreeNode[]): Map<string, string> {
@@ -405,6 +407,15 @@ export default function DashboardPage() {
   const pendingSageFocusNodeIdRef = useRef<string | null>(null);
   /** Phase12-D: 親 READY→IN_PROGRESS 自動遷移の二重実行防止 */
   const parentAutoProgressInFlightRef = useRef(false);
+
+  /** ホットタスク: 赤表示するノード ID セット（localStorage 永続） */
+  const [hotNodeIds, setHotNodeIds] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const saved = localStorage.getItem(STORAGE_HOT_NODES);
+      return saved ? new Set(JSON.parse(saved) as string[]) : new Set();
+    } catch { return new Set(); }
+  });
 
   /** Phase10-A: ノード詳細に関連する直近履歴 1 件 */
   const [relatedRecentHistory, setRelatedRecentHistory] = useState<{
@@ -1043,6 +1054,17 @@ export default function DashboardPage() {
   /** タスクタイトル インライン編集: キャンセル（ESC） */
   const handleTitleCancel = useCallback(() => {
     setTitleEditingNodeId(null);
+  }, []);
+
+  /** ホットタスク: 指定ノードの ON/OFF をトグルし localStorage へ保存 */
+  const toggleHot = useCallback((nodeId: string) => {
+    setHotNodeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      try { localStorage.setItem(STORAGE_HOT_NODES, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
   }, []);
 
   /** 期日: 保存（日付選択 or 解除）。二重保存防止のため dueDateSaveInFlight 中はスキップ */
@@ -2093,6 +2115,7 @@ export default function DashboardPage() {
                     }
                   : undefined
               }
+              hotNodeIds={hotNodeIds}
             />
           ) : (
             flatSortedNodes.map((n) => {
@@ -2100,6 +2123,7 @@ export default function DashboardPage() {
               const subtext = getNodeSubtext(n);
               const isSelected = selected?.id === n.id;
               const isHighlighted = highlightNodeIds?.has(n.id) ?? false;
+              const isHot = hotNodeIds.has(n.id);
               const dueStatus = getDueStatus(n.due_date, new Date());
               const leftBarColor =
                 dueStatus === "overdue"
@@ -2134,6 +2158,7 @@ export default function DashboardPage() {
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
+                        color: isHot ? "var(--color-danger)" : undefined,
                       }}
                     >
                       {title}
@@ -2226,6 +2251,30 @@ export default function DashboardPage() {
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                    {/* ホットタスク切替: 赤〇 / 白〇 */}
+                    <button
+                      type="button"
+                      onClick={() => toggleHot(selected.id)}
+                      title={hotNodeIds.has(selected.id) ? "ホット解除" : "ホットにする"}
+                      aria-label={hotNodeIds.has(selected.id) ? "ホット解除" : "ホットにする"}
+                      style={{
+                        padding: 0,
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        lineHeight: 1,
+                        fontSize: 18,
+                      }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24">
+                        <circle
+                          cx="12" cy="12" r="9"
+                          fill={hotNodeIds.has(selected.id) ? "var(--color-danger)" : "none"}
+                          stroke={hotNodeIds.has(selected.id) ? "var(--color-danger)" : "var(--text-secondary)"}
+                          strokeWidth="2"
+                        />
                       </svg>
                     </button>
                   </>

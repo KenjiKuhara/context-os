@@ -117,6 +117,8 @@ export interface TreeListProps {
   highlightIds?: Set<string> | null;
   /** Tree D&D: 移動完了時。movedNodeId, newParentId (null=ルート), orderedSiblingIds */
   onTreeMove?: (movedNodeId: string, newParentId: string | null, orderedSiblingIds: string[]) => void;
+  /** ホットタスク: タイトルを赤色で表示する Node ID の集合 */
+  hotNodeIds?: Set<string>;
 }
 
 const DROP_ID_PREFIX = "drop-";
@@ -144,6 +146,7 @@ function TreeRow({
   onSelect,
   isSelected,
   isHighlighted,
+  isHot,
   getTitle,
   getSubtext,
   statusLabel,
@@ -158,6 +161,7 @@ function TreeRow({
   onSelect: () => void;
   isSelected: boolean;
   isHighlighted: boolean;
+  isHot: boolean;
   getTitle: (n: Record<string, unknown>) => string;
   getSubtext: (n: Record<string, unknown>) => string;
   statusLabel: string;
@@ -215,6 +219,7 @@ function TreeRow({
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
+            color: isHot ? "var(--color-danger)" : undefined,
           }}
         >
           {getTitle(node)}
@@ -352,6 +357,7 @@ function DraggableTreeRow({
   const hasChildren = tn.children.length > 0;
   const isExpanded = props.expandedSet.has(nodeId);
   const isHighlighted = (props.highlightIds?.has(nodeId)) ?? false;
+  const isHot = (props.hotNodeIds?.has(nodeId)) ?? false;
   const statusLabel = props.getStatusLabel ? props.getStatusLabel(tn.node) : "";
   const showNestBar = nestOverNodeId === nodeId;
   return (
@@ -373,6 +379,7 @@ function DraggableTreeRow({
           onSelect={() => props.onSelectNode(tn.node)}
           isSelected={props.selectedId === nodeId}
           isHighlighted={isHighlighted}
+          isHot={isHot}
           getTitle={props.getNodeTitle}
           getSubtext={props.getNodeSubtext}
           statusLabel={statusLabel}
@@ -436,6 +443,7 @@ function renderNodeInner(
   const hasChildren = tn.children.length > 0;
   const isExpanded = props.expandedSet.has(id);
   const isHighlighted = (props.highlightIds?.has(id)) ?? false;
+  const isHot = (props.hotNodeIds?.has(id)) ?? false;
   const statusLabel = props.getStatusLabel ? props.getStatusLabel(tn.node) : "";
   const canDrop = (movedId: string, targetParentId: string | null) => {
     if (targetParentId === movedId) return false;
@@ -480,6 +488,7 @@ function renderNodeInner(
         onSelect={() => props.onSelectNode(tn.node)}
         isSelected={props.selectedId === id}
         isHighlighted={isHighlighted}
+        isHot={isHot}
         getTitle={props.getNodeTitle}
         getSubtext={props.getNodeSubtext}
         statusLabel={statusLabel}
