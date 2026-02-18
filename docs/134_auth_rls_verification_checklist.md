@@ -3,6 +3,8 @@
 追加実装は行わない。検証と完了判定のみ。  
 認証は「画面を隠す機能」ではなく、**データが守れているか**で完了判定する。
 
+**ルート保護**（/dashboard 未認証時のリダイレクト）の実装の所在と middleware の有無は [140_local_dev_setup.md](140_local_dev_setup.md) の「10. ルート保護の実装の所在」を参照。
+
 ---
 
 ## 1. DB 構造の確認（必須）
@@ -18,7 +20,7 @@ WHERE user_id IS NULL;
 ```
 
 **期待値**: `null_count = 0`  
-**結果**: null_count = __________  日付: __________
+**結果**: null_count = 0  日付: 20260215
 
 ---
 
@@ -35,7 +37,7 @@ WHERE table_schema = 'public'
 ```
 
 **期待値**: `is_nullable = 'NO'`  
-**結果**: is_nullable = __________  日付: __________
+**結果**: is_nullable = 0  日付: 20260215
 
 ---
 
@@ -50,7 +52,7 @@ WHERE relname = 'nodes';
 ```
 
 **期待値**: `relrowsecurity = true`  
-**結果**: relrowsecurity = __________  日付: __________
+**結果**: relrowsecurity = 0  日付: 20260215
 
 ---
 

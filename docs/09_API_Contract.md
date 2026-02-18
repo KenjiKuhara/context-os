@@ -37,35 +37,35 @@
 
 ## 2. API一覧（全体）
 
+**実装ベースのパス・認証・一覧は [139_api_routes_index.md](139_api_routes_index.md) を正とする。** 本節は設計・契約上の意図を示す。実パスはすべて `/api` プレフィックス付き（例: POST /api/nodes）。
+
 ### Node操作系（中核）
 
-- POST /nodes
-- GET /nodes/{id}
-- PATCH /nodes/{id}
-- POST /nodes/{id}/children
-- GET /nodes/{id}/context
+- POST /api/nodes
+- GET /api/nodes/{id}
+- PATCH /api/nodes/{id}
+- POST /api/nodes/{id}/children（注: ツリー操作は POST /api/tree/move で実施）
+- GET /api/nodes/{id}/context（注: 実装では /api/nodes/{id}/links 等で代替の可能性あり）
 
 ### 状態・温度系
 
-- POST /nodes/{id}/estimate-status
-- POST /nodes/{id}/estimate-temperature
+- POST /api/nodes/{id}/estimate-status
+- POST /api/nodes/{id}/estimate-temperature（注: 実装の有無は 139 で確認）
 
 ### ダッシュボード・再開系
 
-- GET /dashboard/active
-- GET /dashboard/cooling
-- POST /resume/next
+- GET /api/dashboard（実装では 1 本でトレイ等を返す。active / cooling / resume は 139 参照）
 
 ### 委任・判断系
 
-- POST /nodes/{id}/delegate
-- POST /nodes/{id}/decision-support
+- POST /api/nodes/{id}/delegate（注: 実装の有無は 139 で確認）
+- POST /api/nodes/{id}/decision-support（注: 実装の有無は 139 で確認）
 
 ---
 
 ## 3. Node作成
 
-### POST /nodes
+### POST /api/nodes
 
 **用途**
 - Capture（思考の入口）

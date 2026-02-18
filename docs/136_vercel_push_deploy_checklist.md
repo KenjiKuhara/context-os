@@ -2,6 +2,14 @@
 
 push しても Vercel にデプロイが作成されない場合、以下を順に確認してください。
 
+## デプロイの前提（通常フロー）
+
+- **Production**: Vercel の **Production Branch**（多くは `main` または `master`）への push で本番デプロイが作成される。
+- **Preview**: 上記以外のブランチへの push で Preview デプロイが作成される（Vercel の Git 連携が有効な場合）。
+- **Cron**: `vercel.json` の crons で定義した `/api/recurring/run` は **本番環境** でのみ実行される。Preview では Cron は動かない。
+
+---
+
 ## ログイン / Supabase Auth を入れたあとにデプロイされなくなった場合
 
 **Supabase Auth / ログイン機能の追加そのものは「push でデプロイが作られなくなる」直接原因にはなりません。** デプロイが「作られるか」は、GitHub が push を検知して Vercel に webhook を送り、Vercel がデプロイを 1 件作ると判断する段階で決まります。その時点ではまだコードはビルドされておらず、middleware/proxy や getSupabaseAndUser、Cookie は実行されません。同じ時期に、Supabase の Vercel 連携の設定変更や GitHub の Vercel アプリ再認証をしていないか思い出し、下記の確認 1〜4 を優先してください。その後、この文書の「1. Vercel の Git 接続」以降をそのまま実行してください。
