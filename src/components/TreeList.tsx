@@ -219,7 +219,7 @@ function TreeRow({
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
-            color: isHot ? "var(--color-danger)" : undefined,
+            color: isHot ? "#e193da" : undefined,
           }}
         >
           {getTitle(node)}

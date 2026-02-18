@@ -2158,7 +2158,7 @@ export default function DashboardPage() {
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
-                        color: isHot ? "var(--color-danger)" : undefined,
+                        color: isHot ? "#e193da" : undefined,
                       }}
                     >
                       {title}
@@ -2271,8 +2271,8 @@ export default function DashboardPage() {
                       <svg width="18" height="18" viewBox="0 0 24 24">
                         <circle
                           cx="12" cy="12" r="9"
-                          fill={hotNodeIds.has(selected.id) ? "var(--color-danger)" : "none"}
-                          stroke={hotNodeIds.has(selected.id) ? "var(--color-danger)" : "var(--text-secondary)"}
+                          fill={hotNodeIds.has(selected.id) ? "#e193da" : "none"}
+                          stroke={hotNodeIds.has(selected.id) ? "#e193da" : "var(--text-secondary)"}
                           strokeWidth="2"
                         />
                       </svg>
