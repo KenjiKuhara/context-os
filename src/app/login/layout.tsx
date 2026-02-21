@@ -1,11 +1,22 @@
 import type { Metadata } from "next";
 
+const SITE_URL = "https://context-os-five.vercel.app";
+
 export const metadata: Metadata = {
-  title: "ログイン",
+  title: "ログイン — context-os | AIタスク管理システム",
   description:
-    "context-os にログインしてください。AIが提案し人間が決定するタスク管理OSで、あなたの外部作業記憶を構築します。メールとパスワードで安全にサインイン。",
+    "context-os にメールとパスワードでログインしてください。AIが提案し人間が決定する15ステータスのワークフローで、あなたの外部作業記憶を構築するタスク管理システムです。",
   alternates: {
     canonical: "/login",
+  },
+  openGraph: {
+    title: "ログイン — context-os | AIタスク管理システム",
+    description:
+      "context-os にログインして、AIと協働するタスク管理を始めましょう。",
+    url: `${SITE_URL}/login`,
+    siteName: "context-os",
+    type: "website",
+    locale: "ja_JP",
   },
 };
 
