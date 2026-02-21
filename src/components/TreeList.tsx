@@ -147,6 +147,7 @@ function TreeRow({
   isSelected,
   isHighlighted,
   isHot,
+  isNestTarget,
   getTitle,
   getSubtext,
   statusLabel,
@@ -162,13 +163,20 @@ function TreeRow({
   isSelected: boolean;
   isHighlighted: boolean;
   isHot: boolean;
+  isNestTarget?: boolean;
   getTitle: (n: Record<string, unknown>) => string;
   getSubtext: (n: Record<string, unknown>) => string;
   statusLabel: string;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
 }) {
   const nodeId = node.id as string;
-  const bg = isHighlighted ? "var(--bg-highlight)" : isSelected ? "var(--bg-selected)" : "var(--bg-card)";
+  const bg = isNestTarget
+    ? "rgba(255,140,0,0.07)"
+    : isHighlighted
+    ? "var(--bg-highlight)"
+    : isSelected
+    ? "var(--bg-selected)"
+    : "var(--bg-card)";
   return (
     <div
       style={{
@@ -184,6 +192,8 @@ function TreeRow({
         cursor: "pointer",
         borderLeft: depth > 0 ? `2px solid ${GUIDE_BORDER}` : undefined,
         marginLeft: depth > 0 ? 0 : undefined,
+        boxShadow: isNestTarget ? "inset -4px 0 0 0 hsl(25, 90%, 55%)" : undefined,
+        transition: "background 80ms ease, box-shadow 80ms ease",
       }}
       onClick={onSelect}
       {...dragHandleProps}
@@ -272,8 +282,9 @@ function DropSlot({
       ref={setNodeRef}
       style={{
         position: "relative",
-        minHeight: 4,
-        ...(showLine && { backgroundColor: "rgba(255, 140, 0, 0.05)" }),
+        minHeight: activeId ? 10 : 4,
+        transition: "min-height 100ms ease",
+        ...(showLine && { backgroundColor: "rgba(255, 140, 0, 0.08)" }),
       }}
     >
       {showLine && (
@@ -283,9 +294,11 @@ function DropSlot({
             top: 0,
             left: 0,
             right: 0,
-            height: "2px",
-            background: "var(--color-insertion-line, hsl(25, 90%, 55%))",
+            height: "3px",
+            background: "hsl(25, 90%, 55%)",
+            boxShadow: "0 0 6px rgba(255, 140, 0, 0.6)",
             pointerEvents: "none",
+            zIndex: 1,
           }}
         />
       )}
@@ -318,7 +331,7 @@ function NestDropZone({
         right: 0,
         top: 0,
         bottom: 0,
-        width: "20%",
+        width: "30%",
         pointerEvents: "auto",
       }}
     />
@@ -380,6 +393,7 @@ function DraggableTreeRow({
           isSelected={props.selectedId === nodeId}
           isHighlighted={isHighlighted}
           isHot={isHot}
+          isNestTarget={showNestBar}
           getTitle={props.getNodeTitle}
           getSubtext={props.getNodeSubtext}
           statusLabel={statusLabel}
@@ -410,19 +424,6 @@ function DraggableTreeRow({
       </div>
       {props.onTreeMove && (
         <NestDropZone nodeId={nodeId} canDrop={canDrop} activeId={activeDragId} />
-      )}
-      {showNestBar && (
-        <div
-          style={{
-            position: "absolute",
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: 4,
-            background: "var(--color-nest-indicator, hsl(260, 70%, 55%))",
-            pointerEvents: "none",
-          }}
-        />
       )}
     </div>
   );
