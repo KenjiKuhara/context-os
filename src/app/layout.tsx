@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     template: "%s | context-os",
   },
   description:
-    "context-os はあなたの外部作業記憶OS。AIが提案し、人間が決定する。15ステータスのワークフローでタスクを管理。",
+    "context-os はあなたの外部作業記憶OS。AIが提案し人間が決定する15ステータスのワークフローでタスクを管理。Claude Code などのMCPクライアントからも操作できる次世代タスク管理システム。",
   metadataBase: new URL(SITE_URL),
   alternates: {
     canonical: "/",

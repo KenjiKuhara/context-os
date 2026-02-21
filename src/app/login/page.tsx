@@ -18,7 +18,6 @@ const inputStyle: React.CSSProperties = {
   background: "var(--bg-muted, #1e1e1e)",
   color: "var(--text-primary, #d4d4d4)",
   boxSizing: "border-box",
-  outline: "none",
 };
 
 const labelStyle: React.CSSProperties = {
@@ -94,6 +93,25 @@ export default function LoginPage() {
         color: "var(--text-primary, #d4d4d4)",
       }}
     >
+      <a
+        href="#login-form"
+        style={{
+          position: "absolute",
+          top: -40,
+          left: 0,
+          padding: "8px 16px",
+          background: "var(--color-info, #007fd4)",
+          color: "#fff",
+          borderRadius: 4,
+          zIndex: 100,
+          transition: "top 0.2s",
+        }}
+        onFocus={(e) => { (e.currentTarget as HTMLElement).style.top = "8px"; }}
+        onBlur={(e) => { (e.currentTarget as HTMLElement).style.top = "-40px"; }}
+      >
+        コンテンツへスキップ
+      </a>
+      <main>
       <div
         style={{
           width: "100%",
@@ -109,7 +127,7 @@ export default function LoginPage() {
         </h1>
 
         {mode === "login" ? (
-          <form onSubmit={handleLogin}>
+          <form id="login-form" onSubmit={handleLogin}>
             <div style={{ marginBottom: 16 }}>
               <label htmlFor="email" style={labelStyle}>メール</label>
               <input
@@ -142,9 +160,10 @@ export default function LoginPage() {
                   background: "none",
                   border: "none",
                   color: "var(--color-info, #007fd4)",
-                  fontSize: 12,
+                  fontSize: 13,
                   cursor: "pointer",
-                  padding: 0,
+                  padding: "8px 4px",
+                  minHeight: 44,
                 }}
               >
                 パスワードを忘れた方へ
@@ -210,6 +229,7 @@ export default function LoginPage() {
           </form>
         )}
       </div>
+      </main>
     </div>
   );
 }
