@@ -122,6 +122,18 @@ export default function LoginPage() {
           background: "var(--bg-card, #252526)",
         }}
       >
+        <div style={{ marginBottom: 16 }}>
+          <a
+            href="/"
+            style={{
+              fontSize: 12,
+              color: "var(--text-secondary, #858585)",
+              textDecoration: "none",
+            }}
+          >
+            ← context-os
+          </a>
+        </div>
         <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24 }}>
           {mode === "login" ? "ログイン" : "パスワードをリセット"}
         </h1>
