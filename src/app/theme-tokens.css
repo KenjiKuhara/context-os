@@ -52,6 +52,10 @@
 }
 
 html {
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.2);
+  --shadow-elevated: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
   --bg-page: var(--theme-bg-page);
   --bg-panel: var(--theme-bg-panel);
   --bg-card: var(--theme-bg-card);
@@ -94,6 +98,8 @@ html {
 
 /* ベースレイヤー: light */
 html[data-theme="light"] {
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.08);
+  --shadow-elevated: 0 4px 16px rgba(0, 0, 0, 0.12);
   --theme-bg-page: #ffffff;
   --theme-bg-panel: #ffffff;
   --theme-bg-card: #fafafa;

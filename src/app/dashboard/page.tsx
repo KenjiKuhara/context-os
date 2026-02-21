@@ -278,26 +278,39 @@ function SummaryCard({
   value,
   onClick,
   active,
+  accentColor = "var(--color-info)",
 }: {
   title: string;
   value: number;
   onClick: () => void;
   active: boolean;
+  accentColor?: string;
 }) {
   return (
     <div
       onClick={onClick}
       style={{
-        border: active ? "2px solid var(--border-focus)" : "1px solid var(--border-default)",
+        border: "1px solid var(--border-default)",
+        borderTop: `3px solid ${active ? accentColor : "var(--border-subtle)"}`,
         borderRadius: 10,
-        padding: 12,
-        minWidth: 150,
+        padding: "10px 14px",
+        minWidth: 120,
         cursor: "pointer",
         userSelect: "none",
+        background: active ? "var(--bg-selected)" : "var(--bg-card)",
+        boxShadow: active ? `0 0 0 1px ${accentColor}33` : "var(--shadow-card)",
+        transition: "background var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast)",
+        opacity: value === 0 && !active ? 0.6 : 1,
       }}
     >
-      <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{title}</div>
-      <div style={{ fontSize: 22, fontWeight: 900 }}>{value}</div>
+      <div style={{ fontSize: 11, color: "var(--text-secondary)", letterSpacing: "0.04em", marginBottom: 4 }}>{title}</div>
+      <div style={{
+        fontSize: 24,
+        fontWeight: 900,
+        color: active ? accentColor : "var(--text-primary)",
+        transition: "color var(--transition-fast)",
+        lineHeight: 1,
+      }}>{value}</div>
     </div>
   );
 }
@@ -1814,19 +1827,19 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+      <div className={styles.stickyHeader} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800 }}>
-            状態が見えるダッシュボード
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.3px" }}>
+            context-os
           </h1>
-          <div style={{ color: "var(--text-secondary)", marginTop: 4 }}>
-            「進行中の仕事」をトレーに分けて表示します
+          <div style={{ color: "var(--text-secondary)", marginTop: 2, fontSize: 12 }}>
+            「進行中の仕事」をトレーに分けて表示
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <a
             href="/dashboard/recurring"
-            style={{ color: "var(--color-info)", textDecoration: "underline", fontSize: 14 }}
+            style={{ color: "var(--color-info)", fontSize: 13, fontWeight: 500 }}
           >
             繰り返し
           </a>
@@ -1961,36 +1974,42 @@ export default function DashboardPage() {
             value={counts.totalWithoutCooling}
             onClick={() => setActiveTrayKey("all")}
             active={activeTrayKey === "all"}
+            accentColor="var(--color-info)"
           />
           <SummaryCard
             title={TRAY_LABEL.in_progress}
             value={counts.in_progress}
             onClick={() => setActiveTrayKey("in_progress")}
             active={activeTrayKey === "in_progress"}
+            accentColor="var(--color-success)"
           />
           <SummaryCard
             title={TRAY_LABEL.needs_decision}
             value={counts.needs_decision}
             onClick={() => setActiveTrayKey("needs_decision")}
             active={activeTrayKey === "needs_decision"}
+            accentColor="var(--color-warning)"
           />
           <SummaryCard
             title={TRAY_LABEL.waiting_external}
             value={counts.waiting_external}
             onClick={() => setActiveTrayKey("waiting_external")}
             active={activeTrayKey === "waiting_external"}
+            accentColor="#60a5fa"
           />
           <SummaryCard
             title={TRAY_LABEL.cooling}
             value={counts.cooling}
             onClick={() => setActiveTrayKey("cooling")}
             active={activeTrayKey === "cooling"}
+            accentColor="var(--color-nest-indicator)"
           />
           <SummaryCard
             title={TRAY_LABEL.other_active}
             value={counts.other_active}
             onClick={() => setActiveTrayKey("other_active")}
             active={activeTrayKey === "other_active"}
+            accentColor="var(--text-muted-strong)"
           />
         </div>
       )}
@@ -2138,26 +2157,27 @@ export default function DashboardPage() {
                     setHighlightNodeIds(null);
                     setSelected(n);
                   }}
+                  className={`${styles.nodeRow} ${isSelected ? styles.nodeRowSelected : isHighlighted ? styles.nodeRowHighlighted : ""}`}
                   style={{
-                    padding: 12,
+                    padding: "10px 12px",
                     borderTop: "1px solid var(--border-subtle)",
                     borderLeftWidth: 4,
                     borderLeftStyle: "solid",
                     borderLeftColor: leftBarColor,
-                    cursor: "pointer",
-                    background: isHighlighted ? "var(--bg-highlight)" : isSelected ? "var(--bg-selected)" : "var(--bg-card)",
                     display: "flex",
                     justifyContent: "space-between",
+                    alignItems: "center",
                     gap: 12,
                   }}
                 >
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <div
                       style={{
-                        fontWeight: 700,
+                        fontWeight: 600,
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
+                        fontSize: 14,
                         color: isHot ? "#e193da" : undefined,
                       }}
                     >
@@ -2176,10 +2196,8 @@ export default function DashboardPage() {
                       {subtext || "（途中内容なし）"}
                     </div>
                   </div>
-                  <div
-                    style={{ fontSize: 12, color: "var(--text-primary)", whiteSpace: "nowrap" }}
-                  >
-                    {getStatusLabel(optimisticStatusOverrides[n.id] ?? n.status)}
+                  <div style={{ whiteSpace: "nowrap", flexShrink: 0 }}>
+                    <StatusBadge status={optimisticStatusOverrides[n.id] ?? n.status} />
                   </div>
                 </div>
               );

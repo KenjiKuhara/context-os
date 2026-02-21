@@ -18,3 +18,33 @@
     grid-template-columns: 1fr 420px;
   }
 }
+
+/* ─── Sticky header ──────────────────────────────── */
+.stickyHeader {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg-page);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 4px;
+}
+
+/* ─── Flat list node rows ────────────────────────── */
+.nodeRow {
+  cursor: pointer;
+  background: var(--bg-card);
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.nodeRow:hover {
+  background: var(--bg-muted);
+}
+
+.nodeRowSelected {
+  background: var(--bg-selected) !important;
+}
+
+.nodeRowHighlighted {
+  background: var(--bg-highlight) !important;
+}
