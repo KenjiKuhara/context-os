@@ -126,9 +126,13 @@ export default function LoginPage() {
           <a
             href="/"
             style={{
-              fontSize: 12,
+              display: "inline-block",
+              fontSize: 13,
               color: "var(--text-secondary, #858585)",
               textDecoration: "none",
+              padding: "8px 4px",
+              minHeight: 44,
+              lineHeight: "28px",
             }}
           >
             ← context-os
