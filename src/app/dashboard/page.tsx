@@ -610,9 +610,8 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        await refreshDashboard();
-        if (cancelled) return;
-        await fetchObserverReport();
+        // 独立した2リクエストを並列実行（直列だと合計RTT分遅延していた）
+        await Promise.all([refreshDashboard(), fetchObserverReport()]);
       } catch (e: unknown) {
         if (!cancelled)
           setError(e instanceof Error ? e.message : "unknown error");
@@ -1549,6 +1548,37 @@ export default function DashboardPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [confirmApply]);
 
+  // TreeList コールバック（レンダーごとに新関数を作らないよう useCallback で安定化）
+  const handleToggleExpand = useCallback((nodeId: string) => {
+    setExpandedSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  }, []);
+  const handleExpand = useCallback((nodeId: string) => {
+    setExpandedSet((prev) => new Set([...prev, nodeId]));
+  }, []);
+  const handleCollapse = useCallback((nodeId: string) => {
+    setExpandedSet((prev) => {
+      const next = new Set(prev);
+      next.delete(nodeId);
+      return next;
+    });
+  }, []);
+  const handleCollapseIds = useCallback((ids: string[]) => {
+    setExpandedSet((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  }, []);
+  const handleTreeSelectNode = useCallback((node: Record<string, unknown>) => {
+    setHighlightNodeIds(null);
+    setSelected(node as Node);
+  }, []);
+
   // ─── Render ─────────────────────────────────────────────
 
   if (!mounted) {
@@ -2286,35 +2316,11 @@ export default function DashboardPage() {
             <TreeList
               roots={treeRoots}
               expandedSet={expandedSet}
-              onToggleExpand={(nodeId) => {
-                setExpandedSet((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(nodeId)) next.delete(nodeId);
-                  else next.add(nodeId);
-                  return next;
-                });
-              }}
-              onExpand={(nodeId) => {
-                setExpandedSet((prev) => new Set([...prev, nodeId]));
-              }}
-              onCollapse={(nodeId) => {
-                setExpandedSet((prev) => {
-                  const next = new Set(prev);
-                  next.delete(nodeId);
-                  return next;
-                });
-              }}
-              onCollapseIds={(ids) => {
-                setExpandedSet((prev) => {
-                  const next = new Set(prev);
-                  ids.forEach((id) => next.delete(id));
-                  return next;
-                });
-              }}
-              onSelectNode={(node) => {
-                setHighlightNodeIds(null);
-                setSelected(node as Node);
-              }}
+              onToggleExpand={handleToggleExpand}
+              onExpand={handleExpand}
+              onCollapse={handleCollapse}
+              onCollapseIds={handleCollapseIds}
+              onSelectNode={handleTreeSelectNode}
               selectedId={selected?.id ?? null}
               getNodeTitle={(n) => getNodeTitle(n as Node)}
               getNodeSubtext={(n) => getNodeSubtext(n as Node)}
