@@ -6,112 +6,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { createClient } from "@/lib/supabase/client";
-
-// ─── ボタンスタイル ────────────────────────────────────────────
-
-const btnBase: React.CSSProperties = {
-  borderRadius: 8,
-  fontWeight: 600,
-  cursor: "pointer",
-  border: "1px solid var(--border-default)",
-  background: "var(--bg-card)",
-  color: "var(--text-primary)",
-  fontSize: 13,
-};
-
-const btnPrimary = (disabled = false): React.CSSProperties => ({
-  ...btnBase,
-  padding: "8px 16px",
-  background: "var(--color-info)",
-  color: "#fff",
-  border: "none",
-  opacity: disabled ? 0.6 : 1,
-  cursor: disabled ? "not-allowed" : "pointer",
-  transition: "opacity 150ms ease",
-});
-
-const btnSecondary = (disabled = false): React.CSSProperties => ({
-  ...btnBase,
-  padding: "8px 16px",
-  opacity: disabled ? 0.6 : 1,
-  cursor: disabled ? "not-allowed" : "pointer",
-});
-
-const btnSmall: React.CSSProperties = {
-  ...btnBase,
-  padding: "4px 10px",
-  fontSize: 12,
-  borderRadius: 6,
-};
-
-const btnDanger: React.CSSProperties = {
-  ...btnBase,
-  padding: "4px 10px",
-  fontSize: 12,
-  borderRadius: 6,
-  color: "var(--color-danger)",
-  border: "1px solid var(--border-danger)",
-  background: "transparent",
-};
-
-const inputStyle: React.CSSProperties = {
-  flex: 1,
-  padding: "7px 10px",
-  fontSize: 14,
-  borderRadius: 6,
-  border: "1px solid var(--border-default)",
-  background: "var(--bg-muted)",
-  color: "var(--text-primary)",
-  outline: "none",
-};
-
-// ─── 共通コンポーネント ────────────────────────────────────────
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{
-      fontWeight: 700,
-      fontSize: 11,
-      letterSpacing: "0.06em",
-      textTransform: "uppercase",
-      color: "var(--text-secondary)",
-      marginBottom: 10,
-    }}>
-      {children}
-    </div>
-  );
-}
-
-function LogoutButton() {
-  const router = useRouter();
-  async function handleLogout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
-  }
-  return (
-    <button
-      type="button"
-      onClick={handleLogout}
-      style={{
-        padding: "7px 14px",
-        borderRadius: 8,
-        border: "1px solid var(--border-default)",
-        background: "var(--bg-card)",
-        color: "var(--text-secondary)",
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: "pointer",
-      }}
-    >
-      ログアウト
-    </button>
-  );
-}
 
 // ─── 型定義 ───────────────────────────────────────────────────
 
@@ -154,6 +49,33 @@ function formatLastRun(iso: string | null): string {
   return `${y}/${m}/${day} ${h}:${min}`;
 }
 
+// ─── 共通スタイル ────────────────────────────────────────────
+
+const inputStyle: React.CSSProperties = {
+  flex: 1,
+  padding: "7px 10px",
+  fontSize: 14,
+  borderRadius: 6,
+  border: "1px solid var(--border-default)",
+  background: "var(--bg-muted)",
+  color: "var(--text-primary)",
+  outline: "none",
+};
+
+const btnSmall: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 4,
+  padding: "4px 10px",
+  fontSize: 12,
+  fontWeight: 600,
+  borderRadius: 6,
+  border: "1px solid var(--border-default)",
+  background: "var(--bg-card)",
+  color: "var(--text-primary)",
+  cursor: "pointer",
+};
+
 // ─── メインページ ─────────────────────────────────────────────
 
 export default function RecurringPage() {
@@ -168,7 +90,6 @@ export default function RecurringPage() {
   const [runNowIsError, setRunNowIsError] = useState(false);
   const [runNowDebug, setRunNowDebug] = useState<{
     todayJST: string;
-    endOfTodayJSTUTC: string;
     activeRuleCount: number;
     inTimeRangeCount: number;
     selectedCount: number;
@@ -186,6 +107,8 @@ export default function RecurringPage() {
     created_count: number | null;
   }>>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const fetchRules = useCallback(async () => {
     setLoading(true);
@@ -359,74 +282,114 @@ export default function RecurringPage() {
   );
 
   return (
-    <div style={{ padding: "20px 24px 48px", background: "var(--bg-page)", color: "var(--text-primary)", minHeight: "100vh" }}>
+    <div style={{ padding: "20px 16px 48px", maxWidth: 800, margin: "0 auto", background: "var(--bg-page)", color: "var(--text-primary)", minHeight: "100vh" }}>
 
-      {/* ─── ページヘッダー ─── */}
+      {/* ─── ログアウト確認モーダル ─── */}
+      {logoutConfirmOpen && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={() => setLogoutConfirmOpen(false)}
+        >
+          <div
+            style={{ background: "var(--bg-panel)", border: "1px solid var(--border-default)", borderRadius: 14, padding: "24px 24px 20px", maxWidth: 320, width: "100%", boxShadow: "0 12px 32px rgba(0,0,0,0.2)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-danger)", flexShrink: 0 }}>
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+              <span style={{ fontWeight: 700, fontSize: 15 }}>ログアウト</span>
+            </div>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 20, lineHeight: 1.6 }}>本当にログアウトしますか？</p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setLogoutConfirmOpen(false)}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border-default)", background: "var(--bg-card)", color: "var(--text-primary)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setLogoutConfirmOpen(false);
+                  const supabase = createClient();
+                  await supabase.auth.signOut();
+                  window.location.href = "/login";
+                }}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--color-danger)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                ログアウト
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── スティッキーヘッダー ─── */}
       <div style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
+        background: "var(--bg-page)",
+        paddingBottom: 12,
+        borderBottom: "1px solid var(--border-subtle)",
+        marginBottom: 16,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        flexWrap: "wrap",
         gap: 12,
-        paddingBottom: 16,
-        borderBottom: "1px solid var(--border-subtle)",
-        marginBottom: 24,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
           <Link
             href="/dashboard"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              color: "var(--text-secondary)",
-              textDecoration: "none",
-              fontSize: 13,
-              fontWeight: 500,
-              padding: "6px 2px",
-            }}
+            style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--text-secondary)", textDecoration: "none", fontSize: 13, fontWeight: 500, flexShrink: 0 }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
             ダッシュボード
           </Link>
-          <div style={{ width: 1, height: 20, background: "var(--border-subtle)" }} />
-          <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.2 }}>繰り返しタスク</h1>
-            <div style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 2 }}>
-              スケジュールに従ってタスクを自動生成
-            </div>
-          </div>
+          <div style={{ width: 1, height: 18, background: "var(--border-subtle)", flexShrink: 0 }} />
+          <h1 style={{ fontSize: 18, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>繰り返しタスク</h1>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+
+        {/* ハンバーガーメニュー */}
+        <div style={{ position: "relative", flexShrink: 0 }}>
           <button
             type="button"
-            onClick={handleRunNow}
-            disabled={runNowLoading}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 14px",
-              borderRadius: 8,
-              border: "none",
-              background: "var(--color-info)",
-              color: "#fff",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: runNowLoading ? "not-allowed" : "pointer",
-              opacity: runNowLoading ? 0.7 : 1,
-              transition: "opacity 150ms ease",
-            }}
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-expanded={menuOpen}
+            aria-haspopup="true"
+            aria-label="メニューを開く"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, padding: 0, border: "1px solid var(--border-default)", borderRadius: 8, background: "var(--bg-card)", color: "var(--text-primary)", cursor: "pointer" }}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="5 3 19 12 5 21 5 3"/>
-            </svg>
-            {runNowLoading ? "実行中…" : "今すぐ実行"}
+            <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ display: "block", width: 16, height: 2, background: "currentColor", borderRadius: 1 }} />
+              <span style={{ display: "block", width: 16, height: 2, background: "currentColor", borderRadius: 1 }} />
+              <span style={{ display: "block", width: 16, height: 2, background: "currentColor", borderRadius: 1 }} />
+            </span>
           </button>
-          <ThemeSwitcher />
-          <LogoutButton />
+          {menuOpen && (
+            <div
+              role="menu"
+              style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", minWidth: 160, border: "1px solid var(--border-default)", borderRadius: 12, background: "var(--bg-panel)", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", overflow: "hidden", zIndex: 100 }}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => { setMenuOpen(false); setLogoutConfirmOpen(true); }}
+                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "11px 14px", border: "none", background: "transparent", color: "var(--text-danger)", fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "left", transition: "background 150ms" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-danger)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                ログアウト
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -454,15 +417,7 @@ export default function RecurringPage() {
 
       {/* ─── 診断パネル ─── */}
       {runNowDebug && (
-        <div style={{
-          marginBottom: 16,
-          padding: "10px 14px",
-          background: "var(--bg-card)",
-          border: "1px solid var(--border-default)",
-          borderRadius: 8,
-          fontSize: 12,
-          color: "var(--text-secondary)",
-        }}>
+        <div style={{ marginBottom: 16, padding: "10px 14px", background: "var(--bg-card)", border: "1px solid var(--border-default)", borderRadius: 8, fontSize: 12, color: "var(--text-secondary)" }}>
           <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-secondary)", marginBottom: 6 }}>診断</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 20px" }}>
             <span>今日(JST): <b style={{ color: "var(--text-primary)" }}>{runNowDebug.todayJST}</b></span>
@@ -501,22 +456,19 @@ export default function RecurringPage() {
 
           {/* ─── 新規追加フォーム ─── */}
           {adding && (
-            <div style={{
-              marginBottom: 16,
-              border: "1px solid var(--border-focus)",
-              borderRadius: 10,
-              background: "var(--bg-card)",
-              overflow: "hidden",
-            }}>
-              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-card)" }}>
-                <SectionLabel>新規ルールを追加</SectionLabel>
+            <div style={{ marginBottom: 12, border: "1px solid var(--border-focus)", borderRadius: 10, background: "var(--bg-panel)", overflow: "hidden" }}>
+              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-card)", display: "flex", alignItems: "center", gap: 8 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ color: "var(--color-info)" }}>
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                <span style={{ fontWeight: 700, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-secondary)" }}>新規ルールを追加</span>
               </div>
               <div style={{ padding: "14px 16px" }}>
                 <form onSubmit={handleSubmitNew}>
                   {formBlock}
                   <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-                    <button type="submit" style={btnPrimary()}>保存</button>
-                    <button type="button" onClick={() => { setAdding(false); resetForm(); }} style={btnSecondary()}>キャンセル</button>
+                    <button type="submit" style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--color-info)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>保存</button>
+                    <button type="button" onClick={() => { setAdding(false); resetForm(); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border-default)", background: "var(--bg-card)", color: "var(--text-primary)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>キャンセル</button>
                   </div>
                 </form>
               </div>
@@ -525,6 +477,11 @@ export default function RecurringPage() {
 
           {/* ─── ルール一覧 ─── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {items.length === 0 && (
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--text-muted)", fontSize: 13 }}>
+                繰り返しルールはまだありません
+              </div>
+            )}
             {items.map((rule) => (
               <div
                 key={rule.id}
@@ -539,12 +496,12 @@ export default function RecurringPage() {
               >
                 {editingId === rule.id ? (
                   <div style={{ padding: "12px 16px" }}>
-                    <SectionLabel>編集</SectionLabel>
+                    <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-secondary)", marginBottom: 10 }}>編集</div>
                     <form onSubmit={handleSubmitEdit}>
                       {formBlock}
                       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-                        <button type="submit" style={btnPrimary()}>保存</button>
-                        <button type="button" onClick={() => { setEditingId(null); resetForm(); }} style={btnSecondary()}>キャンセル</button>
+                        <button type="submit" style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--color-info)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>保存</button>
+                        <button type="button" onClick={() => { setEditingId(null); resetForm(); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border-default)", background: "var(--bg-card)", color: "var(--text-primary)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>キャンセル</button>
                       </div>
                     </form>
                   </div>
@@ -555,20 +512,13 @@ export default function RecurringPage() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 14, lineHeight: 1.3 }}>{rule.title}</div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-                          {/* スケジュール pill */}
-                          <span style={{
-                            display: "inline-flex", alignItems: "center", gap: 4,
-                            padding: "2px 8px", borderRadius: 4,
-                            background: "var(--bg-badge)", fontSize: 11, fontWeight: 600,
-                            color: "var(--text-secondary)",
-                          }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 4, background: "var(--bg-badge)", fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M21.5 2v6h-6"/><path d="M2.5 12A10 10 0 0 1 20.1 6.8"/>
                               <path d="M2.5 22v-6h6"/><path d="M21.5 12A10 10 0 0 1 3.9 17.2"/>
                             </svg>
                             {SCHEDULE_LABELS[rule.schedule_type] ?? rule.schedule_type}
                           </span>
-                          {/* 開始日 */}
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 4, background: "var(--bg-badge)", fontSize: 11, color: "var(--text-secondary)" }}>
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
@@ -584,18 +534,7 @@ export default function RecurringPage() {
                       <button
                         type="button"
                         onClick={() => toggleActive(rule)}
-                        style={{
-                          flexShrink: 0,
-                          padding: "3px 10px",
-                          borderRadius: 20,
-                          fontSize: 11,
-                          fontWeight: 700,
-                          border: "none",
-                          cursor: "pointer",
-                          background: rule.is_active ? "var(--bg-success)" : "var(--bg-disabled)",
-                          color: rule.is_active ? "var(--text-success)" : "var(--text-muted)",
-                          transition: "background 150ms ease, color 150ms ease",
-                        }}
+                        style={{ flexShrink: 0, padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, border: "none", cursor: "pointer", background: rule.is_active ? "var(--bg-success)" : "var(--bg-disabled)", color: rule.is_active ? "var(--text-success)" : "var(--text-muted)", transition: "background 150ms ease, color 150ms ease" }}
                         title={rule.is_active ? "クリックで停止" : "クリックで有効化"}
                       >
                         {rule.is_active ? "有効" : "停止中"}
@@ -605,13 +544,11 @@ export default function RecurringPage() {
                     {/* アクション行 */}
                     <div style={{ display: "flex", alignItems: "center", gap: 6, paddingTop: 8, borderTop: "1px solid var(--border-subtle)" }}>
                       <button type="button" onClick={() => openEdit(rule)} style={btnSmall}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                          </svg>
-                          編集
-                        </span>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                        編集
                       </button>
                       <button
                         type="button"
@@ -622,14 +559,16 @@ export default function RecurringPage() {
                       >
                         {clearingId === rule.id ? "クリア中…" : "履歴クリア"}
                       </button>
-                      <button type="button" onClick={() => setDeletingId(rule.id)} style={btnDanger}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                            <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                          </svg>
-                          削除
-                        </span>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingId(rule.id)}
+                        style={{ ...btnSmall, color: "var(--color-danger)", border: "1px solid var(--border-danger)", background: "transparent" }}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                          <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                        </svg>
+                        削除
                       </button>
                     </div>
                   </div>
@@ -638,57 +577,78 @@ export default function RecurringPage() {
             ))}
           </div>
 
-          {/* ─── ルール追加ボタン ─── */}
+          {/* ─── ルール追加 + 今すぐ実行 ─── */}
           {!adding && (
-            <button
-              type="button"
-              onClick={() => { setAdding(true); resetForm(); }}
-              style={{
-                marginTop: 10,
-                width: "100%",
-                padding: "10px 14px",
-                borderRadius: 10,
-                border: "1px dashed var(--border-muted)",
-                background: "transparent",
-                color: "var(--text-secondary)",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                transition: "border-color 150ms ease, color 150ms ease",
-              }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              ルールを追加
-            </button>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button
+                type="button"
+                onClick={() => { setAdding(true); resetForm(); }}
+                style={{
+                  flex: 1,
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  border: "1px dashed var(--border-muted)",
+                  background: "transparent",
+                  color: "var(--text-secondary)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  transition: "border-color 150ms ease, color 150ms ease",
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                ルールを追加
+              </button>
+              <button
+                type="button"
+                onClick={handleRunNow}
+                disabled={runNowLoading}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "10px 16px",
+                  borderRadius: 10,
+                  border: "1px solid var(--border-default)",
+                  background: "var(--bg-card)",
+                  color: runNowLoading ? "var(--text-muted)" : "var(--text-primary)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: runNowLoading ? "not-allowed" : "pointer",
+                  opacity: runNowLoading ? 0.7 : 1,
+                  transition: "opacity 150ms ease",
+                  flexShrink: 0,
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                {runNowLoading ? "実行中…" : "今すぐ実行"}
+              </button>
+            </div>
           )}
 
           {/* ─── 実行ログ ─── */}
-          <div style={{
-            marginTop: 32,
-            border: "1px solid var(--border-default)",
-            borderRadius: 10,
-            background: "var(--bg-card)",
-            overflow: "hidden",
-          }}>
-            <div style={{
-              padding: "10px 14px",
-              borderBottom: "1px solid var(--border-subtle)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}>
-              <SectionLabel>実行ログ</SectionLabel>
+          <div style={{ marginTop: 32, border: "1px solid var(--border-default)", borderRadius: 10, background: "var(--bg-panel)", overflow: "hidden" }}>
+            <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-card)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-muted)" }}>
+                  <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+                <span style={{ fontWeight: 700, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-secondary)" }}>実行ログ</span>
+              </div>
               <button
                 type="button"
                 onClick={fetchHistory}
                 disabled={historyLoading}
-                style={{ ...btnSmall, opacity: historyLoading ? 0.6 : 1, cursor: historyLoading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                style={{ ...btnSmall, opacity: historyLoading ? 0.6 : 1, cursor: historyLoading ? "not-allowed" : "pointer" }}
               >
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21.5 2v6h-6"/><path d="M2.5 12A10 10 0 0 1 20.1 6.8"/>
@@ -707,12 +667,9 @@ export default function RecurringPage() {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                     <thead>
                       <tr>
-                        <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600, fontSize: 11, letterSpacing: "0.04em", color: "var(--text-secondary)", borderBottom: "1px solid var(--border-default)" }}>実行日時</th>
-                        <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600, fontSize: 11, letterSpacing: "0.04em", color: "var(--text-secondary)", borderBottom: "1px solid var(--border-default)" }}>ルール</th>
-                        <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600, fontSize: 11, letterSpacing: "0.04em", color: "var(--text-secondary)", borderBottom: "1px solid var(--border-default)" }}>種別</th>
-                        <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600, fontSize: 11, letterSpacing: "0.04em", color: "var(--text-secondary)", borderBottom: "1px solid var(--border-default)" }}>対象日</th>
-                        <th style={{ textAlign: "right", padding: "6px 8px", fontWeight: 600, fontSize: 11, letterSpacing: "0.04em", color: "var(--text-secondary)", borderBottom: "1px solid var(--border-default)" }}>処理</th>
-                        <th style={{ textAlign: "right", padding: "6px 8px", fontWeight: 600, fontSize: 11, letterSpacing: "0.04em", color: "var(--text-secondary)", borderBottom: "1px solid var(--border-default)" }}>生成</th>
+                        {["実行日時", "ルール", "種別", "対象日", "処理", "生成"].map((h, i) => (
+                          <th key={h} style={{ textAlign: i >= 4 ? "right" : "left", padding: "6px 8px", fontWeight: 600, fontSize: 11, letterSpacing: "0.04em", color: "var(--text-secondary)", borderBottom: "1px solid var(--border-default)" }}>{h}</th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
@@ -721,11 +678,7 @@ export default function RecurringPage() {
                           <td style={{ padding: "7px 8px", whiteSpace: "nowrap", color: "var(--text-primary)" }}>{formatLastRun(row.run_at)}</td>
                           <td style={{ padding: "7px 8px", color: "var(--text-secondary)" }}>{row.rule_id ? (items.find((r) => r.id === row.rule_id)?.title ?? row.rule_id.slice(0, 8)) : <span style={{ color: "var(--text-muted)" }}>ジョブ</span>}</td>
                           <td style={{ padding: "7px 8px" }}>
-                            <span style={{
-                              padding: "1px 6px", borderRadius: 4, fontSize: 11, fontWeight: 600,
-                              background: row.trigger === "cron" ? "var(--bg-badge)" : row.trigger === "manual" ? "var(--color-info-bg)" : "var(--bg-badge)",
-                              color: row.trigger === "cron" ? "var(--text-secondary)" : row.trigger === "manual" ? "var(--color-info)" : "var(--text-secondary)",
-                            }}>
+                            <span style={{ padding: "1px 6px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: row.trigger === "manual" ? "var(--color-info-bg)" : "var(--bg-badge)", color: row.trigger === "manual" ? "var(--color-info)" : "var(--text-secondary)" }}>
                               {row.trigger === "cron" ? "自動" : row.trigger === "manual" ? "手動" : row.trigger === "clear" ? "クリア" : row.trigger}
                             </span>
                           </td>
@@ -750,23 +703,26 @@ export default function RecurringPage() {
         <div
           role="dialog"
           aria-modal="true"
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
-          onKeyDown={(e) => e.key === "Escape" && setDeletingId(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}
+          onClick={() => setDeletingId(null)}
         >
-          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-danger)", padding: 24, borderRadius: 12, maxWidth: 360, width: "90%", boxShadow: "var(--shadow-elevated)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-danger)", flexShrink: 0 }}>
+          <div
+            style={{ background: "var(--bg-panel)", border: "1px solid var(--border-danger)", padding: "24px 24px 20px", borderRadius: 14, maxWidth: 340, width: "100%", boxShadow: "0 12px 32px rgba(0,0,0,0.2)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-danger)", flexShrink: 0 }}>
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
                 <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
               </svg>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>削除しますか？</div>
+              <span style={{ fontWeight: 700, fontSize: 15 }}>削除しますか？</span>
             </div>
-            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 20 }}>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 20, lineHeight: 1.6 }}>
               このルールと関連する設定を削除します。この操作は取り消せません。
-            </div>
+            </p>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button type="button" onClick={() => setDeletingId(null)} style={btnSecondary()}>キャンセル</button>
-              <button type="button" onClick={confirmDelete} style={{ ...btnPrimary(), background: "var(--color-danger)" }}>削除する</button>
+              <button type="button" onClick={() => setDeletingId(null)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border-default)", background: "var(--bg-card)", color: "var(--text-primary)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>キャンセル</button>
+              <button type="button" onClick={confirmDelete} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--color-danger)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>削除する</button>
             </div>
           </div>
         </div>
