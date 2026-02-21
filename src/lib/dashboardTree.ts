@@ -222,18 +222,17 @@ function getMaxUpdatedAtInSubtree(tn: TreeNode): string {
  * 全レベルの children を「サブツリー最新時刻」降順でソートする（再帰）。
  * ルートと同じ基準で子・孫を並べる。
  */
-function sortTreeByTimestamp(tn: TreeNode): void {
+function getTitle(tn: TreeNode): string {
+  const t = tn.node.title;
+  return typeof t === "string" ? t : "";
+}
+
+function sortTreeByTitle(tn: TreeNode): void {
   for (const child of tn.children) {
-    sortTreeByTimestamp(child);
+    sortTreeByTitle(child);
   }
   if (tn.children.length > 1) {
-    tn.children.sort((a, b) => {
-      const at = getMaxUpdatedAtInSubtree(a);
-      const bt = getMaxUpdatedAtInSubtree(b);
-      if (!bt) return -1;
-      if (!at) return 1;
-      return bt > at ? 1 : bt < at ? -1 : 0;
-    });
+    tn.children.sort((a, b) => getTitle(a).localeCompare(getTitle(b), "ja"));
   }
 }
 
@@ -273,19 +272,13 @@ export function buildTree(
     );
   }
 
-  // 全レベルの children をサブツリー最新時刻降順でソート（ルートと同じ基準）
+  // 全レベルを名前順でソート
   for (const root of result) {
-    sortTreeByTimestamp(root);
+    sortTreeByTitle(root);
   }
 
-  // Phase12-D: ルートを「最新活動日時」降順で並べ替え
-  result.sort((a, b) => {
-    const at = getMaxUpdatedAtInSubtree(a);
-    const bt = getMaxUpdatedAtInSubtree(b);
-    if (!bt) return -1;
-    if (!at) return 1;
-    return bt > at ? 1 : bt < at ? -1 : 0;
-  });
+  // ルートも名前順
+  result.sort((a, b) => getTitle(a).localeCompare(getTitle(b), "ja"));
 
   return result;
 }
