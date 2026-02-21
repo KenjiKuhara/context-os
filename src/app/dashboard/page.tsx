@@ -2206,15 +2206,23 @@ export default function DashboardPage() {
         </div>
 
         {/* ─── Right: Detail + Estimate flow ──────────── */}
-        <div style={{ border: "1px solid var(--border-default)", borderRadius: 10, padding: 12, background: "var(--bg-panel)" }}>
-          <div style={{ fontWeight: 800 }}>詳細</div>
+        <div style={{ border: "1px solid var(--border-default)", borderRadius: 10, background: "var(--bg-panel)", overflow: "hidden" }}>
+          <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-card)", display: "flex", alignItems: "center", gap: 8 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-info)", flexShrink: 0 }}>
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+            </svg>
+            <span style={{ fontWeight: 700, fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-secondary)" }}>タスク詳細</span>
+          </div>
 
           {!selected ? (
-            <div style={{ marginTop: 8, color: "var(--text-secondary)" }}>
-              左の一覧からタスクをクリックしてください
+            <div style={{ padding: "40px 14px", color: "var(--text-secondary)", fontSize: 13, textAlign: "center" }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.3, display: "block", margin: "0 auto 10px" }}>
+                <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="12" y2="16"/>
+              </svg>
+              左の一覧からタスクをクリック
             </div>
           ) : (
-            <div style={{ marginTop: 10 }}>
+            <div style={{ padding: "12px 14px" }}>
               {/* Node info: タイトル + インライン編集（ペン → input） */}
               <div style={{ fontWeight: 800, fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
                 {titleEditingNodeId === selected.id ? (
@@ -2300,8 +2308,8 @@ export default function DashboardPage() {
               </div>
 
               {/* 期日: 表示 or 編集（date input）・解除 */}
-              <div style={{ marginTop: 8, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                <b>期日：</b>
+              <div style={{ marginTop: 10, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.03em", flexShrink: 0 }}>期日</span><span style={{ color: "var(--border-muted)", marginRight: 2 }}>:</span>
                 {dueDateEditingNodeId === selected.id ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
                     <input
@@ -2400,9 +2408,10 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              <div style={{ marginTop: 8, fontSize: 13 }}>
-                <div>
-                  <b>状態：</b> <StatusBadge status={displayStatus(selected)} />
+              <div style={{ marginTop: 10, fontSize: 13 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.03em", flexShrink: 0 }}>状態</span><span style={{ color: "var(--border-muted)", marginRight: 2 }}>:</span>
+                  <StatusBadge status={displayStatus(selected)} />
                 </div>
                 <StatusQuickSwitch
                   currentStatus={displayStatus(selected)}
@@ -2416,37 +2425,36 @@ export default function DashboardPage() {
                   </div>
                 )}
                 {selected.temperature != null && (
-                  <div style={{ marginTop: 4 }}>
-                    <b>温度：</b> {selected.temperature}
-                    <span style={{ fontSize: 11, color: "var(--text-muted)", marginLeft: 4 }}>
-                      （参考値）
-                    </span>
+                  <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.03em", flexShrink: 0 }}>温度</span><span style={{ color: "var(--border-muted)", marginRight: 2 }}>:</span>
+                    {selected.temperature}
+                    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>（参考値）</span>
                   </div>
                 )}
                 {(selected.last_memo ?? selected.context) && (
-                  <div style={{ marginTop: 4 }}>
-                    <b>途中内容：</b>
-                    <span style={{ color: "var(--text-primary)" }}>
+                  <div style={{ marginTop: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.03em" }}>途中内容:</span>
+                    <span style={{ marginLeft: 8, color: "var(--text-primary)" }}>
                       {selected.last_memo ?? selected.context ?? ""}
                     </span>
                   </div>
                 )}
-                <div style={{ marginTop: 4 }} suppressHydrationWarning>
-                  <b>最終更新：</b>{" "}
-                  {formatLastUpdated(selected.last_memo_at ?? selected.updated_at)}
+                <div style={{ marginTop: 6 }} suppressHydrationWarning>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.03em" }}>最終更新:</span>
+                  <span style={{ marginLeft: 8 }}>{formatLastUpdated(selected.last_memo_at ?? selected.updated_at)}</span>
                 </div>
               </div>
 
               {/* Phase10-A: 関連する直近履歴 1 件（102 設計） */}
               <div
                 style={{
-                  marginTop: 12,
+                  marginTop: 14,
                   paddingTop: 12,
                   borderTop: "1px solid var(--border-subtle)",
                   fontSize: 12,
                 }}
               >
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-secondary)", marginBottom: 8 }}>
                   関連する直近履歴
                 </div>
                 {relatedRecentHistoryLoading && (
@@ -2502,7 +2510,7 @@ export default function DashboardPage() {
                   borderTop: "1px solid var(--border-subtle)",
                 }}
               >
-                <div style={{ fontWeight: 800, marginBottom: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-secondary)", marginBottom: 8 }}>
                   何が起きた？
                 </div>
                 <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6 }}>
@@ -2542,17 +2550,25 @@ export default function DashboardPage() {
                   }
                   style={{
                     marginTop: 8,
-                    padding: "8px 16px",
+                    width: "100%",
+                    padding: "9px 16px",
                     borderRadius: 8,
-                    border: "1px solid var(--border-muted)",
+                    border: "none",
                     fontWeight: 700,
+                    fontSize: 13,
                     background:
-                      estimatePhase === "loading" ? "var(--bg-disabled)" : "var(--bg-card)",
-                    color: "var(--text-primary)",
+                      !intentDraft.trim() || estimatePhase !== "idle"
+                        ? "var(--bg-disabled)"
+                        : "var(--color-info)",
+                    color:
+                      !intentDraft.trim() || estimatePhase !== "idle"
+                        ? "var(--text-muted)"
+                        : "#fff",
                     cursor:
                       !intentDraft.trim() || estimatePhase !== "idle"
                         ? "not-allowed"
                         : "pointer",
+                    transition: "background 150ms ease, color 150ms ease",
                   }}
                 >
                   {estimatePhase === "loading" ? "推定中…" : "推定する"}
@@ -2568,7 +2584,7 @@ export default function DashboardPage() {
                   fontSize: 12,
                 }}
               >
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-secondary)", marginBottom: 8 }}>
                   ステータス・メモログ
                 </div>
                 {statusLogLoading && (
@@ -2581,7 +2597,7 @@ export default function DashboardPage() {
                   <div style={{ color: "var(--text-secondary)" }}>まだ履歴はありません</div>
                 )}
                 {!statusLogLoading && !statusLogError && statusLog.length > 0 && (
-                  <ul style={{ margin: 0, paddingLeft: 18, listStyle: "disc" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                     {statusLog.map((entry, i) => {
                       const isStatusChange = entry.from_status !== entry.to_status;
                       const isTitleChange = typeof entry.reason === "string" && entry.reason.startsWith("タイトル変更:");
@@ -2592,24 +2608,37 @@ export default function DashboardPage() {
                         : isDueDateChange
                           ? "期日変更"
                           : isStatusChange
-                            ? `ステータス更新: ${getStatusLabel(entry.from_status)} → ${getStatusLabel(entry.to_status)}`
+                            ? `${getStatusLabel(entry.from_status)} → ${getStatusLabel(entry.to_status)}`
                             : "メモ";
                       const reasonTrim = typeof entry.reason === "string" ? entry.reason.trim() : "";
+                      const isLast = i === statusLog.length - 1;
                       return (
-                        <li key={i} style={{ marginTop: 6 }}>
-                          <span style={{ color: "var(--text-muted)" }}>{timeStr}</span>
-                          <div style={{ marginTop: 2, color: "var(--text-primary)" }}>
-                            {label}
-                            {reasonTrim && (
-                              <span style={{ marginLeft: 6, color: "var(--text-secondary)" }}>
-                                {reasonTrim}
-                              </span>
-                            )}
+                        <div key={i} style={{ display: "flex", gap: 10, paddingBottom: isLast ? 0 : 8 }}>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: 14 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: isStatusChange ? "var(--color-info)" : "var(--border-muted)", flexShrink: 0, marginTop: 3 }} />
+                            {!isLast && <div style={{ width: 1, flex: 1, background: "var(--border-subtle)", marginTop: 4 }} />}
                           </div>
-                        </li>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ color: "var(--text-primary)", lineHeight: 1.4 }}>
+                              {label}
+                              {reasonTrim && !isTitleChange && !isDueDateChange && (
+                                <span style={{ marginLeft: 6, color: "var(--text-secondary)" }}>
+                                  {reasonTrim}
+                                </span>
+                              )}
+                            </div>
+                            {isTitleChange && reasonTrim && (
+                              <div style={{ marginTop: 2, color: "var(--text-secondary)", fontSize: 11 }}>{reasonTrim.replace("タイトル変更: ", "")}</div>
+                            )}
+                            {isDueDateChange && reasonTrim && (
+                              <div style={{ marginTop: 2, color: "var(--text-secondary)", fontSize: 11 }}>{reasonTrim.replace("期日変更: ", "")}</div>
+                            )}
+                            <div style={{ marginTop: 2, color: "var(--text-muted)", fontSize: 10 }}>{timeStr}</div>
+                          </div>
+                        </div>
                       );
                     })}
-                  </ul>
+                  </div>
                 )}
               </div>
 
@@ -2622,7 +2651,7 @@ export default function DashboardPage() {
                   fontSize: 12,
                 }}
               >
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-secondary)", marginBottom: 8 }}>
                   リンク/メモ
                 </div>
                 {nodeLinksLoading && (
@@ -2728,17 +2757,24 @@ export default function DashboardPage() {
                                   setEditLinkUrl(link.url ?? "");
                                 }}
                                 title="編集"
-                                style={{ padding: 2, background: "none", border: "none", cursor: "pointer" }}
+                                aria-label="編集"
+                                style={{ padding: 4, background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center" }}
                               >
-                                ✏️
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setNodeLinkDeletingId(link.id)}
                                 title="削除"
-                                style={{ padding: 2, background: "none", border: "none", cursor: "pointer" }}
+                                aria-label="削除"
+                                style={{ padding: 4, background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex", alignItems: "center" }}
                               >
-                                🗑
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                                </svg>
                               </button>
                             </div>
                           </>
@@ -2858,17 +2894,21 @@ export default function DashboardPage() {
                         onClick={() => setNodeLinkAdding(true)}
                         style={{
                           marginTop: 8,
-                          padding: "6px 14px",
+                          padding: "6px 12px",
                           fontSize: 12,
                           borderRadius: 6,
-                          border: "1px solid var(--border-muted)",
-                          background: "var(--bg-card)",
-                          color: "var(--text-primary)",
-                          fontWeight: 700,
+                          border: "1px dashed var(--border-muted)",
+                          background: "transparent",
+                          color: "var(--text-secondary)",
+                          fontWeight: 600,
                           cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
                         }}
                       >
-                        ＋追加
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        リンク/メモを追加
                       </button>
                     )}
                   </>
@@ -2884,7 +2924,7 @@ export default function DashboardPage() {
                     borderTop: "1px solid var(--border-subtle)",
                   }}
                 >
-                  <div style={{ fontWeight: 800, marginBottom: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-secondary)", marginBottom: 10 }}>
                     推定結果
                   </div>
 
