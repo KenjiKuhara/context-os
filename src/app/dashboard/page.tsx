@@ -2014,9 +2014,7 @@ export default function DashboardPage() {
                   親なしで追加
                 </button>
               </>
-            ) : (
-              <span>新しい仕事として追加します</span>
-            )}
+            ) : null}
           </div>
           <QuickAdd
             value={quickAddValue}
