@@ -42,3 +42,6 @@ next-env.d.ts
 
 # claude
 .claude
+
+# mcp config (contains auth token)
+.mcp.json
