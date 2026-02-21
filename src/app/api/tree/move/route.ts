@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
     for (const u of deduped.values()) {
       const { error: upErr } = await supabase
         .from("nodes")
-        .update({ parent_id: u.parent_id, sibling_order: u.sibling_order, updated_at: new Date().toISOString() })
+        .update({ parent_id: u.parent_id, sibling_order: u.sibling_order })
         .eq("id", u.id);
       if (upErr) throw upErr;
     }

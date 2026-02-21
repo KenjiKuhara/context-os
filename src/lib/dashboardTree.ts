@@ -103,12 +103,7 @@ function buildTreeRec(
     };
   }
 
-  const childIdsRaw = parentToChildren.get(nodeId) ?? [];
-  const childIds = [...childIdsRaw].sort((a, b) => {
-    const orderA = (nodeMap.get(a) as { sibling_order?: number } | undefined)?.sibling_order ?? 999;
-    const orderB = (nodeMap.get(b) as { sibling_order?: number } | undefined)?.sibling_order ?? 999;
-    return orderA - orderB;
-  });
+  const childIds = parentToChildren.get(nodeId) ?? [];
   if (childIds.length > 0) {
     visited.add(nodeId);
     for (const cid of childIds) {
@@ -218,6 +213,25 @@ function getMaxUpdatedAtInSubtree(tn: TreeNode): string {
 }
 
 /**
+ * 全レベルの children を「サブツリー最新時刻」降順でソートする（再帰）。
+ * ルートと同じ基準で子・孫を並べる。
+ */
+function sortTreeByTimestamp(tn: TreeNode): void {
+  for (const child of tn.children) {
+    sortTreeByTimestamp(child);
+  }
+  if (tn.children.length > 1) {
+    tn.children.sort((a, b) => {
+      const at = getMaxUpdatedAtInSubtree(a);
+      const bt = getMaxUpdatedAtInSubtree(b);
+      if (!bt) return -1;
+      if (!at) return 1;
+      return bt > at ? 1 : bt < at ? -1 : 0;
+    });
+  }
+}
+
+/**
  * 表示用ツリーを組み立てる。
  * @param nodes - 表示対象ノード一覧（トレーでフィルタ済み想定）
  * @param nodeChildren - API から返る node_children（parent_id, child_id, created_at）
@@ -251,6 +265,11 @@ export function buildTree(
     result.push(
       buildTreeRec(rid, nodeMap, parentToChildren, visited, 0)
     );
+  }
+
+  // 全レベルの children をサブツリー最新時刻降順でソート（ルートと同じ基準）
+  for (const root of result) {
+    sortTreeByTimestamp(root);
   }
 
   // Phase12-D: ルートを「最新活動日時」降順で並べ替え

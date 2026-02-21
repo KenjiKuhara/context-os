@@ -599,7 +599,11 @@ export function TreeList(props: TreeListProps) {
       setActiveDragId(null);
       const { active, over } = event;
       if (!over || !onTreeMove) return;
-      const movedNodeId = active.id as string;
+      const movedNodeId = String(active.id);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(movedNodeId)) {
+        console.error("[TreeList] handleDragEnd: active.id is not a UUID, ignoring", active.id);
+        return;
+      }
       const overId = String(over.id);
       if (overId.startsWith(NEST_DROP_PREFIX)) {
         const targetNodeId = overId.slice(NEST_DROP_PREFIX.length);
@@ -761,7 +765,7 @@ export function TreeList(props: TreeListProps) {
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
-        onDragStart={({ active }) => setActiveDragId(active.id as string)}
+        onDragStart={({ active }) => setActiveDragId(String(active.id))}
         onDragEnd={handleDragEnd}
       >
         <TreeBody
