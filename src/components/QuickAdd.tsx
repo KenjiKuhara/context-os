@@ -6,7 +6,7 @@
  * 自動フォーカスはしない。Escで即クリア。追加後フォーカス維持。
  */
 
-import { useRef, type RefObject } from "react";
+import { useRef, useState, type RefObject } from "react";
 
 type QuickAddProps = {
   value: string;
@@ -28,11 +28,13 @@ export function QuickAdd({
 }: QuickAddProps) {
   const internalRef = useRef<HTMLInputElement>(null);
   const ref = externalRef ?? internalRef;
+  const [focused, setFocused] = useState(false);
+  const hasValue = value.trim().length > 0;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (value.trim()) onSubmit();
+      if (hasValue) onSubmit();
       return;
     }
     if (e.key === "Escape") {
@@ -43,22 +45,40 @@ export function QuickAdd({
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: 520 }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 0,
+        maxWidth: 520,
+        borderRadius: 10,
+        border: focused
+          ? "1px solid var(--border-focus)"
+          : "1px solid var(--border-default)",
+        boxShadow: focused
+          ? "0 0 0 3px var(--focus-ring)"
+          : "var(--shadow-card)",
+        background: "var(--bg-card)",
+        transition: "border-color 150ms ease, box-shadow 150ms ease",
+        overflow: "hidden",
+      }}
+    >
       <input
         ref={ref}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="タスクを追加…"
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder="タスクを追加… (Enter で確定)"
         aria-label="タスクを追加（Enterで確定、Escでクリア）"
         style={{
           flex: 1,
           minWidth: 0,
-          padding: "10px 12px",
-          borderRadius: 8,
-          border: "1px solid var(--border-default)",
-          background: "var(--bg-card)",
+          padding: "10px 14px",
+          border: "none",
+          background: "transparent",
           color: "var(--text-primary)",
           fontSize: 14,
           outline: "none",
@@ -67,21 +87,23 @@ export function QuickAdd({
       <button
         type="button"
         onClick={onSubmit}
-        disabled={buttonDisabled || !value.trim()}
+        disabled={buttonDisabled || !hasValue}
         aria-label="追加"
         style={{
-          padding: "8px 14px",
-          borderRadius: 8,
-          border: "1px solid var(--border-default)",
-          background: "var(--bg-card)",
-          color: "var(--text-primary)",
+          padding: "10px 16px",
+          border: "none",
+          borderLeft: "1px solid var(--border-subtle)",
+          background: hasValue && !buttonDisabled ? "var(--color-info)" : "transparent",
+          color: hasValue && !buttonDisabled ? "#fff" : "var(--text-muted)",
           fontSize: 13,
           fontWeight: 600,
-          cursor: buttonDisabled || !value.trim() ? "not-allowed" : "pointer",
-          opacity: buttonDisabled ? 0.7 : 1,
+          cursor: buttonDisabled || !hasValue ? "not-allowed" : "pointer",
+          transition: "background 150ms ease, color 150ms ease",
+          whiteSpace: "nowrap",
+          flexShrink: 0,
         }}
       >
-        追加
+        {buttonDisabled ? "追加中…" : "追加"}
       </button>
     </div>
   );
