@@ -645,7 +645,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!headerMenuOpen) return;
     function handleClick(e: MouseEvent) {
-      const target = e.target as Node | null;
+      const target = e.target as HTMLElement | null;
       if (headerMenuRef.current && target && !headerMenuRef.current.contains(target)) {
         setHeaderMenuOpen(false);
       }

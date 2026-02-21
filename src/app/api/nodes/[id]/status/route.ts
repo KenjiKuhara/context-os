@@ -149,7 +149,7 @@ export async function PATCH(
 
       if (histErr) {
         // nodes更新は成功している可能性があるのでwarningにする
-        const payload: any = {
+        const payload: Record<string, unknown> = {
           ok: true,
           data: { id, status: toStatus },
           warning: "history insert failed",
@@ -176,9 +176,9 @@ export async function PATCH(
       },
       { status: 200 }
     );
-  } catch (e: any) {
+  } catch (e: unknown) {
     return NextResponse.json(
-      { ok: false, error: e?.message ?? "unknown error" },
+      { ok: false, error: e instanceof Error ? e.message : "unknown error" },
       { status: 500 }
     );
   }

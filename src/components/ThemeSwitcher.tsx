@@ -33,11 +33,13 @@ export function ThemeSwitcher() {
   const [selected, setSelected] = useState<ThemeStored>("dark");
 
   // マウント時に localStorage から読み、選択状態を初期化し、data-theme を再適用（ハイドレーションで消えた場合の復元）
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const stored = getStoredTheme();
     setSelected(stored);
     applyResolvedTheme(resolveTheme(stored));
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleSelect = (value: ThemeStored) => {
     try {

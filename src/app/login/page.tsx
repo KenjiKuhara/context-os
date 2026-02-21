@@ -6,6 +6,7 @@
  */
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -123,7 +124,7 @@ export default function LoginPage() {
         }}
       >
         <div style={{ marginBottom: 16 }}>
-          <a
+          <Link
             href="/"
             style={{
               display: "inline-block",
@@ -136,7 +137,7 @@ export default function LoginPage() {
             }}
           >
             ← context-os
-          </a>
+          </Link>
         </div>
         <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24 }}>
           {mode === "login" ? "ログイン" : "パスワードをリセット"}

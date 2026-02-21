@@ -211,7 +211,9 @@ export default function RecurringPage() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchRules(); }, [fetchRules]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (!loading) fetchHistory(); }, [loading, fetchHistory]);
 
   const [formTitle, setFormTitle] = useState("");

@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  let body: any = null;
+  let body: Record<string, unknown> | null = null;
 
   // 1) JSON parse
   try {
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
 
   // tags: string[]
   const tags =
-    Array.isArray(body?.tags) && body.tags.every((t: any) => typeof t === "string")
+    Array.isArray(body?.tags) && body.tags.every((t: unknown) => typeof t === "string")
       ? body.tags
       : [];
 

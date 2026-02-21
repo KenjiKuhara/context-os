@@ -592,18 +592,19 @@ export function TreeList(props: TreeListProps) {
     [treeNodeById]
   );
 
+  const onTreeMove = props.onTreeMove;
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       setActiveDragId(null);
       const { active, over } = event;
-      if (!over || !props.onTreeMove) return;
+      if (!over || !onTreeMove) return;
       const movedNodeId = active.id as string;
       const overId = String(over.id);
       if (overId.startsWith(NEST_DROP_PREFIX)) {
         const targetNodeId = overId.slice(NEST_DROP_PREFIX.length);
         const children = orderedChildrenByParentId.get(targetNodeId) ?? [];
         const orderedSiblingIds = [...children.filter((id) => id !== movedNodeId), movedNodeId];
-        props.onTreeMove(movedNodeId, targetNodeId, orderedSiblingIds);
+        onTreeMove(movedNodeId, targetNodeId, orderedSiblingIds);
         return;
       }
       const parsed = parseDropId(overId);
@@ -612,9 +613,9 @@ export function TreeList(props: TreeListProps) {
       const siblings = orderedChildrenByParentId.get(parentId) ?? [];
       const without = siblings.filter((id) => id !== movedNodeId);
       const orderedSiblingIds = [...without.slice(0, siblingIndex), movedNodeId, ...without.slice(siblingIndex)];
-      props.onTreeMove(movedNodeId, parentId, orderedSiblingIds);
+      onTreeMove(movedNodeId, parentId, orderedSiblingIds);
     },
-    [props.onTreeMove, orderedChildrenByParentId]
+    [onTreeMove, orderedChildrenByParentId]
   );
 
   const sensors = useSensors(
@@ -723,6 +724,8 @@ export function TreeList(props: TreeListProps) {
     [props, parentById, treeNodeById, visibleIds]
   );
 
+  const [focused, setFocused] = useState(false);
+
   if (props.roots.length === 0) {
     return (
       <div style={{ padding: 12, color: "var(--text-secondary)" }}>
@@ -730,8 +733,6 @@ export function TreeList(props: TreeListProps) {
       </div>
     );
   }
-
-  const [focused, setFocused] = useState(false);
 
   const treeContent = (
     <div

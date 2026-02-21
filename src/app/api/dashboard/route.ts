@@ -47,8 +47,8 @@ async function fetchDashboardWithAdmin() {
   if (error) throw error;
 
   const nodeIds = (nodeData ?? []).map((n) => n.id as string);
-  let lastMemoByNodeId: Record<string, string> = {};
-  let lastMemoAtByNodeId: Record<string, string> = {};
+  const lastMemoByNodeId: Record<string, string> = {};
+  const lastMemoAtByNodeId: Record<string, string> = {};
   if (nodeIds.length > 0) {
     const { data: historyRows } = await supabaseAdmin
       .from("node_status_history")
@@ -153,8 +153,8 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
 
     const nodeIds = (nodeData ?? []).map((n) => n.id as string);
-    let lastMemoByNodeId: Record<string, string> = {};
-    let lastMemoAtByNodeId: Record<string, string> = {};
+    const lastMemoByNodeId: Record<string, string> = {};
+    const lastMemoAtByNodeId: Record<string, string> = {};
     if (nodeIds.length > 0) {
       const { data: historyRows } = await supabase
         .from("node_status_history")
