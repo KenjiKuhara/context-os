@@ -1846,8 +1846,8 @@ export default function DashboardPage() {
       <div className={styles.stickyHeader} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.3px" }}>
-            context-os
-          </h1>
+            タスク管理
+</h1>
           <div
             ref={headerMenuRef}
             style={{ position: "relative", marginLeft: "auto", flexShrink: 0 }}
@@ -1977,9 +1977,6 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-        </div>
-        <div style={{ width: "100%", color: "var(--text-secondary)", marginTop: -4, fontSize: 12 }}>
-          「進行中の仕事」をトレーに分けて表示
         </div>
       </div>
 
