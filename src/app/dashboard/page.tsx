@@ -423,6 +423,7 @@ export default function DashboardPage() {
   /** ヘッダー・ハンバーガーメニュー開閉 */
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const headerMenuRef = useRef<HTMLDivElement>(null);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   /** ホットタスク: 赤表示するノード ID セット（localStorage 永続） */
   const [hotNodeIds, setHotNodeIds] = useState<Set<string>>(() => {
@@ -1843,6 +1844,85 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ログアウト確認モーダル */}
+      {logoutConfirmOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            zIndex: 200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => setLogoutConfirmOpen(false)}
+        >
+          <div
+            style={{
+              background: "var(--bg-panel)",
+              border: "1px solid var(--border-default)",
+              borderRadius: 14,
+              padding: "24px 24px 20px",
+              maxWidth: 320,
+              width: "100%",
+              boxShadow: "0 12px 32px rgba(0,0,0,0.2)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-danger)", flexShrink: 0 }}>
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+              <span style={{ fontWeight: 700, fontSize: 15 }}>ログアウト</span>
+            </div>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 20, lineHeight: 1.6 }}>
+              本当にログアウトしますか？
+            </p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setLogoutConfirmOpen(false)}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-default)",
+                  background: "var(--bg-card)",
+                  color: "var(--text-primary)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setLogoutConfirmOpen(false);
+                  const supabase = createSupabaseClient();
+                  await supabase.auth.signOut();
+                  window.location.href = "/login";
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "var(--color-danger)",
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                ログアウト
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className={styles.stickyHeader} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.3px" }}>
@@ -1929,7 +2009,7 @@ export default function DashboardPage() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 10,
+                    justifyContent: "space-between",
                     padding: "9px 14px",
                     borderBottom: "1px solid var(--border-subtle)",
                   }}
@@ -1937,7 +2017,6 @@ export default function DashboardPage() {
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-muted)", flexShrink: 0 }}>
                     <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
                   </svg>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", marginRight: "auto" }}>テーマ</span>
                   <ThemeSwitcher />
                 </div>
 
@@ -1945,11 +2024,9 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={async () => {
+                  onClick={() => {
                     setHeaderMenuOpen(false);
-                    const supabase = createSupabaseClient();
-                    await supabase.auth.signOut();
-                    window.location.href = "/login";
+                    setLogoutConfirmOpen(true);
                   }}
                   style={{
                     display: "flex",
