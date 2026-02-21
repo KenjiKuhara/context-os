@@ -294,7 +294,6 @@ function SummaryCard({
         borderTop: `3px solid ${active ? accentColor : "var(--border-subtle)"}`,
         borderRadius: 10,
         padding: "10px 14px",
-        minWidth: 120,
         cursor: "pointer",
         userSelect: "none",
         background: active ? "var(--bg-selected)" : "var(--bg-card)",
@@ -1888,41 +1887,93 @@ export default function DashboardPage() {
                 style={{
                   position: "absolute",
                   right: 0,
-                  top: "100%",
-                  marginTop: 4,
-                  minWidth: 180,
-                  padding: 8,
+                  top: "calc(100% + 6px)",
+                  minWidth: 200,
                   border: "1px solid var(--border-default)",
-                  borderRadius: 10,
+                  borderRadius: 12,
                   background: "var(--bg-panel)",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08)",
+                  overflow: "hidden",
                   zIndex: 100,
                 }}
               >
+                {/* 繰り返しタスク */}
                 <a
                   href="/dashboard/recurring"
                   role="menuitem"
                   onClick={() => setHeaderMenuOpen(false)}
                   style={{
-                    padding: "10px 12px",
-                    borderRadius: 6,
-                    color: "var(--color-info)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "11px 14px",
+                    color: "var(--text-primary)",
                     fontSize: 13,
                     fontWeight: 500,
                     textDecoration: "none",
+                    borderBottom: "1px solid var(--border-subtle)",
+                    transition: "background 150ms",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-muted)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-muted)", flexShrink: 0 }}>
+                    <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                  </svg>
+                  繰り返しタスク
+                </a>
+
+                {/* テーマ */}
+                <div
+                  role="menuitem"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "9px 14px",
+                    borderBottom: "1px solid var(--border-subtle)",
                   }}
                 >
-                  繰り返し
-                </a>
-                <div role="menuitem" style={{ padding: "6px 12px" }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-muted)", flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                  </svg>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)", marginRight: "auto" }}>テーマ</span>
                   <ThemeSwitcher />
                 </div>
-                <div role="menuitem" style={{ padding: "4px 0", borderTop: "1px solid var(--border-subtle)" }}>
-                  <LogoutButton />
-                </div>
+
+                {/* ログアウト */}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={async () => {
+                    setHeaderMenuOpen(false);
+                    const supabase = createSupabaseClient();
+                    await supabase.auth.signOut();
+                    window.location.href = "/login";
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    padding: "11px 14px",
+                    border: "none",
+                    background: "transparent",
+                    color: "var(--text-danger)",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "background 150ms",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-danger)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                  </svg>
+                  ログアウト
+                </button>
               </div>
             )}
           </div>
