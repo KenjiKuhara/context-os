@@ -31,25 +31,31 @@ export function buildParentToChildrenMap(
   nodeChildren: NodeChildLink[],
   nodes: Array<{ id: string; parent_id?: string | null }>
 ): Map<string, string[]> {
-  const map = new Map<string, string[]>();
+  // Set で重複チェックを O(1) に（includes() は O(n) でリンク数が多いと O(n²) になる）
+  const setMap = new Map<string, Set<string>>();
 
   // node_children を優先（明示的な親子リンク）
   for (const link of nodeChildren) {
     if (!nodeIds.has(link.parent_id) || !nodeIds.has(link.child_id)) continue;
-    const list = map.get(link.parent_id) ?? [];
-    if (!list.includes(link.child_id)) list.push(link.child_id);
-    map.set(link.parent_id, list);
+    const set = setMap.get(link.parent_id) ?? new Set<string>();
+    set.add(link.child_id);
+    setMap.set(link.parent_id, set);
   }
 
   // parent_id を fallback（node_children に無い親子を補完）
   for (const n of nodes) {
     const parentId = n.parent_id?.trim();
     if (!parentId || !nodeIds.has(parentId) || parentId === n.id) continue;
-    const list = map.get(parentId) ?? [];
-    if (!list.includes(n.id)) list.push(n.id);
-    map.set(parentId, list);
+    const set = setMap.get(parentId) ?? new Set<string>();
+    set.add(n.id);
+    setMap.set(parentId, set);
   }
 
+  // Map<string, string[]> に変換して返す（既存インターフェースを維持）
+  const map = new Map<string, string[]>();
+  for (const [parentId, childSet] of setMap) {
+    map.set(parentId, [...childSet]);
+  }
   return map;
 }
 

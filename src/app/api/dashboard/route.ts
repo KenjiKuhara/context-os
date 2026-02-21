@@ -31,7 +31,9 @@ function isObserverToken(request: NextRequest): boolean {
 }
 
 async function fetchDashboardWithAdmin() {
-  const [nodesRes, childrenRes] = await Promise.all([
+  // 3クエリを並列実行（history は nodes 取得後にフィルタしていたが、
+  // limit500 + consumed_at DESC で先に取得し、メモリ内でフィルタする方が速い）
+  const [nodesRes, childrenRes, historyRes] = await Promise.all([
     supabaseAdmin
       .from("nodes")
       .select("*")
@@ -41,32 +43,29 @@ async function fetchDashboardWithAdmin() {
     supabaseAdmin
       .from("node_children")
       .select("parent_id, child_id, created_at"),
+    supabaseAdmin
+      .from("node_status_history")
+      .select("node_id, reason, consumed_at")
+      .order("consumed_at", { ascending: false, nullsFirst: false })
+      .limit(500),
   ]);
 
   const { data: nodeData, error } = nodesRes;
   if (error) throw error;
 
-  const nodeIds = (nodeData ?? []).map((n) => n.id as string);
+  const nodeIdSet = new Set((nodeData ?? []).map((n) => n.id as string));
   const lastMemoByNodeId: Record<string, string> = {};
   const lastMemoAtByNodeId: Record<string, string> = {};
-  if (nodeIds.length > 0) {
-    const { data: historyRows } = await supabaseAdmin
-      .from("node_status_history")
-      .select("node_id, reason, consumed_at")
-      .in("node_id", nodeIds)
-      .order("consumed_at", { ascending: false, nullsFirst: false })
-      .limit(500);
-    const seen = new Set<string>();
-    for (const row of historyRows ?? []) {
-      const id = row.node_id as string;
-      if (seen.has(id)) continue;
-      const reason = typeof row.reason === "string" ? row.reason.trim() : "";
-      if (reason) {
-        seen.add(id);
-        lastMemoByNodeId[id] = reason;
-        const at = row.consumed_at;
-        lastMemoAtByNodeId[id] = typeof at === "string" ? at : "";
-      }
+  const seen = new Set<string>();
+  for (const row of historyRes.data ?? []) {
+    const id = row.node_id as string;
+    if (!nodeIdSet.has(id) || seen.has(id)) continue;
+    const reason = typeof row.reason === "string" ? row.reason.trim() : "";
+    if (reason) {
+      seen.add(id);
+      lastMemoByNodeId[id] = reason;
+      const at = row.consumed_at;
+      lastMemoAtByNodeId[id] = typeof at === "string" ? at : "";
     }
   }
 
@@ -137,7 +136,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const [nodesRes, childrenRes] = await Promise.all([
+    // 3クエリを並列実行（RLS がユーザーの nodes に自動フィルタするので nodeId IN 不要）
+    const [nodesRes, childrenRes, historyRes] = await Promise.all([
       supabase
         .from("nodes")
         .select("*")
@@ -147,32 +147,29 @@ export async function GET(request: NextRequest) {
       supabase
         .from("node_children")
         .select("parent_id, child_id, created_at"),
+      supabase
+        .from("node_status_history")
+        .select("node_id, reason, consumed_at")
+        .order("consumed_at", { ascending: false, nullsFirst: false })
+        .limit(500),
     ]);
 
     const { data: nodeData, error } = nodesRes;
     if (error) throw error;
 
-    const nodeIds = (nodeData ?? []).map((n) => n.id as string);
+    const nodeIdSet = new Set((nodeData ?? []).map((n) => n.id as string));
     const lastMemoByNodeId: Record<string, string> = {};
     const lastMemoAtByNodeId: Record<string, string> = {};
-    if (nodeIds.length > 0) {
-      const { data: historyRows } = await supabase
-        .from("node_status_history")
-        .select("node_id, reason, consumed_at")
-        .in("node_id", nodeIds)
-        .order("consumed_at", { ascending: false, nullsFirst: false })
-        .limit(500);
-      const seen = new Set<string>();
-      for (const row of historyRows ?? []) {
-        const id = row.node_id as string;
-        if (seen.has(id)) continue;
-        const reason = typeof row.reason === "string" ? row.reason.trim() : "";
-        if (reason) {
-          seen.add(id);
-          lastMemoByNodeId[id] = reason;
-          const at = row.consumed_at;
-          lastMemoAtByNodeId[id] = typeof at === "string" ? at : "";
-        }
+    const seen = new Set<string>();
+    for (const row of historyRes.data ?? []) {
+      const id = row.node_id as string;
+      if (!nodeIdSet.has(id) || seen.has(id)) continue;
+      const reason = typeof row.reason === "string" ? row.reason.trim() : "";
+      if (reason) {
+        seen.add(id);
+        lastMemoByNodeId[id] = reason;
+        const at = row.consumed_at;
+        lastMemoAtByNodeId[id] = typeof at === "string" ? at : "";
       }
     }
 
