@@ -1166,7 +1166,7 @@ export default function DashboardPage() {
     visibleNodesRef.current = visibleNodes;
   }, [visibleNodes]);
 
-  /** 133: フラット表示用ソート。期日あり→期日昇順→updated_at 降順。ツリー表示は変更しない */
+  /** フラット表示用ソート。第1: 期日昇順（なし→末尾）、第2: 最終更新降順、第3: 名前昇順 */
   const flatSortedNodes = useMemo(() => {
     const list = [...visibleNodes];
     list.sort((a, b) => {
@@ -1174,11 +1174,10 @@ export default function DashboardPage() {
       const bDue = (b.due_date ?? "").toString().trim() || null;
       if (aDue && !bDue) return -1;
       if (!aDue && bDue) return 1;
-      if (!aDue && !bDue) {
-        return (b.updated_at ?? "").localeCompare(a.updated_at ?? "");
-      }
       if (aDue && bDue && aDue !== bDue) return aDue.localeCompare(bDue);
-      return (b.updated_at ?? "").localeCompare(a.updated_at ?? "");
+      const updCmp = (b.updated_at ?? "").localeCompare(a.updated_at ?? "");
+      if (updCmp !== 0) return updCmp;
+      return (a.title ?? "").toString().localeCompare((b.title ?? "").toString(), "ja");
     });
     return list;
   }, [visibleNodes]);
