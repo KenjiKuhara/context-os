@@ -48,3 +48,17 @@
 .nodeRowHighlighted {
   background: var(--bg-highlight) !important;
 }
+
+/* ─── トレーサマリ（6個）: スマホは3列2行、PCは6列1行 ─── */
+.traySummaryGrid {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (min-width: 768px) {
+  .traySummaryGrid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}

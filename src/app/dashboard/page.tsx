@@ -121,7 +121,7 @@ function getAncestorIds(nodeId: string, parentById: Map<string, string>): string
 const CASCADE_TARGET_STATUSES = ["DONE", "COOLING", "DORMANT", "CANCELLED"] as const;
 
 const TRAY_LABEL: Record<keyof Trays | "all", string> = {
-  all: "進行中（冷却中以外）",
+  all: "進行中",
   in_progress: "実施中",
   needs_decision: "判断待ち",
   waiting_external: "外部待ち",
@@ -421,6 +421,10 @@ export default function DashboardPage() {
   /** Phase12-D: 親 READY→IN_PROGRESS 自動遷移の二重実行防止 */
   const parentAutoProgressInFlightRef = useRef(false);
 
+  /** ヘッダー・ハンバーガーメニュー開閉 */
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
+
   /** ホットタスク: 赤表示するノード ID セット（localStorage 永続） */
   const [hotNodeIds, setHotNodeIds] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
@@ -636,6 +640,19 @@ export default function DashboardPage() {
     if (selected?.id) localStorage.setItem(STORAGE_SELECTED_NODE_ID, selected.id);
     else localStorage.removeItem(STORAGE_SELECTED_NODE_ID);
   }, [selected]);
+
+  // ヘッダーメニュー: 外クリックで閉じる
+  useEffect(() => {
+    if (!headerMenuOpen) return;
+    function handleClick(e: MouseEvent) {
+      const target = e.target as Node | null;
+      if (headerMenuRef.current && target && !headerMenuRef.current.contains(target)) {
+        setHeaderMenuOpen(false);
+      }
+    }
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [headerMenuOpen]);
 
   // 再訪時: trays 取得後に selected を localStorage から復元（存在する場合のみ）
   useEffect(() => {
@@ -1828,23 +1845,90 @@ export default function DashboardPage() {
       )}
 
       <div className={styles.stickyHeader} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.3px" }}>
             context-os
           </h1>
-          <div style={{ color: "var(--text-secondary)", marginTop: 2, fontSize: 12 }}>
-            「進行中の仕事」をトレーに分けて表示
+          <div
+            ref={headerMenuRef}
+            style={{ position: "relative", marginLeft: "auto", flexShrink: 0 }}
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setHeaderMenuOpen((v) => !v);
+              }}
+              aria-expanded={headerMenuOpen}
+              aria-haspopup="true"
+              aria-label="メニューを開く"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 40,
+                height: 40,
+                padding: 0,
+                border: "1px solid var(--border-default)",
+                borderRadius: 8,
+                background: "var(--bg-card)",
+                color: "var(--text-primary)",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ display: "block", width: 18, height: 2, background: "currentColor", borderRadius: 1 }} />
+                <span style={{ display: "block", width: 18, height: 2, background: "currentColor", borderRadius: 1 }} />
+                <span style={{ display: "block", width: 18, height: 2, background: "currentColor", borderRadius: 1 }} />
+              </span>
+            </button>
+            {headerMenuOpen && (
+              <div
+                role="menu"
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: "100%",
+                  marginTop: 4,
+                  minWidth: 180,
+                  padding: 8,
+                  border: "1px solid var(--border-default)",
+                  borderRadius: 10,
+                  background: "var(--bg-panel)",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                  zIndex: 100,
+                }}
+              >
+                <a
+                  href="/dashboard/recurring"
+                  role="menuitem"
+                  onClick={() => setHeaderMenuOpen(false)}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 6,
+                    color: "var(--color-info)",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    textDecoration: "none",
+                  }}
+                >
+                  繰り返し
+                </a>
+                <div role="menuitem" style={{ padding: "6px 12px" }}>
+                  <ThemeSwitcher />
+                </div>
+                <div role="menuitem" style={{ padding: "4px 0", borderTop: "1px solid var(--border-subtle)" }}>
+                  <LogoutButton />
+                </div>
+              </div>
+            )}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <a
-            href="/dashboard/recurring"
-            style={{ color: "var(--color-info)", fontSize: 13, fontWeight: 500 }}
-          >
-            繰り返し
-          </a>
-          <ThemeSwitcher />
-          <LogoutButton />
+        <div style={{ width: "100%", color: "var(--text-secondary)", marginTop: -4, fontSize: 12 }}>
+          「進行中の仕事」をトレーに分けて表示
         </div>
       </div>
 
@@ -1966,9 +2050,7 @@ export default function DashboardPage() {
 
       {/* Tray summary cards */}
       {!loading && trays && (
-        <div
-          style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}
-        >
+        <div className={styles.traySummaryGrid}>
           <SummaryCard
             title={TRAY_LABEL.all}
             value={counts.totalWithoutCooling}
