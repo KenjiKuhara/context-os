@@ -26,7 +26,7 @@ const labelStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
   marginBottom: 6,
-  color: "var(--text-secondary, #858585)",
+  color: "var(--text-secondary, #a8a8a8)",
 };
 
 export default function LoginPage() {
@@ -129,9 +129,9 @@ export default function LoginPage() {
             style={{
               display: "inline-block",
               fontSize: 13,
-              color: "var(--text-secondary, #858585)",
+              color: "var(--text-secondary, #a8a8a8)",
               textDecoration: "none",
-              padding: "8px 4px",
+              padding: "8px 12px",
               minHeight: 44,
               lineHeight: "28px",
             }}
@@ -179,7 +179,7 @@ export default function LoginPage() {
                   color: "var(--color-info, #007fd4)",
                   fontSize: 13,
                   cursor: "pointer",
-                  padding: "8px 4px",
+                  padding: "8px 12px",
                   minHeight: 44,
                 }}
               >
@@ -232,12 +232,13 @@ export default function LoginPage() {
                 width: "100%",
                 marginTop: 10,
                 padding: "10px 16px",
+                minHeight: 44,
                 fontSize: 14,
                 fontWeight: 500,
                 border: "1px solid var(--border-default, #3e3e42)",
                 borderRadius: 8,
                 background: "transparent",
-                color: "var(--text-secondary, #858585)",
+                color: "var(--text-secondary, #a8a8a8)",
                 cursor: "pointer",
               }}
             >
